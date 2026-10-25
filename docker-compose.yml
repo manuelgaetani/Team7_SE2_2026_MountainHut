@@ -1,0 +1,31 @@
+services:
+  app:
+    build: .
+    image: mountain-hut:local
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mountainhut}:${POSTGRES_PASSWORD:-mountainhut}@db:5432/${POSTGRES_DB:-mountainhut}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mountainhut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mountainhut}
+      POSTGRES_DB: ${POSTGRES_DB:-mountainhut}
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db-data:

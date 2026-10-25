@@ -1,0 +1,44 @@
+{
+  "name": "mountain-hut",
+  "contributors": [
+    {
+      "name": "Manuel Gaetani",
+      "email": "manuel.gaetani@live.it"
+    }
+  ],
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "e2e"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "npm run build -w @mountain-hut/shared && npm run build -w @mountain-hut/api -w @mountain-hut/web",
+    "dev:api": "npm run start:dev -w @mountain-hut/api",
+    "dev:web": "npm run dev -w @mountain-hut/web",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:cov": "npm run test:cov --workspaces --if-present",
+    "test:e2e": "npm run e2e -w @mountain-hut/e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0"
+  }
+}
