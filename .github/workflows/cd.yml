@@ -17,6 +17,8 @@ jobs:
   docker:
     name: Build, publish and run Docker image
     runs-on: ubuntu-latest
+    # Manual dispatch from other branches must not publish images
+    if: github.ref == 'refs/heads/master'
 
     steps:
       - uses: actions/checkout@v4
@@ -33,14 +35,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Only the commit tag is pushed here; latest is promoted after the health check
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -53,6 +54,9 @@ jobs:
 
       - name: Health check
         run: curl --fail --retry 5 --retry-delay 3 http://localhost:3000/api/health
+
+      - name: Promote image to latest
+        run: docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:${{ github.sha }}"
 
       - name: Show logs on failure
         if: failure()
