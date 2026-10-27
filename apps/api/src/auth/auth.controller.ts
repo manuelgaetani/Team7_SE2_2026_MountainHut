@@ -1,9 +1,19 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UnauthorizedException, UseGuards} from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import type { AuthSession } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
-import type { AuthUser, LoginInput, RegisterInput } from '@mountain-hut/shared';
+import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { loginSchema, registerSchema } from '@mountain-hut/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 
@@ -54,8 +64,8 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Get('me')
-  me(@Req() req: Request & { user: AuthUser }) {
-    return req.user;
+  me(@Req() req: Request & { user: { id: number } }) {
+    return this.auth.me(req.user.id);
   }
 
   private setSessionCookies(res: Response, session: AuthSession): void {

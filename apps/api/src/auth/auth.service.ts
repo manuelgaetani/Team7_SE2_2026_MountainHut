@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import type { AuthUser, LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 export interface AuthSession {
   token: string;
@@ -13,6 +14,7 @@ export interface AuthSession {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DUMMY_HASH = bcrypt.hashSync('password-fittizia', 10);
 
 // SHA-256 e non bcrypt: il token è già casuale e va cercato per uguaglianza.
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -31,23 +33,41 @@ export class AuthService {
     if (existing) throw new ConflictException('Email già registrata');
 
     const password = await bcrypt.hash(input.password, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        email: input.email,
-        password,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        phone: input.phone,
-      },
-    });
-    return { id: user.id, email: input.email, firstName: user.firstName, role: user.role };
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: input.email,
+          password,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          phone: input.phone,
+        },
+      });
+      return { id: user.id, email: input.email, firstName: user.firstName, role: user.role };
+    } catch (e) {
+      // Due registrazioni concorrenti con la stessa email: vince il vincolo unique del DB.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Email già registrata');
+      }
+      throw e;
+    }
+  }
+
+  async me(userId: number): Promise<AuthUser> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.email) throw new UnauthorizedException('Non autenticato');
+    return { id: user.id, email: user.email, firstName: user.firstName, role: user.role };
   }
 
   async login(input: LoginInput): Promise<AuthSession> {
     const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    // Il confronto avviene sempre, così i tempi non rivelano se l'email è registrata.
+    const hash = user?.password ?? DUMMY_HASH;
+    const matches = await bcrypt.compare(input.password, hash);
     // Un utente temporaneo non ha password: non può fare login.
-    const ok = user?.password != null && (await bcrypt.compare(input.password, user.password));
-    if (!user || !ok) throw new UnauthorizedException('Credenziali non valide');
+    if (!user || user.password == null || !matches) {
+      throw new UnauthorizedException('Credenziali non valide');
+    }
 
     return this.issueSession({
       id: user.id,

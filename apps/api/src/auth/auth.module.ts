@@ -1,4 +1,3 @@
-
 import { JwtModule } from '@nestjs/jwt';
 import type { JwtModuleOptions } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
@@ -34,6 +33,6 @@ type SignOptions = NonNullable<JwtModuleOptions['signOptions']>;
 })
 export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(cookieParser()).forRoutes('*');
+    consumer.apply(cookieParser()).forRoutes('{*splat}');
   }
 }
