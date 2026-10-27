@@ -31,6 +31,15 @@ docker compose up --build
 
 Default settings come from `docker-compose.yml`; override them with a `.env` file (see `.env.example`).
 
+## API documentation
+
+The API is documented with Swagger (OpenAPI), available whenever the API is running:
+
+- Interactive UI: http://localhost:3000/api/docs
+- OpenAPI JSON: http://localhost:3000/api/docs-json
+
+To call protected endpoints, use **Authorize** and paste a JWT access token.
+
 ## Local development
 
 ```bash
