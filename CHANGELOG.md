@@ -10,3 +10,4 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 ### Added
 
 - Project skeleton: NestJS API, React web app, shared package, Playwright end-to-end tests, Docker setup.
+- Database schema for authentication.
