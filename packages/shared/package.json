@@ -32,5 +32,8 @@
       "name": "Manuel Gaetani",
       "email": "manuel.gaetani@gmail.com"
     }
-  ]
+  ],
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
 }
