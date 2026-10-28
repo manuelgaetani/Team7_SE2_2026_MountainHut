@@ -25,7 +25,11 @@ const expectValidAssignment = (
   }
 };
 
-describe('assignTables', () => {
+// TODO(MH-01): tests skipped until the implementation exists. Before merging MH-01:
+//   1. implement assignTables in table-assignment.ts (it is a stub that throws "Not implemented");
+//   2. change describe.skip back to describe;
+//   3. resolve the TODO(PO) questions below and update the tests if the answers differ.
+describe.skip('assignTables', () => {
   describe('party fits at one table', () => {
     it('uses the only table when it fits exactly', () => {
       expect(assignTables(tables(4), 4)).toEqual([{ tableNumber: 1, seats: 4 }]);

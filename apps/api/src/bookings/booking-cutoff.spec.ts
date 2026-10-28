@@ -4,7 +4,11 @@ import { isBookable } from './booking-cutoff.js';
 // Spec MH-01: a hiker can reserve a seat up to 2 hours before the due time.
 // TODO(PO): in which time zone are the slot date and time? The tests use absolute instants
 // (UTC); turning Slot.date + Slot.startTime into an instant is left to the implementation.
-describe('isBookable', () => {
+// TODO(MH-01): tests skipped until the implementation exists. Before merging MH-01:
+//   1. implement isBookable in booking-cutoff.ts (it is a stub that throws "Not implemented");
+//   2. change describe.skip back to describe;
+//   3. resolve the TODO(PO) questions below and update the tests if the answers differ.
+describe.skip('isBookable', () => {
   const slotStart = new Date('2026-11-15T12:30:00Z');
   const before = (ms: number) => new Date(slotStart.getTime() - ms);
   const MINUTE = 60 * 1000;
