@@ -16,4 +16,5 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
 
 ### Changed
+
 - The application no longer starts without `JWT_SECRET`.
