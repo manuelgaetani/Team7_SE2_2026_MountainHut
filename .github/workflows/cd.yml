@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     # Manual dispatch from other branches must not publish images
     if: github.ref == 'refs/heads/master'
+    # Required by docker compose; only used by the throwaway health-check stack
+    env:
+      JWT_SECRET: cd-only-not-a-real-secret
 
     steps:
       - uses: actions/checkout@v4
