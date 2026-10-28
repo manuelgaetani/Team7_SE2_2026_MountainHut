@@ -69,9 +69,11 @@ npm run prisma:generate -w @mountain-hut/api
 - [docs/release-notes](docs/release-notes/): detailed notes per release, created from [TEMPLATE.md](docs/release-notes/TEMPLATE.md).
 
 ## License
+
 EUPL-1.2.
 We released this project under the European Union Public Licence (EUPL) to guarantee long-term openness, legal security, and fair collaboration.
-We specifically chose this license for three reasons: 
-* Many mountain huts are owned by local municipalities, regions, or alpine associations. As the official open-source license of the European Union, the EUPL provides a legally solid, multilingual framework that ensures maximum compliance and trust when partnering with public and institutional entities. 
-*  Unlike permissive licenses, the EUPL includes a strong SaaS (Software as a Service) clause. This guarantees that if a large commercial booking platform takes our code, modifies it, and hosts it as a paid online service, they are legally obligated to share their improvements back with the community.
-*  While it fiercely protects the core software from becoming closed-source, the EUPL explicitly allows linking to external systems. This means our booking engine can seamlessly integrate with proprietary APIs—like local weather stations, payment gateways, or regional tourism databases—without legal friction.
+We specifically chose this license for three reasons:
+
+- Many mountain huts are owned by local municipalities, regions, or alpine associations. As the official open-source license of the European Union, the EUPL provides a legally solid, multilingual framework that ensures maximum compliance and trust when partnering with public and institutional entities.
+- Unlike permissive licenses, the EUPL includes a strong SaaS (Software as a Service) clause. This guarantees that if a large commercial booking platform takes our code, modifies it, and hosts it as a paid online service, they are legally obligated to share their improvements back with the community.
+- While it fiercely protects the core software from becoming closed-source, the EUPL explicitly allows linking to external systems. This means our booking engine can seamlessly integrate with proprietary APIs—like local weather stations, payment gateways, or regional tourism databases—without legal friction.
