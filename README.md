@@ -67,6 +67,8 @@ npm run prisma:migrate -w @mountain-hut/api
 npm run prisma:deploy -w @mountain-hut/api
 ```
 
+In Docker this is not needed: the app container applies the pending migrations every time it starts.
+
 #### Regenerate client
 
 ```bash

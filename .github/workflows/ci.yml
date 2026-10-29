@@ -84,6 +84,16 @@ jobs:
         if: failure()
         run: docker compose logs
 
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
       - name: Stop system
         if: always()
         run: docker compose down -v
