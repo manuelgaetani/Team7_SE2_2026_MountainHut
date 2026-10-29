@@ -9,12 +9,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import type { AuthSession } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
 import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { loginSchema, registerSchema } from '@mountain-hut/shared';
+import { ApiZodBody } from '../common/api-zod-body.decorator.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 
 const ACCESS_COOKIE = 'token';
@@ -22,17 +24,20 @@ const REFRESH_COOKIE = 'refresh_token';
 // Il refresh cookie viene inviato solo alle rotte /api/auth/*
 const REFRESH_PATH = '/api/auth';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('register')
+  @ApiZodBody(registerSchema)
   register(@Body(new ZodValidationPipe(registerSchema)) body: RegisterInput) {
     return this.auth.register(body);
   }
 
   @Post('login')
   @HttpCode(200)
+  @ApiZodBody(loginSchema)
   async login(
     @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
     @Res({ passthrough: true }) res: Response,
@@ -63,6 +68,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiCookieAuth()
   @Get('me')
   me(@Req() req: Request & { user: { id: number } }) {
     return this.auth.me(req.user.id);
