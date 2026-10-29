@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { HealthModule } from './health/health.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 
 // In production the API also serves the built SPA (same origin, no CORS).
 // In development the SPA runs on the Vite dev server instead.
@@ -12,6 +14,6 @@ const staticModules = existsSync(webDistPath)
   : [];
 
 @Module({
-  imports: [HealthModule, ...staticModules],
+  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule],
 })
 export class AppModule {}
