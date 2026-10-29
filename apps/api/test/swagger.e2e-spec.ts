@@ -42,6 +42,27 @@ describe('Swagger (e2e)', () => {
     });
   });
 
+  it('documents the request body of register and login', async () => {
+    if (!app) throw new Error('App non inizializzata');
+    const response = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    const bodySchema = (path: string) =>
+      response.body.paths[path].post.requestBody?.content['application/json'].schema;
+    expect(bodySchema('/api/auth/register')).toMatchObject({
+      type: 'object',
+      required: ['email', 'password', 'firstName'],
+    });
+    expect(bodySchema('/api/auth/login')).toMatchObject({
+      type: 'object',
+      required: ['email', 'password'],
+    });
+  });
+
+  it('marks the current user endpoint as protected by the session cookie', async () => {
+    if (!app) throw new Error('App non inizializzata');
+    const response = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    expect(response.body.paths['/api/auth/me'].get.security).toEqual([{ cookie: [] }]);
+  });
+
   it('serves the Swagger UI', () => {
     if (!app) throw new Error('App non inizializzata');
     return request(app.getHttpServer()).get('/api/docs').expect(200).expect('Content-Type', /html/);

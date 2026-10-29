@@ -4,4 +4,7 @@ export interface HealthStatus {
 }
 
 export * from './auth.js';
+<<<<<<< HEAD
 export * from './bookings.js';
+=======
+>>>>>>> master
