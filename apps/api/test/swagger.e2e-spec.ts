@@ -34,6 +34,14 @@ describe('Swagger (e2e)', () => {
     expect(response.body.paths).toHaveProperty('/api/health');
   });
 
+  it('declares the session cookie as the authentication scheme', async () => {
+    if (!app) throw new Error('App non inizializzata');
+    const response = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    expect(response.body.components.securitySchemes).toEqual({
+      cookie: { type: 'apiKey', in: 'cookie', name: 'token' },
+    });
+  });
+
   it('serves the Swagger UI', () => {
     if (!app) throw new Error('App non inizializzata');
     return request(app.getHttpServer()).get('/api/docs').expect(200).expect('Content-Type', /html/);
