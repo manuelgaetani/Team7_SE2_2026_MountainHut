@@ -19,3 +19,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 ### Changed
 
 - The application no longer starts without `JWT_SECRET`.
+
+### Fixed
+
+- Swagger shows the request body of `POST /api/auth/register` and `POST /api/auth/login`, and marks `GET /api/auth/me` as protected by the session cookie.
