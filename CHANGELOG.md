@@ -17,3 +17,4 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Changed
 - The application no longer starts without `JWT_SECRET`.
+- API documentation with Swagger at `/api/docs`.

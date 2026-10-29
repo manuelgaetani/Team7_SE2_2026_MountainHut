@@ -23,6 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # No npm ci here, so pin prettier to the repo's major version
+      - name: Format docs
+        run: npx --yes prettier@^3.9.10 --write README.md Retrospective-Template-v4.md
+
       # GHCR image names must be lowercase
       - name: Set image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
