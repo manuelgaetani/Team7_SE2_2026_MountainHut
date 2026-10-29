@@ -25,4 +25,4 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 ### Fixed
 
 - Swagger shows the request body of `POST /api/auth/register` and `POST /api/auth/login`, and marks `GET /api/auth/me` as protected by the session cookie.
->>>>>>> master
+- The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
