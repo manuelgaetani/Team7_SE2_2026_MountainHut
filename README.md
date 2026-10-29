@@ -31,6 +31,15 @@ docker compose up --build
 
 Default settings come from `docker-compose.yml`; override them with a `.env` file (see `.env.example`).
 
+## API documentation
+
+The API is documented with Swagger (OpenAPI), available whenever the API is running:
+
+- Interactive UI: http://localhost:3000/api/docs
+- OpenAPI JSON: http://localhost:3000/api/docs-json
+
+The session is kept in `httpOnly` cookies. To call protected endpoints, first call the login endpoint from the Swagger UI: the browser stores the cookies and sends them with every next request.
+
 ## Local development
 
 ```bash
