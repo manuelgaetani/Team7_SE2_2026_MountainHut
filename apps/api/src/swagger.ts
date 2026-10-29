@@ -3,8 +3,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export const SWAGGER_PATH = 'api/docs';
 
-// Interactive API documentation at /api/docs, raw OpenAPI JSON at /api/docs-json.
-// Protected endpoints declare @ApiBearerAuth() so the "Authorize" button applies to them.
 // Name of the httpOnly cookie that carries the JWT access token.
 export const ACCESS_TOKEN_COOKIE = 'token';
 

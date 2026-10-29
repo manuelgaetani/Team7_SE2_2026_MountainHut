@@ -14,7 +14,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Authentication (MH-58): endpoints `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` and `GET /api/auth/me`.
 - Session based on a JWT access token and a refresh token, both stored in `httpOnly` cookies. The refresh token is rotated on every use, and if an already-used token is presented again, all of the user's sessions are revoked.
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
+- API documentation with Swagger at `/api/docs`.
 
 ### Changed
+
 - The application no longer starts without `JWT_SECRET`.
-- API documentation with Swagger at `/api/docs`.

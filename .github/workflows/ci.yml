@@ -4,6 +4,7 @@ on:
   push:
     branches: [master, validation]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -55,6 +56,9 @@ jobs:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
     needs: check
+    # Required by docker compose; only used by the throwaway e2e stack
+    env:
+      JWT_SECRET: e2e-only-not-a-real-secret
 
     steps:
       - uses: actions/checkout@v4

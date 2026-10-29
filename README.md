@@ -26,10 +26,11 @@ docs/
 ## Run the whole system with Docker
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-Default settings come from `docker-compose.yml`; override them with a `.env` file (see `.env.example`).
+`JWT_SECRET` is required and has no default, so `docker compose` refuses to start without it. Other settings default to the values in `docker-compose.yml`; override them in `.env`.
 
 ## API documentation
 
