@@ -22,6 +22,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - The application no longer starts without `JWT_SECRET`.
 - Separati gli account (`User`) dal profilo escursionista (`Hiker`): la registrazione richiede ora nome completo e telefono, con note e contatto di emergenza facoltativi.
 - Le prenotazioni (`Booking`) fanno riferimento all'escursionista (`hikerId`) invece che all'account.
+- La migration `split_user_hiker` elimina colonne di `users` e `bookings`: chi ha dati locali deve ripartire con `docker compose down -v`.
 
 ### Fixed
 
@@ -30,3 +31,4 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Removed
 - Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
+
