@@ -79,8 +79,7 @@ describe.skip('assignTables', () => {
       expect(result).toContainEqual({ tableNumber: 4, seats: 6 });
     });
 
-    // TODO(PO): "smallest set of available seats" is read as: first the fewest tables, then
-    // the fewest total seats. Is this the intended priority, or should seats come first?
+
     it('among the smallest sets of tables, uses the one with fewest seats', () => {
       // Pairs that fit 11: 4+10=14, 5+10=15, 6+10=16, 5+6=11.
       const available = tables(4, 5, 6, 10);
@@ -104,8 +103,7 @@ describe.skip('assignTables', () => {
       expect(result).toHaveLength(3);
     });
 
-    // TODO(PO): the spec says the party "must be smaller than the seats available". Is a party
-    // equal to the free seats accepted (<=, as tested here) or rejected (strict <)?
+
     it('fills every free seat when the party equals the total free seats', () => {
       expect(assignTables(tables(2, 3), 5)).toEqual(
         expect.arrayContaining([
