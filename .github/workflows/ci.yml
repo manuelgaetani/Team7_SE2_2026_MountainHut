@@ -36,6 +36,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Conflict markers, focused tests (.only), skipped tests without a TODO(<ticket>)
+      - name: Hygiene
+        run: npm run hygiene
+
       # Generated Prisma client and shared dist are required by typecheck/tests
       - name: Generate Prisma client
         run: npm run prisma:generate -w @mountain-hut/api
@@ -45,6 +49,14 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Unused files, exports and dependencies
+      - name: Dead code
+        run: npm run knip
+
+      # Circular imports, undeclared dependencies, boundaries between apps and packages
+      - name: Architecture rules
+        run: npm run depcruise
 
       - name: Test
         run: npm run test
