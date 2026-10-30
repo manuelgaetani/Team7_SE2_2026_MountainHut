@@ -26,10 +26,11 @@ docs/
 ## Run the whole system with Docker
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-Default settings come from `docker-compose.yml`; override them with a `.env` file (see `.env.example`).
+`JWT_SECRET` is required and has no default, so `docker compose` refuses to start without it. Other settings default to the values in `docker-compose.yml`; override them in `.env`.
 
 ## API documentation
 
@@ -38,7 +39,7 @@ The API is documented with Swagger (OpenAPI), available whenever the API is runn
 - Interactive UI: http://localhost:3000/api/docs
 - OpenAPI JSON: http://localhost:3000/api/docs-json
 
-To call protected endpoints, use **Authorize** and paste a JWT access token.
+The session is kept in `httpOnly` cookies. To call protected endpoints, first call the login endpoint from the Swagger UI: the browser stores the cookies and sends them with every next request.
 
 ## Local development
 
