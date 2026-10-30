@@ -12,9 +12,10 @@ export const registerSchema = z.object({
     .string()
     .min(8)
     .refine((p) => utf8Length(p) <= 72, 'Password troppo lunga (massimo 72 byte)'),
-  firstName: z.string().trim().min(1),
-  lastName: z.string().trim().min(1).optional(),
-  phone: z.string().trim().min(1).optional(),
+  fullName: z.string().trim().min(1),
+  phone: z.string().trim().min(1),
+  notes: z.string().trim().optional(),
+  emergencyContact: z.string().trim().optional(),
 });
 
 export const loginSchema = z.object({
@@ -28,6 +29,5 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export interface AuthUser {
   id: number;
   email: string;
-  firstName: string;
   role: Role;
 }
