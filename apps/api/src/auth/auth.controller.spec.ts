@@ -9,7 +9,7 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import type { AuthSession } from './auth.service.js';
 
-const user = { id: 1, email: 'anna@example.it', firstName: 'Anna', role: 'HIKER' as const };
+const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const };
 const session: AuthSession = {
   token: 'access-token',
   refreshToken: 'refresh-token',
@@ -68,7 +68,12 @@ describe('AuthController', () => {
 
   describe('register', () => {
     it('passes the body to the service and returns the created user', async () => {
-      const body = { email: 'anna@example.it', password: 'password123', firstName: 'Anna' };
+      const body = {
+        email: 'anna@example.it',
+        password: 'password123',
+        fullName: 'Anna Rossi',
+        phone: '3331234567',
+      };
       auth.register.mockResolvedValue(user);
       await expect(controller.register(body)).resolves.toEqual(user);
       expect(auth.register).toHaveBeenCalledWith(body);

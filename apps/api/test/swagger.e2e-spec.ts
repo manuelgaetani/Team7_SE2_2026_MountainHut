@@ -49,7 +49,7 @@ describe('Swagger (e2e)', () => {
       response.body.paths[path].post.requestBody?.content['application/json'].schema;
     expect(bodySchema('/api/auth/register')).toMatchObject({
       type: 'object',
-      required: ['email', 'password', 'firstName'],
+      required: ['email', 'password', 'fullName', 'phone'],
     });
     expect(bodySchema('/api/auth/login')).toMatchObject({
       type: 'object',
