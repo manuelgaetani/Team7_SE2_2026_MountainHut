@@ -10,19 +10,20 @@ const booking: BookingConfirmationData = {
   startTime: new Date('1970-01-01T12:30:00.000Z'),
   endTime: new Date('1970-01-01T13:30:00.000Z'),
   partySize: 4,
+  requirements: null,
 };
 
 describe('bookingConfirmationEmail', () => {
   it('puts the booking number and the date in the subject', () => {
     expect(bookingConfirmationEmail(booking).subject).toBe(
-      'Prenotazione n. 42 confermata - sabato 14 novembre 2026',
+      'Booking n. 42 confermata - Saturday 14 November 2026',
     );
   });
 
   it('describes the booking in the text version', () => {
     const { text } = bookingConfirmationEmail(booking);
-    expect(text).toContain('Ciao Anna');
-    expect(text).toContain('sabato 14 novembre 2026');
+    expect(text).toContain('Hi Anna');
+    expect(text).toContain('Saturday 14 November 2026');
     expect(text).toContain('12:30 - 13:30');
     expect(text).toContain('4 persone');
   });
@@ -34,7 +35,7 @@ describe('bookingConfirmationEmail', () => {
       startTime: new Date('1970-01-01T23:00:00.000Z'),
       endTime: new Date('1970-01-01T23:59:00.000Z'),
     });
-    expect(text).toContain('giovedì 31 dicembre 2026');
+    expect(text).toContain('Thursday 31 December 2026');
     expect(text).toContain('23:00 - 23:59');
   });
 
@@ -44,8 +45,39 @@ describe('bookingConfirmationEmail', () => {
 
   it('describes the booking in the HTML version', () => {
     const { html } = bookingConfirmationEmail(booking);
-    expect(html).toContain('Ciao Anna');
+    expect(html).toContain('Hi Anna');
     expect(html).toContain('12:30 - 13:30');
+  });
+
+  it('omits the requirements when there are none', () => {
+    const { text, html } = bookingConfirmationEmail(booking);
+    expect(text).not.toContain('Requirements');
+    expect(html).not.toContain('Requirements');
+  });
+
+  it('omits requirements made only of spaces', () => {
+    expect(bookingConfirmationEmail({ ...booking, requirements: '   ' }).text).not.toContain(
+      'Requirements',
+    );
+  });
+
+  it('shows the requirements of the party', () => {
+    const { text, html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: 'One celiac, one allergy to nuts',
+    });
+    expect(text).toContain('Requirements: One celiac, one allergy to nuts');
+    expect(html).toContain('<td>One celiac, one allergy to nuts</td>');
+  });
+
+  it('escapes the requirements and keeps their line breaks in the HTML version', () => {
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: 'Celiac\n<b>Nuts</b> & "lactose"',
+    });
+    expect(html).toContain(
+      '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
+    );
   });
 
   it('escapes the name of the hiker in the HTML version', () => {

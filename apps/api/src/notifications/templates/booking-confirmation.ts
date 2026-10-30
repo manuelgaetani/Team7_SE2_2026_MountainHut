@@ -9,6 +9,8 @@ export interface BookingConfirmationData {
   startTime: Date;
   endTime: Date;
   partySize: number;
+  // Party needs typed by the hiker (e.g. allergies); null when there are none.
+  requirements: string | null;
 }
 
 export interface EmailContent {
@@ -34,32 +36,37 @@ const timeFormat = new Intl.DateTimeFormat('it-IT', {
 export function bookingConfirmationEmail(booking: BookingConfirmationData): EmailContent {
   const day = dateFormat.format(booking.date);
   const time = `${timeFormat.format(booking.startTime)} - ${timeFormat.format(booking.endTime)}`;
-  const people = booking.partySize === 1 ? '1 persona' : `${booking.partySize} persone`;
-  const subject = `Prenotazione n. ${booking.bookingId} confermata - ${day}`;
+  const people = booking.partySize === 1 ? '1 person' : `${booking.partySize} people`;
+  const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
+  const requirements = booking.requirements?.trim() || null;
 
   const text = [
-    `Ciao ${booking.firstName},`,
+    `Hi ${booking.firstName},`,
     '',
-    'la tua prenotazione al rifugio è confermata.',
+    'your booking at the shelter is confirmed.',
     '',
-    `Prenotazione n. ${booking.bookingId}`,
+    `Booking n. ${booking.bookingId}`,
     `Data: ${day}`,
-    `Orario: ${time}`,
-    `Persone: ${people}`,
+    `Time: ${time}`,
+    `People: ${people}`,
+    ...(requirements ? [`Requirements: ${requirements}`] : []),
     '',
-    'Ti aspettiamo!',
+    'We await you!',
     'Mountain Hut',
   ].join('\n');
 
-  const html = `<p>Ciao ${escapeHtml(booking.firstName)},</p>
-<p>la tua prenotazione al rifugio è confermata.</p>
+  const requirementsRow = requirements
+    ? `  <tr><th align="left">Requirements</th><td>${escapeHtml(requirements).replace(/\r?\n/g, '<br>')}</td></tr>\n`
+    : '';
+  const html = `<p>Hi ${escapeHtml(booking.firstName)},</p>
+<p>your booking at the shelter is confirmed.</p>
 <table>
-  <tr><th align="left">Prenotazione n.</th><td>${booking.bookingId}</td></tr>
+  <tr><th align="left">Booking n.</th><td>${booking.bookingId}</td></tr>
   <tr><th align="left">Data</th><td>${day}</td></tr>
-  <tr><th align="left">Orario</th><td>${time}</td></tr>
-  <tr><th align="left">Persone</th><td>${people}</td></tr>
-</table>
-<p>Ti aspettiamo!<br>Mountain Hut</p>`;
+  <tr><th align="left">Time</th><td>${time}</td></tr>
+  <tr><th align="left">People</th><td>${people}</td></tr>
+${requirementsRow}</table>
+<p>We await you!<br>Mountain Hut</p>`;
 
   return { subject, text, html };
 }
