@@ -20,8 +20,13 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 ### Changed
 
 - The application no longer starts without `JWT_SECRET`.
+- Separati gli account (`User`) dal profilo escursionista (`Hiker`): la registrazione richiede ora nome completo e telefono, con note e contatto di emergenza facoltativi.
+- Le prenotazioni (`Booking`) fanno riferimento all'escursionista (`hikerId`) invece che all'account.
 
 ### Fixed
 
 - Swagger shows the request body of `POST /api/auth/register` and `POST /api/auth/login`, and marks `GET /api/auth/me` as protected by the session cookie.
 - The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
+
+### Removed
+- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.

@@ -33,33 +33,35 @@ describe('AuthService', () => {
     vi.unstubAllEnvs();
   });
 
+  const registerInput = {
+    email: 'a@b.it',
+    password: 'password123',
+    fullName: 'Anna Rossi',
+    phone: '3331234567',
+  };
+
   const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
   const registeredUser = async (overrides: Record<string, unknown> = {}) => ({
     id: 1,
     email: 'a@b.it',
-    firstName: 'Anna',
     role: 'HIKER',
     password: await bcrypt.hash('giusta123', 4),
     ...overrides,
   });
 
   describe('register', () => {
+    const createdUser = { id: 2, email: 'a@b.it', role: 'HIKER' };
+
     it('lancia Conflict se l’email esiste già', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 1 });
-      await expect(
-        service.register({ email: 'a@b.it', password: 'password123', firstName: 'Anna' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(registerInput)).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('crea l’utente con ruolo di default e senza esporre la password', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({ id: 2, firstName: 'Anna', role: 'HIKER' });
-      const result = await service.register({
-        email: 'a@b.it',
-        password: 'password123',
-        firstName: 'Anna',
-      });
-      expect(result).toEqual({ id: 2, email: 'a@b.it', firstName: 'Anna', role: 'HIKER' });
+      prisma.user.create.mockResolvedValue(createdUser);
+      const result = await service.register(registerInput);
+      expect(result).toEqual({ id: 2, email: 'a@b.it', role: 'HIKER' });
     });
 
     it('traduce l’errore unique P2002 in Conflict', async () => {
@@ -70,77 +72,63 @@ describe('AuthService', () => {
           clientVersion: 'test',
         }),
       );
-      await expect(
-        service.register({ email: 'a@b.it', password: 'password123', firstName: 'Anna' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(registerInput)).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('rethrows database errors other than a duplicate email', async () => {
       const failure = new Error('database unreachable');
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.user.create.mockRejectedValue(failure);
-      await expect(
-        service.register({ email: 'a@b.it', password: 'password123', firstName: 'Anna' }),
-      ).rejects.toBe(failure);
+      await expect(service.register(registerInput)).rejects.toBe(failure);
     });
 
     it('stores a bcrypt hash, never the plain password', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({ id: 2, firstName: 'Anna', role: 'HIKER' });
-      await service.register({ email: 'a@b.it', password: 'password123', firstName: 'Anna' });
+      prisma.user.create.mockResolvedValue(createdUser);
+      await service.register(registerInput);
       const stored = prisma.user.create.mock.calls[0][0].data.password as string;
       expect(stored).not.toBe('password123');
       await expect(bcrypt.compare('password123', stored)).resolves.toBe(true);
     });
 
-    it('saves the optional last name and phone', async () => {
+    it('creates the hiker profile together with the user', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({ id: 2, firstName: 'Anna', role: 'HIKER' });
+      prisma.user.create.mockResolvedValue(createdUser);
       await service.register({
-        email: 'a@b.it',
-        password: 'password123',
-        firstName: 'Anna',
-        lastName: 'Rossi',
-        phone: '+39 333 1234567',
+        ...registerInput,
+        notes: 'registered mountain guide',
+        emergencyContact: 'Marco Rossi 3339876543',
       });
       expect(prisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ lastName: 'Rossi', phone: '+39 333 1234567' }),
+        data: {
+          email: 'a@b.it',
+          password: expect.any(String),
+          hiker: {
+            create: {
+              fullName: 'Anna Rossi',
+              phone: '3331234567',
+              notes: 'registered mountain guide',
+              emergencyContact: 'Marco Rossi 3339876543',
+            },
+          },
+        },
       });
     });
 
-    it('never sets the role or the temporary flag, so the database defaults apply', async () => {
+    it('never sets the role, so the database default applies', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({ id: 2, firstName: 'Anna', role: 'HIKER' });
-      await service.register({ email: 'a@b.it', password: 'password123', firstName: 'Anna' });
+      prisma.user.create.mockResolvedValue(createdUser);
+      await service.register(registerInput);
       const data = prisma.user.create.mock.calls[0][0].data as Record<string, unknown>;
       expect(data).not.toHaveProperty('role');
-      expect(data).not.toHaveProperty('isTemporary');
     });
   });
 
   describe('login', () => {
     it('lancia Unauthorized con password sbagliata', async () => {
-      const password = await bcrypt.hash('giusta123', 4);
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        firstName: 'Anna',
-        role: 'HIKER',
-        password,
-      });
+      prisma.user.findUnique.mockResolvedValue(await registeredUser());
       await expect(
         service.login({ email: 'a@b.it', password: 'sbagliata' }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('lancia Unauthorized se l’utente non ha password (temporaneo)', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        firstName: 'Anna',
-        role: 'HIKER',
-        password: null,
-      });
-      await expect(
-        service.login({ email: 'a@b.it', password: 'qualsiasi' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
@@ -152,19 +140,13 @@ describe('AuthService', () => {
     });
 
     it('restituisce access token, refresh token e utente', async () => {
-      const password = await bcrypt.hash('giusta123', 4);
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        firstName: 'Anna',
-        role: 'HIKER',
-        password,
-      });
+      prisma.user.findUnique.mockResolvedValue(await registeredUser());
       jwt.signAsync.mockResolvedValue('token-finto');
       prisma.refreshToken.create.mockResolvedValue({});
       const result = await service.login({ email: 'a@b.it', password: 'giusta123' });
       expect(result.token).toBe('token-finto');
       expect(result.refreshToken.length).toBeGreaterThan(20);
-      expect(result.user).toEqual({ id: 1, email: 'a@b.it', firstName: 'Anna', role: 'HIKER' });
+      expect(result.user).toEqual({ id: 1, email: 'a@b.it', role: 'HIKER' });
       expect(prisma.refreshToken.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ userId: 1, tokenHash: expect.any(String) }),
       });
@@ -248,7 +230,7 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    const user = { id: 1, email: 'a@b.it', firstName: 'Anna', role: 'HIKER' };
+    const user = { id: 1, email: 'a@b.it', role: 'HIKER' };
     const valid = {
       id: 5,
       userId: 1,
@@ -319,15 +301,6 @@ describe('AuthService', () => {
       expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
     });
 
-    it('rejects the token of a user without email (temporary hiker)', async () => {
-      prisma.refreshToken.findUnique.mockResolvedValue({
-        ...valid,
-        user: { ...user, email: null },
-      });
-      await expect(service.refresh('temporaneo')).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
-    });
-
     it('issues no new session when a revoked token is reused', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue({ ...valid, revokedAt: new Date() });
       prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
@@ -372,33 +345,13 @@ describe('AuthService', () => {
 
   describe('me', () => {
     it('restituisce l’utente completo', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        email: 'a@b.it',
-        firstName: 'Anna',
-        role: 'HIKER',
-      });
-      await expect(service.me(1)).resolves.toEqual({
-        id: 1,
-        email: 'a@b.it',
-        firstName: 'Anna',
-        role: 'HIKER',
-      });
+      prisma.user.findUnique.mockResolvedValue({ id: 1, email: 'a@b.it', role: 'HIKER' });
+      await expect(service.me(1)).resolves.toEqual({ id: 1, email: 'a@b.it', role: 'HIKER' });
     });
 
     it('lancia Unauthorized se l’utente non esiste più', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       await expect(service.me(99)).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('rejects a user without email (temporary hiker)', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: 4,
-        email: null,
-        firstName: 'Luca',
-        role: 'HIKER',
-      });
-      await expect(service.me(4)).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('never returns the password hash', async () => {

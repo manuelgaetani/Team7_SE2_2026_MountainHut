@@ -19,21 +19,33 @@ enum Role {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String?  @unique
-  password    String? // hash (bcrypt/argon2);
-  firstName   String   @map("first_name")
-  lastName    String?  @map("last_name")
-  phone       String?
-  role        Role     @default(HIKER)
-  isTemporary Boolean  @default(false) @map("is_temporary")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String   // hash bcrypt
+  role      Role     @default(HIKER)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  bookings      Booking[]
+  hiker         Hiker?
   refreshTokens RefreshToken[]
 
   @@map("users")
+}
+
+model Hiker {
+  id               Int      @id @default(autoincrement())
+  userId           Int?     @unique @map("user_id")
+  fullName         String   @map("full_name")
+  phone            String
+  notes            String?
+  emergencyContact String?  @map("emergency_contact")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("hikers")
 }
 
 model RefreshToken {
@@ -85,18 +97,18 @@ model SlotTable {
 
 model Booking {
   id        Int           @id @default(autoincrement())
-  userId    Int           @map("user_id")
+  hikerId   Int           @map("hiker_id")
   slotId    Int           @map("slot_id")
   partySize Int           @map("party_size")
   status    BookingStatus @default(PENDING)
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  user   User           @relation(fields: [userId], references: [id])
+  hiker  Hiker          @relation(fields: [hikerId], references: [id])
   slot   Slot           @relation(fields: [slotId], references: [id])
   tables BookingTable[]
 
   @@unique([id, slotId])
-  @@index([userId])
+  @@index([hikerId])
   @@index([slotId])
   @@map("bookings")
 }
