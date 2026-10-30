@@ -43,9 +43,9 @@ describe('NotificationService', () => {
       expect(mailer.send).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'anna@example.com',
-          subject: expect.stringContaining('Prenotazione n. 42 confermata'),
-          text: expect.stringContaining('Ciao Anna'),
-          html: expect.stringContaining('Ciao Anna'),
+          subject: expect.stringContaining('Booking n. 42 confirmed'),
+          text: expect.stringContaining('Hi Anna'),
+          html: expect.stringContaining('Hi Anna'),
         }),
       );
     });
@@ -60,7 +60,7 @@ describe('NotificationService', () => {
         data: {
           type: 'BOOKING_CONFIRMATION',
           recipient: 'anna@example.com',
-          subject: expect.stringContaining('Prenotazione n. 42 confermata'),
+          subject: expect.stringContaining('Booking n. 42 confirmed'),
           status: 'SENT',
           error: null,
           userId: 7,

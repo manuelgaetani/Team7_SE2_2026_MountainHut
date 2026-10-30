@@ -20,14 +20,14 @@ export interface EmailContent {
 }
 
 // Date and time columns carry no time zone: format them in UTC so they are shown unchanged.
-const dateFormat = new Intl.DateTimeFormat('it-IT', {
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
   weekday: 'long',
   day: 'numeric',
   month: 'long',
   year: 'numeric',
   timeZone: 'UTC',
 });
-const timeFormat = new Intl.DateTimeFormat('it-IT', {
+const timeFormat = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
   timeZone: 'UTC',
@@ -40,33 +40,41 @@ export function bookingConfirmationEmail(booking: BookingConfirmationData): Emai
   const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
   const requirements = booking.requirements?.trim() || null;
 
+  const greeting = `Hi ${booking.firstName},`;
+  const intro = 'your booking at the shelter is confirmed.';
+  const closing = 'We await you!';
+  const signature = 'Mountain Hut';
+  const rows: [label: string, value: string][] = [
+    ['Booking n.', String(booking.bookingId)],
+    ['Date', day],
+    ['Time', time],
+    ['People', people],
+    ...(requirements ? ([['Requirements', requirements]] as [string, string][]) : []),
+  ];
+
   const text = [
-    `Hi ${booking.firstName},`,
+    greeting,
     '',
-    'your booking at the shelter is confirmed.',
+    intro,
     '',
-    `Booking n. ${booking.bookingId}`,
-    `Data: ${day}`,
-    `Time: ${time}`,
-    `People: ${people}`,
-    ...(requirements ? [`Requirements: ${requirements}`] : []),
+    ...rows.map(([label, value]) => `${label}: ${value}`),
     '',
-    'We await you!',
-    'Mountain Hut',
+    closing,
+    signature,
   ].join('\n');
 
-  const requirementsRow = requirements
-    ? `  <tr><th align="left">Requirements</th><td>${escapeHtml(requirements).replace(/\r?\n/g, '<br>')}</td></tr>\n`
-    : '';
-  const html = `<p>Hi ${escapeHtml(booking.firstName)},</p>
-<p>your booking at the shelter is confirmed.</p>
+  const htmlRows = rows
+    .map(
+      ([label, value]) =>
+        `  <tr><th align="left">${label}</th><td>${escapeHtml(value).replace(/\r?\n/g, '<br>')}</td></tr>`,
+    )
+    .join('\n');
+  const html = `<p>${escapeHtml(greeting)}</p>
+<p>${intro}</p>
 <table>
-  <tr><th align="left">Booking n.</th><td>${booking.bookingId}</td></tr>
-  <tr><th align="left">Data</th><td>${day}</td></tr>
-  <tr><th align="left">Time</th><td>${time}</td></tr>
-  <tr><th align="left">People</th><td>${people}</td></tr>
-${requirementsRow}</table>
-<p>We await you!<br>Mountain Hut</p>`;
+${htmlRows}
+</table>
+<p>${closing}<br>${signature}</p>`;
 
   return { subject, text, html };
 }

@@ -16,16 +16,16 @@ const booking: BookingConfirmationData = {
 describe('bookingConfirmationEmail', () => {
   it('puts the booking number and the date in the subject', () => {
     expect(bookingConfirmationEmail(booking).subject).toBe(
-      'Booking n. 42 confermata - Saturday 14 November 2026',
+      'Booking n. 42 confirmed - Saturday, 14 November 2026',
     );
   });
 
   it('describes the booking in the text version', () => {
     const { text } = bookingConfirmationEmail(booking);
     expect(text).toContain('Hi Anna');
-    expect(text).toContain('Saturday 14 November 2026');
+    expect(text).toContain('Saturday, 14 November 2026');
     expect(text).toContain('12:30 - 13:30');
-    expect(text).toContain('4 persone');
+    expect(text).toContain('4 people');
   });
 
   it('shows the times of the slot without shifting them to another time zone', () => {
@@ -35,12 +35,12 @@ describe('bookingConfirmationEmail', () => {
       startTime: new Date('1970-01-01T23:00:00.000Z'),
       endTime: new Date('1970-01-01T23:59:00.000Z'),
     });
-    expect(text).toContain('Thursday 31 December 2026');
+    expect(text).toContain('Thursday, 31 December 2026');
     expect(text).toContain('23:00 - 23:59');
   });
 
   it('uses the singular for a party of one', () => {
-    expect(bookingConfirmationEmail({ ...booking, partySize: 1 }).text).toContain('1 persona');
+    expect(bookingConfirmationEmail({ ...booking, partySize: 1 }).text).toContain('1 person');
   });
 
   it('describes the booking in the HTML version', () => {
@@ -75,9 +75,7 @@ describe('bookingConfirmationEmail', () => {
       ...booking,
       requirements: 'Celiac\n<b>Nuts</b> & "lactose"',
     });
-    expect(html).toContain(
-      '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
-    );
+    expect(html).toContain('<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>');
   });
 
   it('escapes the name of the hiker in the HTML version', () => {

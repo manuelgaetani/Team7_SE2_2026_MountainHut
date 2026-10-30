@@ -28,6 +28,10 @@ function errorMessage(err: unknown): string {
 //
 // Call it only AFTER the database transaction has been committed: the methods never throw,
 // so an SMTP problem can never undo a valid booking.
+//
+// TODO(MH-01 integration): retry FAILED emails with a scheduled job. It needs the email body,
+// `attempts` and `nextRetryAt` on the `notifications` table, plus an atomic claim to avoid
+// double sends.
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
