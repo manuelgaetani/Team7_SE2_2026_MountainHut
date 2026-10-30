@@ -31,6 +31,7 @@ model User {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   refreshTokens RefreshToken[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -47,4 +48,35 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+
+  @@map("notification_type")
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+
+  @@map("notification_status")
+}
+
+// One row per email the system tried to send, delivered or not.
+model Notification {
+  id        Int                @id @default(autoincrement())
+  type      NotificationType
+  recipient String
+  subject   String
+  status    NotificationStatus
+  // SMTP error message when status is FAILED.
+  error     String?
+  userId    Int?               @map("user_id")
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("notifications")
 }

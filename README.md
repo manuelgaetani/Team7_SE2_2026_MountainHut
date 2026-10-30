@@ -32,6 +32,12 @@ docker compose up --build
 
 `JWT_SECRET` is required and has no default, so `docker compose` refuses to start without it. Other settings default to the values in `docker-compose.yml`; override them in `.env`.
 
+## Emails
+
+The system sends emails (e.g. the booking confirmation) through SMTP. By default they go to [Mailpit](https://mailpit.axllent.org/), a fake SMTP server started by `docker compose` that catches every email instead of delivering it: read them at http://localhost:8025.
+
+To deliver real emails, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` in `.env`. Port 465 uses implicit TLS; the other ports use STARTTLS when the server offers it.
+
 ## API documentation
 
 The API is documented with Swagger (OpenAPI), available whenever the API is running:
@@ -46,7 +52,7 @@ The session is kept in `httpOnly` cookies. To call protected endpoints, first ca
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d db
+docker compose up -d db mailpit
 npm run prisma:generate -w @mountain-hut/api
 npm run build -w @mountain-hut/shared
 npm run dev:api

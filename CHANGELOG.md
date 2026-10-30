@@ -15,6 +15,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Session based on a JWT access token and a refresh token, both stored in `httpOnly` cookies. The refresh token is rotated on every use, and if an already-used token is presented again, all of the user's sessions are revoked.
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
 - API documentation with Swagger at `/api/docs`.
+- Email service (MH-03): booking confirmation email, and a record of every email sent or failed. By default emails go to Mailpit (http://localhost:8025); a real SMTP server is configured with the new environment variables `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`.
 
 ### Changed
 
