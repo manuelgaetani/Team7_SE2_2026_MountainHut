@@ -95,6 +95,7 @@ model Booking {
   slot   Slot           @relation(fields: [slotId], references: [id])
   tables BookingTable[]
 
+  @@unique([id, slotId])
   @@index([userId])
   @@index([slotId])
   @@map("bookings")
@@ -106,7 +107,7 @@ model BookingTable {
   tableNumber   Int @map("table_number")
   assignedSeats Int @map("assigned_seats")
 
-  booking   Booking   @relation(fields: [bookingId], references: [id])
+  booking   Booking   @relation(fields: [bookingId, slotId], references: [id, slotId])
   slotTable SlotTable @relation(fields: [slotId, tableNumber], references: [slotId, tableNumber])
 
   @@id([bookingId, slotId, tableNumber])

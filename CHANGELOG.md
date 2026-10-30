@@ -15,12 +15,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Session based on a JWT access token and a refresh token, both stored in `httpOnly` cookies. The refresh token is rotated on every use, and if an already-used token is presented again, all of the user's sessions are revoked.
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
 - API documentation with Swagger at `/api/docs`.
+- Database schema for bookings (MH-01): slots, tables per slot, bookings and table assignments.
 
 ### Changed
 
 - The application no longer starts without `JWT_SECRET`.
-<<<<<<< HEAD
-=======
 
 ### Fixed
 
