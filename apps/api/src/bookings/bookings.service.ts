@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -21,11 +22,14 @@ export class BookingsService {
   async create(userId: number, input: CreateBookingInput): Promise<BookingResult> {
     // 1. Tutto in una transazione: o si scrive tutto, o niente.
     return this.prisma.$transaction(async (tx) => {
-      // 2. Blocca lo slot e leggi quando inizia.
+      // The user booking must have a hiker profile
+      const hikerId = await this.repo.findHikerIdByUserId(tx, userId);
+      if (!hikerId) throw new ForbiddenException('A hiker profile is required to book a table');
+      // 2. Lock the slot and get its start time.
       const startsAt = await this.repo.lockSlotAndGetStart(tx, input.slotId, bookingTimeZone());
-      if (!startsAt) throw new NotFoundException('Slot non trovato');
+      if (!startsAt) throw new NotFoundException('Slot not found');
 
-      // 3. Leggi i posti liberi e chiedi alla policy se si può prenotare.
+      // 3. Read available seats and check with the policy if booking is allowed.
       const tables = await this.repo.findFreeSeatsByTable(tx, input.slotId);
       const decision = decideBooking({
         startsAt,
@@ -35,14 +39,14 @@ export class BookingsService {
       });
       if (!decision.ok) {
         if (decision.reason === 'TOO_LATE') {
-          throw new UnprocessableEntityException('Mancano meno di 2 ore allo slot');
+          throw new UnprocessableEntityException('Less than 2 hours remaining before the slot starts');
         }
-        throw new ConflictException('Posti insufficienti per questo slot');
+        throw new ConflictException('Insufficient seats available for this slot');
       }
 
-      // 4. Scrivi prenotazione e assegnazione dei tavoli.
+      // 4. Save booking and table assignments.
       const booking = await this.repo.createConfirmedBooking(tx, {
-        userId,
+        hikerId,
         slotId: input.slotId,
         partySize: input.partySize,
       });

@@ -5,7 +5,7 @@ import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 type Tx = Prisma.TransactionClient;
 
 export interface NewBooking {
-  userId: number;
+  hikerId: number;
   slotId: number;
   partySize: number;
 }
@@ -46,6 +46,11 @@ export class BookingsRepository {
       GROUP BY st.table_number, st.seats
       ORDER BY st.table_number`;
     return rows.map((r) => ({ tableNumber: r.table_number, freeSeats: r.free_seats }));
+  }
+  // hiker profile of the logged user. null if user doesnt have one
+  async findHikerIdByUserId(tx: Tx, userId: number): Promise<number | null> {
+    const hiker = await tx.hiker.findUnique({ where: { userId }, select: { id: true } });
+    return hiker?.id ?? null;
   }
 
   async createConfirmedBooking(tx: Tx, data: NewBooking): Promise<StoredBooking> {
