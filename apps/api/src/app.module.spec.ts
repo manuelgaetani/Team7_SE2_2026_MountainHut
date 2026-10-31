@@ -51,19 +51,21 @@ describe('AppModule', () => {
   it('keeps the API reachable next to the SPA', async () => {
     vi.stubEnv('WEB_DIST_PATH', webDist);
     const http = await startApp();
-    await http.get('/api/health').expect(200, { status: 'ok' });
+    const response = await http.get('/api/health');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
   });
 
   it('serves only the API when the built web app is missing', async () => {
     vi.stubEnv('WEB_DIST_PATH', join(webDist, 'missing'));
     const http = await startApp();
-    await http.get('/').expect(404);
-    await http.get('/api/health').expect(200);
+    expect((await http.get('/')).status).toBe(404);
+    expect((await http.get('/api/health')).status).toBe(200);
   });
 
   it('starts with the default web path', async () => {
     vi.stubEnv('WEB_DIST_PATH', undefined);
     const http = await startApp();
-    await http.get('/api/health').expect(200);
+    expect((await http.get('/api/health')).status).toBe(200);
   });
 });

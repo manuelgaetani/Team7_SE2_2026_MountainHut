@@ -131,6 +131,17 @@ describe('BookingPage', () => {
     expect(JSON.parse(call[1].body)).toEqual({ slotId: 1, partySize: 3 });
   });
 
+  it('uses the singular for one seat', async () => {
+    stubApi({
+      book: () =>
+        json({ ...booking, partySize: 1, tables: [{ tableNumber: 1, assignedSeats: 1 }] }, 201),
+    });
+    renderPage();
+    await fillForm('1');
+    submit();
+    expect(await screen.findByText('1 seat reserved:')).toBeInTheDocument();
+  });
+
   it('shows the reason given by the API', async () => {
     const message = 'You already have a booking for this slot';
     stubApi({ book: () => json({ message }, 409) });

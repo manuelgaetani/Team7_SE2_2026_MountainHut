@@ -35,6 +35,7 @@ describe('setupSwagger', () => {
   });
 
   it('serves the interactive documentation', async () => {
-    await request(app.getHttpServer()).get(`/${SWAGGER_PATH}/`).expect(200);
+    const response = await request(app.getHttpServer()).get(`/${SWAGGER_PATH}/`);
+    expect(response.status).toBe(200);
   });
 });
