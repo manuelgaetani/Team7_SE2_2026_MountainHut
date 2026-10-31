@@ -26,6 +26,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Fixed
 
+- `POST /api/auth/refresh` and `POST /api/auth/logout` no longer answer 500 to a refresh cookie that is not a token.
+- Registration answers 400 to text the database cannot store, instead of 500.
+- Login rejects passwords over 72 bytes, which bcrypt would otherwise compare only in part.
+- The API refuses to start with an invalid `REFRESH_TOKEN_TTL_DAYS`, instead of failing on every login.
+- Registration now rejects passwords without a letter and a digit, phone numbers that are not 7-15 digits, and full names without a letter. Existing accounts can still log in.
 - Swagger shows the request body of `POST /api/auth/register` and `POST /api/auth/login`, and marks `GET /api/auth/me` as protected by the session cookie.
 - The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
 

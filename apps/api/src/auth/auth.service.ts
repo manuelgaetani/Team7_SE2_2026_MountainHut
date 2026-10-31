@@ -16,12 +16,21 @@ export interface AuthSession {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUMMY_HASH = bcrypt.hashSync('password-fittizia', 10);
 
+function refreshTtlMs(): number {
+  const ttl = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS;
+  // An invalid duration would otherwise fail on every login, not at startup.
+  if (!(ttl > 0) || Number.isNaN(new Date(ttl).getTime())) {
+    throw new Error('REFRESH_TOKEN_TTL_DAYS must be a positive number of days');
+  }
+  return ttl;
+}
+
 // SHA-256 e non bcrypt: il token è già casuale e va cercato per uguaglianza.
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 @Injectable()
 export class AuthService {
-  private readonly refreshTtlMs = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS;
+  private readonly refreshTtlMs = refreshTtlMs();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,7 +78,6 @@ export class AuthService {
     // Il confronto avviene sempre, così i tempi non rivelano se l'email è registrata.
     const hash = user?.password ?? DUMMY_HASH;
     const matches = await bcrypt.compare(input.password, hash);
-    // Un utente temporaneo non ha password: non può fare login.
     if (!user || !matches) {
       throw new UnauthorizedException('Credenziali non valide');
     }

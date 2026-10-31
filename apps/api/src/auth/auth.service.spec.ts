@@ -199,6 +199,30 @@ describe('AuthService', () => {
     });
   });
 
+  describe('refresh token lifetime configuration', () => {
+    const compile = () =>
+      Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: JwtService, useValue: jwt },
+        ],
+      }).compile();
+
+    it.each(['abc', '', '0', '-1', 'Infinity', '1e300'])(
+      'refuses to start with REFRESH_TOKEN_TTL_DAYS="%s"',
+      async (days) => {
+        vi.stubEnv('REFRESH_TOKEN_TTL_DAYS', days);
+        await expect(compile()).rejects.toThrow('REFRESH_TOKEN_TTL_DAYS');
+      },
+    );
+
+    it('accepts a fraction of a day', async () => {
+      vi.stubEnv('REFRESH_TOKEN_TTL_DAYS', '0.5');
+      await expect(compile()).resolves.toBeDefined();
+    });
+  });
+
   describe('refresh token lifetime', () => {
     const now = new Date('2026-10-28T12:00:00Z');
     const DAY_MS = 24 * 60 * 60 * 1000;
