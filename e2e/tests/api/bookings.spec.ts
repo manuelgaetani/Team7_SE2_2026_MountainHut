@@ -9,6 +9,8 @@ interface SlotSummary {
   availability: string;
 }
 
+const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? 'http://localhost:8025';
+
 let slotIds: number[] = [];
 
 function slot(seats: number[]): number {
@@ -28,6 +30,28 @@ async function listedSlot(request: APIRequestContext, id: number): Promise<SlotS
   const found = ((await response.json()) as SlotSummary[]).find((s) => s.id === id);
   expect(found).toBeDefined();
   return found!;
+}
+
+interface MailpitMessage {
+  ID: string;
+  Subject: string;
+  Text: string;
+}
+
+// The API sends the email after answering, so it can arrive a moment later.
+async function confirmationEmail(request: APIRequestContext, to: string): Promise<MailpitMessage> {
+  const query = encodeURIComponent(`to:"${to}"`);
+  let id: string | undefined;
+  await expect
+    .poll(async () => {
+      const response = await request.get(`${MAILPIT_URL}/api/v1/search?query=${query}`);
+      const { messages } = (await response.json()) as { messages: { ID: string }[] };
+      id = messages[0]?.ID;
+      return messages.length;
+    })
+    .toBe(1);
+  const response = await request.get(`${MAILPIT_URL}/api/v1/message/${id}`);
+  return (await response.json()) as MailpitMessage;
 }
 
 test('reading the slots and booking require a session', async ({ request }) => {
@@ -76,6 +100,27 @@ test('accepts a party that takes all the seats, and the slot becomes full', asyn
     freeSeats: 0,
     availability: 'FULL',
   });
+});
+
+test('emails the hiker a confirmation with the details of the booking', async ({
+  loggedInRequest,
+  registeredUser,
+  request,
+}) => {
+  const slotId = slot([4]);
+  const response = await loggedInRequest.post('/api/bookings', {
+    data: { slotId, partySize: 3, requirements: 'One nut allergy' },
+  });
+  expect(response.status()).toBe(201);
+  const { id } = (await response.json()) as { id: number };
+
+  const message = await confirmationEmail(request, registeredUser.email);
+  expect(message.Subject).toContain(`Booking n. ${id} confirmed`);
+  expect(message.Text).toContain(`Booking n.: ${id}`);
+  expect(message.Text).toContain(`Name: ${registeredUser.fullName}`);
+  expect(message.Text).toContain('Time: 19:00 - 21:00');
+  expect(message.Text).toContain('People: 3 people');
+  expect(message.Text).toContain('Requirements: One nut allergy');
 });
 
 test('rejects a party larger than the free seats', async ({ loggedInRequest }) => {

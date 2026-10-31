@@ -11,7 +11,7 @@ describe('NotificationService', () => {
   const prisma = { notification: { create: vi.fn() } };
 
   const booking: BookingConfirmationData = {
-    firstName: 'Anna',
+    fullName: 'Anna Rossi',
     bookingId: 42,
     date: new Date('2026-11-14T00:00:00.000Z'),
     startTime: new Date('1970-01-01T12:30:00.000Z'),

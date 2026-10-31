@@ -7,8 +7,8 @@ import { bookingConfirmationEmail } from './templates/booking-confirmation.js';
 import type { BookingConfirmationData } from './templates/booking-confirmation.js';
 
 export interface Recipient {
-  userId: number;
-  // Temporary hikers may have no email.
+  userId: number | null;
+  // A hiker without an account has no email.
   email: string | null;
 }
 
@@ -29,7 +29,7 @@ function errorMessage(err: unknown): string {
 // Call it only AFTER the database transaction has been committed: the methods never throw,
 // so an SMTP problem can never undo a valid booking.
 //
-// TODO(MH-01 integration): retry FAILED emails with a scheduled job. It needs the email body,
+// TODO: retry FAILED emails with a scheduled job. It needs the email body,
 // `attempts` and `nextRetryAt` on the `notifications` table, plus an atomic claim to avoid
 // double sends.
 @Injectable()

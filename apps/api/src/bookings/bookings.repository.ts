@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client.js';
+import type { Recipient } from '../notifications/notification.service.js';
+import type { BookingConfirmationData } from '../notifications/templates/booking-confirmation.js';
 import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 
 type Tx = Prisma.TransactionClient;
@@ -8,6 +10,12 @@ export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
+  requirements: string | null;
+}
+
+export interface BookingConfirmation {
+  recipient: Recipient;
+  booking: BookingConfirmationData;
 }
 
 export interface UpcomingSlot {
@@ -117,6 +125,37 @@ export class BookingsRepository {
       slotId: booking.slotId,
       partySize: booking.partySize,
       status: booking.status,
+    };
+  }
+
+  // What the confirmation email needs. null if the booking does not exist.
+  async findBookingConfirmation(
+    client: Tx,
+    bookingId: number,
+  ): Promise<BookingConfirmation | null> {
+    const row = await client.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        partySize: true,
+        requirements: true,
+        hiker: {
+          select: { fullName: true, userId: true, user: { select: { email: true } } },
+        },
+        slot: { select: { date: true, startTime: true, endTime: true } },
+      },
+    });
+    if (!row) return null;
+    return {
+      recipient: { userId: row.hiker.userId, email: row.hiker.user?.email ?? null },
+      booking: {
+        bookingId,
+        fullName: row.hiker.fullName,
+        date: row.slot.date,
+        startTime: row.slot.startTime,
+        endTime: row.slot.endTime,
+        partySize: row.partySize,
+        requirements: row.requirements,
+      },
     };
   }
 

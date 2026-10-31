@@ -33,7 +33,7 @@ function readRefreshCookie(req: Request): string | undefined {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) { }
+  constructor(private readonly auth: AuthService) {}
 
   @Post('register')
   @ApiZodBody(registerSchema)

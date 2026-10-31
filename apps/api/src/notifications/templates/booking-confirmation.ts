@@ -1,7 +1,7 @@
 import { escapeHtml } from './escape-html.js';
 
 export interface BookingConfirmationData {
-  firstName: string;
+  fullName: string;
   bookingId: number;
   // Day of the slot, as Prisma returns a `@db.Date` column (midnight UTC).
   date: Date;
@@ -40,12 +40,13 @@ export function bookingConfirmationEmail(booking: BookingConfirmationData): Emai
   const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
   const requirements = booking.requirements?.trim() || null;
 
-  const greeting = `Hi ${booking.firstName},`;
+  const greeting = `Hi ${booking.fullName},`;
   const intro = 'your booking at the shelter is confirmed.';
   const closing = 'We await you!';
   const signature = 'Mountain Hut';
   const rows: [label: string, value: string][] = [
     ['Booking n.', String(booking.bookingId)],
+    ['Name', booking.fullName],
     ['Date', day],
     ['Time', time],
     ['People', people],

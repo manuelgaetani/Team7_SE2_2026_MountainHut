@@ -7,7 +7,7 @@ describe('BookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn(), count: vi.fn() },
+    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
     bookingTable: { createMany: vi.fn() },
   };
   const tx = client as unknown as Prisma.TransactionClient;
@@ -135,7 +135,7 @@ describe('BookingsRepository', () => {
   });
 
   describe('createConfirmedBooking', () => {
-    const data = { hikerId: 7, slotId: 3, partySize: 2 };
+    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: 'no nuts' };
 
     it('stores the booking as confirmed', async () => {
       client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'CONFIRMED' });
@@ -153,6 +153,48 @@ describe('BookingsRepository', () => {
         partySize: 2,
         status: 'CONFIRMED',
       });
+    });
+  });
+
+  describe('findBookingConfirmation', () => {
+    const slot = {
+      date: new Date('2026-11-14T00:00:00.000Z'),
+      startTime: new Date('1970-01-01T12:30:00.000Z'),
+      endTime: new Date('1970-01-01T13:30:00.000Z'),
+    };
+    const row = {
+      partySize: 2,
+      requirements: 'no nuts',
+      hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
+      slot,
+    };
+
+    it('maps the booking, its hiker and its slot', async () => {
+      client.booking.findUnique.mockResolvedValue(row);
+      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toEqual({
+        recipient: { userId: 1, email: 'anna@example.com' },
+        booking: {
+          ...slot,
+          bookingId: 9,
+          fullName: 'Anna Rossi',
+          partySize: 2,
+          requirements: 'no nuts',
+        },
+      });
+    });
+
+    it('has no email for a hiker without an account', async () => {
+      client.booking.findUnique.mockResolvedValue({
+        ...row,
+        hiker: { fullName: 'Anna Rossi', userId: null, user: null },
+      });
+      const found = await repository.findBookingConfirmation(tx, 9);
+      expect(found?.recipient).toEqual({ userId: null, email: null });
+    });
+
+    it('returns null when the booking does not exist', async () => {
+      client.booking.findUnique.mockResolvedValue(null);
+      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toBeNull();
     });
   });
 

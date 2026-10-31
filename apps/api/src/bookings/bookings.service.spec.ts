@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MIN_LEAD_MS } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
@@ -28,6 +29,12 @@ describe('BookingsService', () => {
     hasActiveBooking: vi.fn(),
     createConfirmedBooking: vi.fn(),
     createBookingTables: vi.fn(),
+    findBookingConfirmation: vi.fn(),
+  };
+  const notifications = { sendBookingConfirmation: vi.fn() };
+  const confirmation = {
+    recipient: { userId: 1, email: 'anna@example.com' },
+    booking: { bookingId: 9 },
   };
 
   beforeEach(async () => {
@@ -39,11 +46,14 @@ describe('BookingsService', () => {
     repo.hasActiveBooking.mockResolvedValue(false);
     repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 4 }]);
     repo.createConfirmedBooking.mockResolvedValue(storedBooking);
+    repo.findBookingConfirmation.mockResolvedValue(confirmation);
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
     const module = await Test.createTestingModule({
       providers: [
         BookingsService,
         { provide: PrismaService, useValue: prisma },
         { provide: BookingsRepository, useValue: repo },
+        { provide: NotificationService, useValue: notifications },
       ],
     }).compile();
     service = module.get(BookingsService);
@@ -74,7 +84,24 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
+        requirements: null,
       });
+    });
+
+    it('stores the requirements of the party', async () => {
+      await service.create(1, { ...input, requirements: 'no nuts' });
+      expect(repo.createConfirmedBooking).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ requirements: 'no nuts' }),
+      );
+    });
+
+    it('stores empty requirements as none', async () => {
+      await service.create(1, { ...input, requirements: '' });
+      expect(repo.createConfirmedBooking).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ requirements: null }),
+      );
     });
 
     it('stores the table assignments on the new booking', async () => {
@@ -114,6 +141,58 @@ describe('BookingsService', () => {
       vi.stubEnv('BOOKING_TIMEZONE', 'UTC');
       await service.create(1, input);
       expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'UTC');
+    });
+  });
+
+  describe('confirmation email', () => {
+    const sent = () => notifications.sendBookingConfirmation;
+
+    it('is sent to the hiker with the stored booking', async () => {
+      await service.create(1, input);
+      await vi.waitFor(() =>
+        expect(sent()).toHaveBeenCalledWith(confirmation.recipient, confirmation.booking),
+      );
+      expect(repo.findBookingConfirmation).toHaveBeenCalledWith(prisma, 9);
+    });
+
+    it('is read outside the transaction, once it has been committed', async () => {
+      let committed = false;
+      prisma.$transaction.mockImplementation(async (work: (client: typeof tx) => unknown) => {
+        const result = await work(tx);
+        committed = true;
+        return result;
+      });
+      repo.findBookingConfirmation.mockImplementation(() => {
+        expect(committed).toBe(true);
+        return Promise.resolve(confirmation);
+      });
+      await service.create(1, input);
+      await vi.waitFor(() => expect(sent()).toHaveBeenCalledOnce());
+    });
+
+    it('does not make the answer wait for the SMTP server', async () => {
+      sent().mockReturnValue(new Promise(() => undefined));
+      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
+    });
+
+    it('does not fail the booking when it cannot be read', async () => {
+      repo.findBookingConfirmation.mockRejectedValue(new Error('database down'));
+      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
+      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
+      expect(sent()).not.toHaveBeenCalled();
+    });
+
+    it('is not sent when the booking has disappeared', async () => {
+      repo.findBookingConfirmation.mockResolvedValue(null);
+      await service.create(1, input);
+      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
+      expect(sent()).not.toHaveBeenCalled();
+    });
+
+    it('is not sent when the booking is refused', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
+      await expect(service.create(1, input)).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
     });
   });
 

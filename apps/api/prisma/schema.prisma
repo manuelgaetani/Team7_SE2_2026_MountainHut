@@ -21,7 +21,7 @@ enum Role {
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
-  password  String   // hash bcrypt
+  password  String // hash bcrypt
   role      Role     @default(HIKER)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -97,12 +97,14 @@ model SlotTable {
 }
 
 model Booking {
-  id        Int           @id @default(autoincrement())
-  hikerId   Int           @map("hiker_id")
-  slotId    Int           @map("slot_id")
-  partySize Int           @map("party_size")
-  status    BookingStatus @default(PENDING)
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  id           Int           @id @default(autoincrement())
+  hikerId      Int           @map("hiker_id")
+  slotId       Int           @map("slot_id")
+  partySize    Int           @map("party_size")
+  // Party needs typed by the hiker (e.g. allergies).
+  requirements String?
+  status       BookingStatus @default(PENDING)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   hiker  Hiker          @relation(fields: [hikerId], references: [id])
   slot   Slot           @relation(fields: [slotId], references: [id])

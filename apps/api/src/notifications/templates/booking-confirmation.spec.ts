@@ -4,7 +4,7 @@ import type { BookingConfirmationData } from './booking-confirmation.js';
 
 // Same shape Prisma returns for `@db.Date` and `@db.Time` columns: UTC-based dates.
 const booking: BookingConfirmationData = {
-  firstName: 'Anna',
+  fullName: 'Anna Rossi',
   bookingId: 42,
   date: new Date('2026-11-14T00:00:00.000Z'),
   startTime: new Date('1970-01-01T12:30:00.000Z'),
@@ -22,7 +22,9 @@ describe('bookingConfirmationEmail', () => {
 
   it('describes the booking in the text version', () => {
     const { text } = bookingConfirmationEmail(booking);
-    expect(text).toContain('Hi Anna');
+    expect(text).toContain('Hi Anna Rossi');
+    expect(text).toContain('Name: Anna Rossi');
+    expect(text).toContain('Booking n.: 42');
     expect(text).toContain('Saturday, 14 November 2026');
     expect(text).toContain('12:30 - 13:30');
     expect(text).toContain('4 people');
@@ -81,7 +83,7 @@ describe('bookingConfirmationEmail', () => {
   it('escapes the name of the hiker in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      firstName: '<script>alert("x")</script>',
+      fullName: '<script>alert("x")</script>',
     });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
