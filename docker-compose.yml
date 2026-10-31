@@ -8,6 +8,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mountainhut}:${POSTGRES_PASSWORD:-mountainhut}@db:5432/${POSTGRES_DB:-mountainhut}?schema=public
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      BOOKING_TIMEZONE: ${BOOKING_TIMEZONE:-Europe/Rome}
     depends_on:
       db:
         condition: service_healthy

@@ -68,16 +68,18 @@ describe('AuthModule', () => {
     it('reads the session from the token cookie', async () => {
       const { app, jwt } = await startApp();
       auth.me.mockResolvedValue(user);
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get('/auth/me')
-        .set('Cookie', `token=${jwt.sign({ sub: 1 })}`)
-        .expect(200, user);
+        .set('Cookie', `token=${jwt.sign({ sub: 1 })}`);
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(user);
       await app.close();
     });
 
     it('answers 401 without the cookie', async () => {
       const { app } = await startApp();
-      await request(app.getHttpServer()).get('/auth/me').expect(401);
+      const response = await request(app.getHttpServer()).get('/auth/me');
+      expect(response.status).toBe(401);
       await app.close();
     });
   });

@@ -74,6 +74,7 @@ describe('BookingsController', () => {
 
   it('propagates the errors of the service', async () => {
     bookings.create.mockRejectedValue(new ConflictException('No seats'));
-    await post({ slotId: 3, partySize: 2 }).expect(409);
+    const response = await post({ slotId: 3, partySize: 2 });
+    expect(response.status).toBe(409);
   });
 });

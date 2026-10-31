@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PARTY_SIZE, createBookingSchema } from './bookings.js';
+import { createBookingSchema } from './bookings.js';
 
 const MAX_DB_INT = 2_147_483_647;
 const validBooking = { slotId: 1, partySize: 2 };
@@ -28,11 +28,11 @@ describe('createBookingSchema', () => {
     expect(createBookingSchema.safeParse({ ...validBooking, slotId }).success).toBe(false);
   });
 
-  it.each([1, MAX_PARTY_SIZE])('accepts the partySize %d', (partySize) => {
+  it.each([1, 100, 101, MAX_DB_INT])('accepts the partySize %d', (partySize) => {
     expect(createBookingSchema.safeParse({ ...validBooking, partySize }).success).toBe(true);
   });
 
-  it.each([0, -1, 1.5, MAX_PARTY_SIZE + 1, '2', null])('rejects the partySize %s', (partySize) => {
+  it.each([0, -1, 1.5, '2', null])('rejects the partySize %s', (partySize) => {
     expect(createBookingSchema.safeParse({ ...validBooking, partySize }).success).toBe(false);
   });
 });

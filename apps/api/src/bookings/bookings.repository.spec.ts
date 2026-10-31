@@ -7,7 +7,7 @@ describe('BookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn() },
+    booking: { create: vi.fn(), count: vi.fn() },
     bookingTable: { createMany: vi.fn() },
   };
   const tx = client as unknown as Prisma.TransactionClient;
@@ -18,6 +18,59 @@ describe('BookingsRepository', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  describe('findUpcomingSlots', () => {
+    const now = new Date('2026-11-01T10:00:00Z');
+
+    it('maps the rows', async () => {
+      const startsAt = new Date('2026-11-01T19:00:00Z');
+      client.$queryRaw.mockResolvedValue([
+        {
+          id: 3,
+          date: '2026-11-01',
+          start_time: '20:00',
+          end_time: '22:00',
+          starts_at: startsAt,
+          free_seats: 5,
+        },
+      ]);
+      await expect(repository.findUpcomingSlots(tx, 'Europe/Rome', now)).resolves.toEqual([
+        {
+          id: 3,
+          date: '2026-11-01',
+          startTime: '20:00',
+          endTime: '22:00',
+          startsAt,
+          freeSeats: 5,
+        },
+      ]);
+    });
+
+    it('counts only confirmed bookings and binds the values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingSlots(tx, 'Europe/Rome', now);
+      expect(queryText()).toContain("b.status = 'CONFIRMED'");
+      expect(queryValues()).toEqual(['Europe/Rome', 'Europe/Rome', now]);
+    });
+  });
+
+  describe('hasActiveBooking', () => {
+    it.each([
+      [1, true],
+      [0, false],
+    ])('with %d bookings returns %s', async (count, expected) => {
+      client.booking.count.mockResolvedValue(count);
+      await expect(repository.hasActiveBooking(tx, 7, 3)).resolves.toBe(expected);
+    });
+
+    it('ignores the rejected bookings', async () => {
+      client.booking.count.mockResolvedValue(0);
+      await repository.hasActiveBooking(tx, 7, 3);
+      expect(client.booking.count).toHaveBeenCalledWith({
+        where: { hikerId: 7, slotId: 3, status: { not: 'REJECTED' } },
+      });
+    });
   });
 
   describe('lockSlotAndGetStart', () => {

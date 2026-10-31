@@ -51,7 +51,7 @@ export class AuthController {
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
-    if (!raw) throw new UnauthorizedException('Non autenticato');
+    if (!raw) throw new UnauthorizedException('Not authenticated');
     const session = await this.auth.refresh(raw);
     this.setSessionCookies(res, session);
     return session.user;
@@ -64,7 +64,7 @@ export class AuthController {
     await this.auth.logout(raw);
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE, { path: REFRESH_PATH });
-    return { message: 'Logout effettuato' };
+    return { message: 'Logged out' };
   }
 
   @UseGuards(AuthGuard)

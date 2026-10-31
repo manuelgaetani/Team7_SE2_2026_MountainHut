@@ -1,3 +1,4 @@
+import type { SlotAvailability } from '@mountain-hut/shared';
 import { allocateSeats } from './seat-allocation.js';
 import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 
@@ -17,6 +18,12 @@ export interface BookingRequest {
 // Si può prenotare fino a 2 ore prima.
 export function isBookableInTime(startsAt: Date, now: Date): boolean {
   return startsAt.getTime() - now.getTime() >= MIN_LEAD_MS;
+}
+
+// What a hiker can do with a slot right now.
+export function slotAvailability(startsAt: Date, now: Date, freeSeats: number): SlotAvailability {
+  if (!isBookableInTime(startsAt, now)) return 'TOO_LATE';
+  return freeSeats > 0 ? 'AVAILABLE' : 'FULL';
 }
 
 // Decide se la prenotazione è accettabile e su quali tavoli.

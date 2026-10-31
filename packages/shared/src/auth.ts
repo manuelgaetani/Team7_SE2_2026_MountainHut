@@ -11,7 +11,7 @@ export const registerSchema = z.object({
   password: z
     .string()
     .min(8)
-    .refine((p) => utf8Length(p) <= 72, 'Password troppo lunga (massimo 72 byte)'),
+    .refine((p) => utf8Length(p) <= 72, 'Password too long (maximum 72 bytes)'),
   fullName: z.string().trim().min(1),
   phone: z.string().trim().min(1),
   notes: z.string().trim().optional(),
