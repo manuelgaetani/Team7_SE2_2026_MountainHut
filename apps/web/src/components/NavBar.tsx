@@ -27,6 +27,7 @@ export function NavBar() {
       <Link to="/">
         <strong>Mountain Hut</strong>
       </Link>
+      <Link to="/book">Book a table</Link>
       {account}
     </nav>
   );

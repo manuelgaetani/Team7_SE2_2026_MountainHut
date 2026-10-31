@@ -22,7 +22,7 @@ describe('App', () => {
   it('shows the API status on the home page', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'ok' }), { status: 200 })),
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }))),
     );
     renderAt('/');
     expect(await screen.findByText('API status: ok')).toBeInTheDocument();

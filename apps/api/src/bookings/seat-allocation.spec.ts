@@ -64,10 +64,25 @@ describe('allocateSeats', () => {
       ]);
     });
 
-    it('fills the largest tables first and takes only the seats left from the last', () => {
+    it('fills the largest tables first and seats the rest at the smallest table that fits', () => {
       expect(allocateSeats([table(1, 2), table(2, 4), table(3, 3)], 6)).toEqual([
         { tableNumber: 2, assignedSeats: 4 },
-        { tableNumber: 3, assignedSeats: 2 },
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+    });
+
+    it('keeps the second largest table free when a smaller one holds the rest', () => {
+      expect(allocateSeats([table(1, 6), table(2, 5), table(3, 2)], 7)).toEqual([
+        { tableNumber: 1, assignedSeats: 6 },
+        { tableNumber: 3, assignedSeats: 1 },
+      ]);
+    });
+
+    it('uses as few tables as possible when three are needed', () => {
+      expect(allocateSeats([table(1, 4), table(2, 4), table(3, 3), table(4, 1)], 9)).toEqual([
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 4 },
+        { tableNumber: 4, assignedSeats: 1 },
       ]);
     });
 

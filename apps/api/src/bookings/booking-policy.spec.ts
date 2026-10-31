@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_LEAD_MS, decideBooking, isBookableInTime } from './booking-policy.js';
+import {
+  MIN_LEAD_MS,
+  decideBooking,
+  isBookableInTime,
+  slotAvailability,
+} from './booking-policy.js';
 
 const now = new Date('2026-11-01T10:00:00Z');
 const after = (ms: number) => new Date(now.getTime() + ms);
@@ -29,6 +34,20 @@ describe('isBookableInTime', () => {
 
   it('rejects a slot already started', () => {
     expect(isBookableInTime(after(-1), now)).toBe(false);
+  });
+});
+
+describe('slotAvailability', () => {
+  it('is available with free seats and enough notice', () => {
+    expect(slotAvailability(after(MIN_LEAD_MS), now, 1)).toBe('AVAILABLE');
+  });
+
+  it('is full without free seats', () => {
+    expect(slotAvailability(after(MIN_LEAD_MS), now, 0)).toBe('FULL');
+  });
+
+  it('is too late less than two hours before the start, even when full', () => {
+    expect(slotAvailability(after(MIN_LEAD_MS - 1), now, 0)).toBe('TOO_LATE');
   });
 });
 

@@ -5,10 +5,10 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { BookingResult, CreateBookingInput } from '@mountain-hut/shared';
+import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
 import { bookingTimeZone } from '../common/booking-config.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { decideBooking } from './booking-policy.js';
+import { decideBooking, slotAvailability } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
 
 @Injectable()
@@ -17,6 +17,15 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly repo: BookingsRepository,
   ) {}
+
+  async listSlots(): Promise<SlotSummary[]> {
+    const now = new Date();
+    const slots = await this.repo.findUpcomingSlots(this.prisma, bookingTimeZone(), now);
+    return slots.map(({ startsAt, ...slot }) => ({
+      ...slot,
+      availability: slotAvailability(startsAt, now, slot.freeSeats),
+    }));
+  }
 
   // userId è l'hiker che prenota: arriva dal token, mai dal body.
   async create(userId: number, input: CreateBookingInput): Promise<BookingResult> {
@@ -28,6 +37,11 @@ export class BookingsService {
       // 2. Lock the slot and get its start time.
       const startsAt = await this.repo.lockSlotAndGetStart(tx, input.slotId, bookingTimeZone());
       if (!startsAt) throw new NotFoundException('Slot not found');
+
+      // The slot lock also serializes two identical requests sent at the same time.
+      if (await this.repo.hasActiveBooking(tx, hikerId, input.slotId)) {
+        throw new ConflictException('You already have a booking for this slot');
+      }
 
       // 3. Read available seats and check with the policy if booking is allowed.
       const tables = await this.repo.findFreeSeatsByTable(tx, input.slotId);

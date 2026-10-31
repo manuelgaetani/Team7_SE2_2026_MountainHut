@@ -24,6 +24,8 @@ describe('BookingsService', () => {
     lockSlotAndGetStart: vi.fn(),
     findFreeSeatsByTable: vi.fn(),
     findHikerIdByUserId: vi.fn(),
+    findUpcomingSlots: vi.fn(),
+    hasActiveBooking: vi.fn(),
     createConfirmedBooking: vi.fn(),
     createBookingTables: vi.fn(),
   };
@@ -34,6 +36,7 @@ describe('BookingsService', () => {
     prisma.$transaction.mockImplementation((work: (client: typeof tx) => unknown) => work(tx));
     repo.findHikerIdByUserId.mockResolvedValue(7);
     repo.lockSlotAndGetStart.mockResolvedValue(slotStart);
+    repo.hasActiveBooking.mockResolvedValue(false);
     repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 4 }]);
     repo.createConfirmedBooking.mockResolvedValue(storedBooking);
     const module = await Test.createTestingModule({
@@ -129,6 +132,50 @@ describe('BookingsService', () => {
       await expect(service.create(1, input)).rejects.toBeInstanceOf(NotFoundException);
       expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
       expectNothingWritten();
+    });
+  });
+
+  describe('when the hiker already has a booking for the slot', () => {
+    it('answers 409 after locking the slot and writes nothing', async () => {
+      repo.hasActiveBooking.mockResolvedValue(true);
+      await expect(service.create(1, input)).rejects.toThrow(
+        new ConflictException('You already have a booking for this slot'),
+      );
+      expect(repo.hasActiveBooking).toHaveBeenCalledWith(tx, 7, input.slotId);
+      expect(repo.lockSlotAndGetStart.mock.invocationCallOrder[0]).toBeLessThan(
+        repo.hasActiveBooking.mock.invocationCallOrder[0]!,
+      );
+      expectNothingWritten();
+    });
+  });
+
+  describe('listSlots', () => {
+    const visible = {
+      id: 1,
+      date: '2026-11-01',
+      startTime: '20:00',
+      endTime: '22:00',
+      freeSeats: 4,
+    };
+    const slot = { ...visible, startsAt: slotStart };
+
+    it('reads the slots in the booking time zone', async () => {
+      repo.findUpcomingSlots.mockResolvedValue([]);
+      await expect(service.listSlots()).resolves.toEqual([]);
+      expect(repo.findUpcomingSlots).toHaveBeenCalledWith(prisma, 'Europe/Rome', NOW);
+    });
+
+    it('marks each slot with its availability and hides the raw start', async () => {
+      repo.findUpcomingSlots.mockResolvedValue([
+        slot,
+        { ...slot, id: 2, freeSeats: 0 },
+        { ...slot, id: 3, startsAt: new Date(slotStart.getTime() - 1) },
+      ]);
+      await expect(service.listSlots()).resolves.toEqual([
+        { ...visible, availability: 'AVAILABLE' },
+        { ...visible, id: 2, freeSeats: 0, availability: 'FULL' },
+        { ...visible, id: 3, availability: 'TOO_LATE' },
+      ]);
     });
   });
 

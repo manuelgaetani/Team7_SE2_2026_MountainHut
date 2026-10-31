@@ -1,9 +1,9 @@
 # MH-01 — Book a table
 
-|                |                                                                                   |
-| -------------- | --------------------------------------------------------------------------------- |
-| **Status**     | Backend partly implemented; one booking per slot, web UI and slot listing missing |
-| **Depends on** | Authentication (MH-58), hiker profile (`User`/`Hiker` split)                      |
+|                |                                                              |
+| -------------- | ------------------------------------------------------------ |
+| **Status**     | Complete, except that slots are created by hand until MH-02  |
+| **Depends on** | Authentication (MH-58), hiker profile (`User`/`Hiker` split) |
 
 ## User story
 
@@ -17,17 +17,27 @@ Sharing a table with other parties is the standard rule. A hiker cannot ask for 
 
 Mandatory input: date, time, and number of people.
 
-| #   | Requirement                                                                   | Status  | Implemented in                                   |
-| --- | ----------------------------------------------------------------------------- | ------- | ------------------------------------------------ |
-| R1  | Date and time are chosen from the available combinations                      | Partial | `slotId` must exist; no endpoint lists the slots |
-| R2  | The party must fit in the seats available for that date and time              | Done    | `allocateSeats` (see [note](#open-points))       |
-| R3  | Booking is possible up to 2 hours before the start time                       | Done    | `isBookableInTime`                               |
-| R4  | Keep the party together as far as possible                                    | Done    | `allocateSeats`                                  |
-| R5  | Use the smallest set of available seats and tables                            | Partial | `allocateSeats` (see [note](#open-points))       |
-| R6  | Seat the party at one table, sharing it with other parties if needed          | Done    | `allocateSeats`                                  |
-| R7  | Split the party only if no single table fits, using as few tables as possible | Done    | `allocateSeats`                                  |
-| R8  | No private table option                                                       | Done    | The request has no such field                    |
-| R9  | A hiker has only one booking per time slot on a date                          | Missing | Not enforced by the API or the database          |
+| #   | Requirement                                                                   | Status | Implemented in                           |
+| --- | ----------------------------------------------------------------------------- | ------ | ---------------------------------------- |
+| R1  | Date and time are chosen from the available combinations                      | Done   | `GET /api/slots`, booking page           |
+| R2  | The party must fit in the seats available for that date and time              | Done   | `allocateSeats`                          |
+| R3  | Booking is possible up to 2 hours before the start time                       | Done   | `isBookableInTime`                       |
+| R4  | Keep the party together as far as possible                                    | Done   | `allocateSeats`                          |
+| R5  | Use the smallest set of available seats and tables                            | Done   | `allocateSeats`                          |
+| R6  | Seat the party at one table, sharing it with other parties if needed          | Done   | `allocateSeats`                          |
+| R7  | Split the party only if no single table fits, using as few tables as possible | Done   | `allocateSeats`                          |
+| R8  | No private table option                                                       | Done   | The request has no such field            |
+| R9  | A hiker has only one booking per time slot on a date                          | Done   | `hasActiveBooking`, partial unique index |
+
+### Decisions
+
+- A party equal to the free seats is accepted, so a slot can fill up completely. The story says "smaller than".
+- When a party is split, the last people go to the smallest table that fits them.
+- The hiker sees all future slots. Full slots and slots starting in less than 2 hours are shown but cannot be chosen.
+- A second booking for the same slot is rejected with `409`. Only `REJECTED` bookings allow the hiker to try again.
+- There is no upper limit on the party size other than the free seats.
+- The booking page and all the API messages are in English.
+- There is no seed: slots are created by hand until MH-02.
 
 ## How it works
 
@@ -35,17 +45,18 @@ The hiker is taken from the session cookie, never from the request body. The who
 
 1. Find the hiker profile of the logged-in user.
 2. Lock the slot row with `SELECT ... FOR UPDATE`, and read its start time in `BOOKING_TIMEZONE`.
-3. Read the free seats of each table. Only `CONFIRMED` bookings occupy seats.
-4. Apply the booking policy: first the 2-hour rule, then the seat allocation.
-5. Save the booking as `CONFIRMED`, together with its table assignments.
+3. Reject the request if the hiker already has a booking for this slot.
+4. Read the free seats of each table. Only `CONFIRMED` bookings occupy seats.
+5. Apply the booking policy: first the 2-hour rule, then the seat allocation.
+6. Save the booking as `CONFIRMED`, together with its table assignments.
 
-The row lock makes concurrent bookings for the same slot wait for each other, so two requests cannot take the same seats. Bookings for different slots do not block each other.
+The row lock makes concurrent bookings for the same slot wait for each other, so two requests cannot take the same seats, and one hiker cannot book twice with two simultaneous requests. Bookings for different slots do not block each other.
 
 ### Table assignment
 
 1. Ignore the tables with no free seats. If the remaining seats are not enough, reject the booking.
 2. If one table can hold the whole party, use the one with the fewest free seats that fits. On a tie, use the lowest table number.
-3. Otherwise, fill the tables from the most free seats to the fewest until the party is seated. On a tie, use the lowest table number.
+3. Otherwise, fill the tables from the most free seats to the fewest, which uses as few tables as possible. As soon as one table can hold the people left, seat them at the smallest such table. On a tie, use the lowest table number.
 
 Free seats decide the choice, so a table already used by another party can be assigned to a new one.
 
@@ -58,16 +69,41 @@ Example with tables 1, 2 and 3 of 2, 4 and 6 seats, all in the same slot:
 | 4          | Table 1: 2, table 2: 1, table 3: 1 | 0, 0, 0                           |
 | 1          | Rejected with `409`                | 0, 0, 0                           |
 
+With free seats 6, 5 and 2 and a party of 7, the API seats 6 people at the first table and 1 at the table with 2 free seats. The table with 5 free seats stays available.
+
 ## API
+
+Both endpoints require the session cookie set by `POST /api/auth/login`. They are also listed in Swagger at `/api/docs`.
+
+### `GET /api/slots`
+
+Returns the slots that have not started yet, in chronological order. Times are local to the hut.
+
+```json
+[
+  {
+    "id": 1,
+    "date": "2030-01-15",
+    "startTime": "19:00",
+    "endTime": "21:00",
+    "freeSeats": 12,
+    "availability": "AVAILABLE"
+  }
+]
+```
+
+| `availability` | Meaning                              |
+| -------------- | ------------------------------------ |
+| `AVAILABLE`    | The slot can be booked               |
+| `FULL`         | There are no free seats              |
+| `TOO_LATE`     | The slot starts in less than 2 hours |
 
 ### `POST /api/bookings`
 
-Requires the session cookie set by `POST /api/auth/login`. The endpoint is also listed in Swagger at `/api/docs`.
-
-| Field       | Type    | Rules                                     |
-| ----------- | ------- | ----------------------------------------- |
-| `slotId`    | integer | Positive, at most 2147483647              |
-| `partySize` | integer | Positive, at most 100 (provisional limit) |
+| Field       | Type    | Rules                                            |
+| ----------- | ------- | ------------------------------------------------ |
+| `slotId`    | integer | Positive, at most 2147483647                     |
+| `partySize` | integer | Positive; must fit in the free seats of the slot |
 
 Unknown fields are ignored.
 
@@ -91,14 +127,23 @@ Response `201 Created`:
 
 ### Errors
 
-| Status | When                                 | `message`                                            |
-| ------ | ------------------------------------ | ---------------------------------------------------- |
-| `400`  | The body is not valid                | `Dati non validi` (details in `issues`)              |
-| `401`  | There is no valid session            | `Non autenticato`                                    |
-| `403`  | The user has no hiker profile        | `A hiker profile is required to book a table`        |
-| `404`  | The slot does not exist              | `Slot not found`                                     |
-| `409`  | There are not enough free seats      | `Insufficient seats available for this slot`         |
-| `422`  | The slot starts in less than 2 hours | `Less than 2 hours remaining before the slot starts` |
+| Status | When                                         | `message`                                            |
+| ------ | -------------------------------------------- | ---------------------------------------------------- |
+| `400`  | The body is not valid                        | `Invalid data` (details in `issues`)                 |
+| `401`  | There is no valid session                    | `Not authenticated`                                  |
+| `403`  | The user has no hiker profile                | `A hiker profile is required to book a table`        |
+| `404`  | The slot does not exist                      | `Slot not found`                                     |
+| `409`  | There are not enough free seats              | `Insufficient seats available for this slot`         |
+| `409`  | The hiker already has a booking for the slot | `You already have a booking for this slot`           |
+| `422`  | The slot starts in less than 2 hours         | `Less than 2 hours remaining before the slot starts` |
+
+`GET /api/slots` can only return `401`.
+
+## Web app
+
+The page `/book` is linked from the navigation bar. A visitor without a session sees a link to sign in.
+
+The hiker chooses a date, then a time, and enters the number of people. Each time shows the seats left, and times that cannot be booked are disabled. After booking, the page shows the assigned tables and reloads the free seats. If the API refuses the booking, the page shows its message.
 
 ## Data model
 
@@ -108,6 +153,8 @@ Response `201 Created`:
 | `slot_tables`    | The tables of a slot and their seats        |
 | `bookings`       | Hiker, slot, party size and status          |
 | `booking_tables` | How many seats of each table a booking uses |
+
+The partial unique index `bookings_hiker_id_slot_id_active_key` allows one non-rejected booking for each hiker and slot. Prisma cannot express it, so it exists only in the `one_booking_per_slot` migration. The migration fails if a database already contains duplicate bookings.
 
 `booking_tables` has a composite foreign key on `(booking_id, slot_id)`, so a table assignment always belongs to the same slot as its booking.
 
@@ -119,19 +166,22 @@ Response `201 Created`:
 | ------------------ | ------------- | -------------------------------------------------- |
 | `BOOKING_TIMEZONE` | `Europe/Rome` | Time zone in which the slot date and time are read |
 
-`docker-compose.yml` does not pass this variable to the `app` container, so under Docker the default always applies.
+`docker-compose.yml` passes this variable to the `app` container.
 
 ## Code map
 
 | Path                                           | Content                                |
 | ---------------------------------------------- | -------------------------------------- |
 | `packages/shared/src/bookings.ts`              | Request schema and response type       |
-| `apps/api/src/bookings/bookings.controller.ts` | HTTP endpoint                          |
+| `apps/api/src/bookings/bookings.controller.ts` | Booking endpoint                       |
+| `apps/api/src/bookings/slots.controller.ts`    | Slot list endpoint                     |
 | `apps/api/src/bookings/bookings.service.ts`    | Transaction and mapping to HTTP errors |
 | `apps/api/src/bookings/booking-policy.ts`      | 2-hour rule and booking decision       |
 | `apps/api/src/bookings/seat-allocation.ts`     | Table assignment                       |
 | `apps/api/src/bookings/bookings.repository.ts` | Database queries                       |
 | `apps/api/prisma/schema.prisma`                | Data model                             |
+| `apps/web/src/pages/BookingPage.tsx`           | Booking page                           |
+| `apps/web/src/api/bookings.ts`                 | Web client for the two endpoints       |
 
 ## Testing
 
@@ -140,22 +190,34 @@ Run the unit tests:
 ```bash
 npm run test -w @mountain-hut/shared
 npm run test -w @mountain-hut/api
+npm run test -w @mountain-hut/web
 ```
 
-| Spec                                                | Covers                                 |
-| --------------------------------------------------- | -------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`              | Request validation limits              |
-| `apps/api/src/bookings/seat-allocation.spec.ts`     | Table assignment                       |
-| `apps/api/src/bookings/booking-policy.spec.ts`      | 2-hour rule and booking decision       |
-| `apps/api/src/bookings/bookings.service.spec.ts`    | Transaction flow and error mapping     |
-| `apps/api/src/bookings/bookings.repository.spec.ts` | Database queries, with a mocked client |
-| `apps/api/src/bookings/bookings.controller.spec.ts` | Endpoint behavior                      |
+Run the end-to-end tests with Docker running. Rebuild the stack first, so that it runs the current code:
 
-The Playwright suite has no booking tests yet. The unit tests do not exercise real concurrent bookings against PostgreSQL.
+```bash
+docker compose up --build -d --wait
+npm run test:e2e
+```
+
+| Spec                                                | Covers                                                     |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`              | Request validation limits                                  |
+| `apps/api/src/bookings/seat-allocation.spec.ts`     | Table assignment                                           |
+| `apps/api/src/bookings/booking-policy.spec.ts`      | 2-hour rule, availability and booking decision             |
+| `apps/api/src/bookings/bookings.service.spec.ts`    | Transaction flow, slot list and error mapping              |
+| `apps/api/src/bookings/bookings.repository.spec.ts` | Database queries, with a mocked client                     |
+| `apps/api/src/bookings/bookings.controller.spec.ts` | Booking endpoint                                           |
+| `apps/api/src/bookings/slots.controller.spec.ts`    | Slot list endpoint                                         |
+| `apps/web/src/pages/BookingPage.test.tsx`           | Booking page                                               |
+| `e2e/tests/api/bookings.spec.ts`                    | API rules on the real stack, including concurrent bookings |
+| `e2e/tests/web/booking.spec.ts`                     | Sign-in and booking in a real browser                      |
+
+The end-to-end tests create their slots directly in the database of the `docker compose` stack and delete them afterwards.
 
 ### Try it manually
 
-No endpoint or seed creates slots yet, so insert one directly. Run this against a local database only:
+No endpoint creates slots yet, so insert one directly. Run this against a local database only:
 
 ```bash
 docker compose exec -T db psql -U mountainhut -d mountainhut <<'SQL'
@@ -167,38 +229,9 @@ WHERE date = '2030-01-15';
 SQL
 ```
 
-Then register and log in to save the session cookie:
-
-```bash
-curl -H 'Content-Type: application/json' http://localhost:3000/api/auth/register \
-  -d '{"email":"hiker@example.test","password":"Password123","fullName":"Test Hiker","phone":"+39 333 1234567"}'
-
-curl -c cookies.txt -H 'Content-Type: application/json' http://localhost:3000/api/auth/login \
-  -d '{"email":"hiker@example.test","password":"Password123"}'
-```
-
-Finally, send the booking request shown in the [API section](#post-apibookings), using the `id` of the new slot as `slotId`.
+Then open <http://localhost:3000/register>, create an account, sign in, and choose **Book a table**.
 
 ## Open points
 
-**Missing for the story to be complete:**
-
-- The rule of one booking per time slot on a date, for each hiker. Today the same hiker can book the same slot many times, and each request returns `201`. The rule needs a check in the booking transaction and a database constraint on hiker and slot. Its error response must also be defined.
-- The choice of the last table when a party is split. The remaining people go to the table with the next most free seats, not to the smallest table that fits them. With 6, 5 and 2 free seats and a party of 7, the API uses 6 + 1 at the table with 5 free seats. The story asks for the smallest available set of seats, which would be 6 + 1 at the table with 2 free seats.
-- A way for the hiker to see the available slots. `GET /api/slots` does not exist.
-- A booking page in the web app. The web app currently has only the home page and the "not found" page.
-- A way to create slots and tables, which is expected from MH-02.
-- Playwright tests for the booking flow.
-
-**To confirm with the product owner:**
-
-- **Exact fit.** The story says the party must be "smaller than" the available seats. The API also accepts a party equal to the available seats, because a slot could otherwise never be filled.
-- **Party size limit.** The limit of 100 is a provisional check that is not part of the story. The real limit is the free seats in the slot.
-- **Exact 2-hour limit.** A slot that starts exactly 2 hours from now can still be booked.
-
-**Other limits:**
-
-- No endpoint can read or cancel a booking.
-- A booking cannot be modified. A hiker who needs more seats must modify the reservation, which is covered by MH-06.
-- Allergies and dietary needs cannot be recorded with a booking.
-- `400` and `401` messages are in Italian, while the other booking errors are in English.
+- **Slot creation.** Slots and tables can only be inserted by hand until MH-02.
+- **Modifying a booking.** A hiker who needs more seats must modify the reservation, which is covered by MH-06. No endpoint can read, modify or cancel a booking yet.
