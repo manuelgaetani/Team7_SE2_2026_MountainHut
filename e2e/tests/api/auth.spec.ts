@@ -24,12 +24,7 @@ test.describe('register', () => {
     const response = await request.post('/api/auth/register', { data: newUser });
     expect(response.status()).toBe(201);
     const body = await response.json();
-    expect(body).toMatchObject({
-      email: newUser.email,
-      firstName: newUser.firstName,
-      role: 'HIKER',
-    });
-    expect(body).not.toHaveProperty('password');
+    expect(body).toEqual({ id: expect.any(Number), email: newUser.email, role: 'HIKER' });
   });
 
   test('rejects an email that is already registered', async ({ request, registeredUser }) => {
@@ -50,7 +45,30 @@ test.describe('register', () => {
     });
     const body = await response.json();
     const fields = (body.issues as { path: string[] }[]).map((issue) => issue.path[0]);
-    expect(fields).toEqual(expect.arrayContaining(['email', 'password', 'firstName']));
+    expect(fields).toEqual(expect.arrayContaining(['email', 'password', 'fullName', 'phone']));
+  });
+
+  for (const field of ['fullName', 'phone'] as const) {
+    test(`rejects a registration without ${field}`, async ({ request, newUser }) => {
+      const data: Record<string, string> = { ...newUser };
+      delete data[field];
+      const response = await request.post('/api/auth/register', { data });
+      expect(response.status()).toBe(400);
+    });
+  }
+
+  test('accepts the optional notes and emergency contact', async ({ request, newUser }) => {
+    const response = await request.post('/api/auth/register', {
+      data: { ...newUser, notes: 'vegetarian', emergencyContact: 'Marco Rossi 3339876543' },
+    });
+    expect(response.status()).toBe(201);
+  });
+
+  test('rejects the old body with firstName instead of fullName and phone', async ({ request }) => {
+    const response = await request.post('/api/auth/register', {
+      data: { email: `old-${Date.now()}@example.test`, password: 'password123', firstName: 'Old' },
+    });
+    expect(response.status()).toBe(400);
   });
 
   test('treats the email as case-insensitive', async ({ request, registeredUser }) => {
@@ -101,12 +119,7 @@ test.describe('login', () => {
       data: { email: registeredUser.email, password: registeredUser.password },
     });
     const body = await response.json();
-    expect(body).toEqual({
-      id: expect.any(Number),
-      email: registeredUser.email,
-      firstName: registeredUser.firstName,
-      role: 'HIKER',
-    });
+    expect(body).toEqual({ id: expect.any(Number), email: registeredUser.email, role: 'HIKER' });
     const tokens = setCookies(response).map((c) => c.split(';')[0].split('=')[1]);
     for (const token of tokens) {
       expect(JSON.stringify(body)).not.toContain(token);

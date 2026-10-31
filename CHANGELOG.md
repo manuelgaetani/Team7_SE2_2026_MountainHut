@@ -30,5 +30,5 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
 
 ### Removed
-- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
 
+- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
