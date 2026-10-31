@@ -9,7 +9,7 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
     const result = this.schema.safeParse(value);
     if (!result.success) {
       throw new BadRequestException({
-        message: 'Dati non validi',
+        message: 'Invalid data',
         issues: result.error.issues,
       });
     }

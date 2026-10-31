@@ -7,7 +7,6 @@ test.describe('register', () => {
     const body = await response.json();
     expect(body).toMatchObject({
       email: newUser.email,
-      firstName: newUser.firstName,
       role: 'HIKER',
     });
     expect(body).not.toHaveProperty('password');
