@@ -54,6 +54,8 @@ function BookingForm() {
   });
   const [date, setDate] = useState('');
   const [slotId, setSlotId] = useState('');
+  // TODO(MH-03): add an optional input for the party requirements (e.g. allergies) and send it
+  // as `requirements`. The API already stores it and shows it in the confirmation email.
   const [partySize, setPartySize] = useState('');
   const [error, setError] = useState<string | null>(null);
 
