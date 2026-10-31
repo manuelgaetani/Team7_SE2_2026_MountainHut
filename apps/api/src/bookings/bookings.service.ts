@@ -39,7 +39,9 @@ export class BookingsService {
       });
       if (!decision.ok) {
         if (decision.reason === 'TOO_LATE') {
-          throw new UnprocessableEntityException('Less than 2 hours remaining before the slot starts');
+          throw new UnprocessableEntityException(
+            'Less than 2 hours remaining before the slot starts',
+          );
         }
         throw new ConflictException('Insufficient seats available for this slot');
       }
