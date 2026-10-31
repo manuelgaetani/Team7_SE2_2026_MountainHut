@@ -36,6 +36,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Conflict markers, focused tests (.only), skipped tests without a TODO(<ticket>)
+      - name: Hygiene
+        run: npm run hygiene
+
       # Generated Prisma client and shared dist are required by typecheck/tests
       - name: Generate Prisma client
         run: npm run prisma:generate -w @mountain-hut/api
@@ -45,6 +49,14 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Unused files, exports and dependencies
+      - name: Dead code
+        run: npm run knip
+
+      # Circular imports, undeclared dependencies, boundaries between apps and packages
+      - name: Architecture rules
+        run: npm run depcruise
 
       - name: Test
         run: npm run test
@@ -84,9 +96,63 @@ jobs:
         if: failure()
         run: docker compose logs
 
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
       - name: Stop system
         if: always()
         run: docker compose down -v
+
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    needs: check
+    # Secrets are not exposed to pull requests from forks
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history for blame data and new-code detection
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Dependency lifecycle scripts are not needed: bcrypt ships prebuilt binaries
+      # and the Prisma client is generated explicitly below
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate -w @mountain-hut/api
+
+      - name: Build shared package
+        run: npm run build -w @mountain-hut/shared
+
+      - name: Test with coverage
+        run: npm run test:cov
+
+      # vitest writes lcov paths relative to each workspace; Sonar resolves them from the repo root
+      - name: Make coverage paths repo-relative
+        run: |
+          for ws in apps/api apps/web packages/shared; do
+            sed -i "s#^SF:#SF:$ws/#" "$ws/coverage/lcov.info"
+          done
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5.3.2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   cd:
     name: CD
