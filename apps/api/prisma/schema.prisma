@@ -108,6 +108,8 @@ model Booking {
   slot   Slot           @relation(fields: [slotId], references: [id])
   tables BookingTable[]
 
+  // A partial unique index on (hikerId, slotId) ignores rejected bookings: see the
+  // one_booking_per_slot migration.
   @@unique([id, slotId])
   @@index([hikerId])
   @@index([slotId])

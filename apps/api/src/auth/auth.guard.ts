@@ -10,7 +10,7 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { user?: unknown }>();
     const token = (req.cookies as Record<string, string> | undefined)?.token;
-    if (!token) throw new UnauthorizedException('Non autenticato');
+    if (!token) throw new UnauthorizedException('Not authenticated');
     try {
       const payload = await this.jwt.verifyAsync<{ sub: number; email: string; role: Role }>(
         token,
@@ -19,7 +19,7 @@ export class AuthGuard implements CanActivate {
       req.user = { id: payload.sub, email: payload.email, role: payload.role };
       return true;
     } catch {
-      throw new UnauthorizedException('Non autenticato');
+      throw new UnauthorizedException('Not authenticated');
     }
   }
 }

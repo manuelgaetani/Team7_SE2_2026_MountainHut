@@ -33,7 +33,7 @@ function readRefreshCookie(req: Request): string | undefined {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService) { }
 
   @Post('register')
   @ApiZodBody(registerSchema)
@@ -69,7 +69,7 @@ export class AuthController {
     await this.auth.logout(readRefreshCookie(req));
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE, { path: REFRESH_PATH });
-    return { message: 'Logout effettuato' };
+    return { message: 'Logged out' };
   }
 
   @UseGuards(AuthGuard)

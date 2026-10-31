@@ -63,8 +63,10 @@ describe('Swagger (e2e)', () => {
     expect(response.body.paths['/api/auth/me'].get.security).toEqual([{ cookie: [] }]);
   });
 
-  it('serves the Swagger UI', () => {
+  it('serves the Swagger UI', async () => {
     if (!app) throw new Error('App non inizializzata');
-    return request(app.getHttpServer()).get('/api/docs').expect(200).expect('Content-Type', /html/);
+    const response = await request(app.getHttpServer()).get('/api/docs');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toMatch(/html/);
   });
 });
