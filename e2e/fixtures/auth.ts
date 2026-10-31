@@ -5,7 +5,8 @@ import type { APIRequestContext } from '@playwright/test';
 export interface TestUser {
   email: string;
   password: string;
-  firstName: string;
+  fullName: string;
+  phone: string;
 }
 
 interface AuthFixtures {
@@ -25,7 +26,8 @@ export const test = base.extend<AuthFixtures>({
     await use({
       email: `e2e-${randomUUID()}@example.test`,
       password: randomUUID(),
-      firstName: 'E2E',
+      fullName: 'E2E Hiker',
+      phone: '3331234567',
     });
   },
 
