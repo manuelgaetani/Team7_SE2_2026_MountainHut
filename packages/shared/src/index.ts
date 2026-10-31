@@ -4,3 +4,4 @@ export interface HealthStatus {
 }
 
 export * from './auth.js';
+export * from './slots.js';
