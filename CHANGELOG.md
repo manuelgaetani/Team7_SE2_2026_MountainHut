@@ -16,6 +16,9 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
 - API documentation with Swagger at `/api/docs`.
 - Database schema for bookings (MH-01): slots, tables per slot, bookings and table assignments.
+- Table booking (MH-01): endpoint `POST /api/bookings` for logged-in hikers, with a 2-hour booking limit and automatic table assignment.
+- New environment variable: `BOOKING_TIMEZONE` (default `Europe/Rome`).
+- Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 
 ### Changed
 
