@@ -4,7 +4,8 @@ import { loginSchema, registerSchema } from './auth.js';
 const validRegistration = {
   email: 'anna@example.it',
   password: 'password123',
-  firstName: 'Anna',
+  fullName: 'Anna Rossi',
+  phone: '3331234567',
 };
 
 describe('registerSchema', () => {
@@ -24,11 +25,14 @@ describe('registerSchema', () => {
     },
   );
 
-  it.each(['email', 'password', 'firstName'])('rejects a registration without %s', (field) => {
-    const input: Record<string, unknown> = { ...validRegistration };
-    delete input[field];
-    expect(registerSchema.safeParse(input).success).toBe(false);
-  });
+  it.each(['email', 'password', 'fullName', 'phone'])(
+    'rejects a registration without %s',
+    (field) => {
+      const input: Record<string, unknown> = { ...validRegistration };
+      delete input[field];
+      expect(registerSchema.safeParse(input).success).toBe(false);
+    },
+  );
 
   it('rejects a password shorter than 8 characters and accepts exactly 8', () => {
     expect(registerSchema.safeParse({ ...validRegistration, password: '1234567' }).success).toBe(
@@ -58,25 +62,35 @@ describe('registerSchema', () => {
     ).toBe(false);
   });
 
-  it('rejects a first name made only of spaces', () => {
-    expect(registerSchema.safeParse({ ...validRegistration, firstName: '   ' }).success).toBe(
-      false,
-    );
+  it('rejects a full name or phone made only of spaces', () => {
+    expect(registerSchema.safeParse({ ...validRegistration, fullName: '   ' }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...validRegistration, phone: '   ' }).success).toBe(false);
   });
 
-  it('accepts the optional last name and phone, trimmed', () => {
+  it('trims the full name and the phone', () => {
     const result = registerSchema.parse({
       ...validRegistration,
-      lastName: ' Rossi ',
+      fullName: ' Anna Rossi ',
       phone: ' +39 333 1234567 ',
     });
-    expect(result.lastName).toBe('Rossi');
+    expect(result.fullName).toBe('Anna Rossi');
     expect(result.phone).toBe('+39 333 1234567');
   });
 
-  it('rejects an empty last name or phone when they are provided', () => {
-    expect(registerSchema.safeParse({ ...validRegistration, lastName: ' ' }).success).toBe(false);
-    expect(registerSchema.safeParse({ ...validRegistration, phone: '' }).success).toBe(false);
+  it('accepts the optional notes and emergency contact, trimmed', () => {
+    const result = registerSchema.parse({
+      ...validRegistration,
+      notes: ' registered mountain guide ',
+      emergencyContact: ' Marco Rossi 3339876543 ',
+    });
+    expect(result.notes).toBe('registered mountain guide');
+    expect(result.emergencyContact).toBe('Marco Rossi 3339876543');
+  });
+
+  it('leaves notes and emergency contact undefined when omitted', () => {
+    const result = registerSchema.parse(validRegistration);
+    expect(result.notes).toBeUndefined();
+    expect(result.emergencyContact).toBeUndefined();
   });
 
   it('drops a role sent by the client, so nobody can self-register as staff', () => {

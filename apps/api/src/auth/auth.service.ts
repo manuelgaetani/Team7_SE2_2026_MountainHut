@@ -38,12 +38,17 @@ export class AuthService {
         data: {
           email: input.email,
           password,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          phone: input.phone,
+          hiker: {
+            create: {
+              fullName: input.fullName,
+              phone: input.phone,
+              notes: input.notes,
+              emergencyContact: input.emergencyContact,
+            },
+          },
         },
       });
-      return { id: user.id, email: input.email, firstName: user.firstName, role: user.role };
+      return { id: user.id, email: user.email, role: user.role };
     } catch (e) {
       // Due registrazioni concorrenti con la stessa email: vince il vincolo unique del DB.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -55,8 +60,8 @@ export class AuthService {
 
   async me(userId: number): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.email) throw new UnauthorizedException('Non autenticato');
-    return { id: user.id, email: user.email, firstName: user.firstName, role: user.role };
+    if (!user) throw new UnauthorizedException('Non autenticato');
+    return { id: user.id, email: user.email, role: user.role };
   }
 
   async login(input: LoginInput): Promise<AuthSession> {
@@ -65,16 +70,10 @@ export class AuthService {
     const hash = user?.password ?? DUMMY_HASH;
     const matches = await bcrypt.compare(input.password, hash);
     // Un utente temporaneo non ha password: non può fare login.
-    if (!user || user.password == null || !matches) {
+    if (!user || !matches) {
       throw new UnauthorizedException('Credenziali non valide');
     }
-
-    return this.issueSession({
-      id: user.id,
-      email: input.email,
-      firstName: user.firstName,
-      role: user.role,
-    });
+    return this.issueSession({ id: user.id, email: user.email, role: user.role });
   }
 
   async refresh(rawToken: string): Promise<AuthSession> {
@@ -92,7 +91,7 @@ export class AuthService {
       });
       throw new UnauthorizedException('Sessione non valida');
     }
-    if (stored.expiresAt <= new Date() || !stored.user.email) {
+    if (stored.expiresAt <= new Date()) {
       throw new UnauthorizedException('Sessione scaduta');
     }
 
@@ -106,7 +105,6 @@ export class AuthService {
     return this.issueSession({
       id: stored.user.id,
       email: stored.user.email,
-      firstName: stored.user.firstName,
       role: stored.user.role,
     });
   }
