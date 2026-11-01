@@ -195,7 +195,7 @@ describe('AuthController', () => {
       expect(auth.logout).toHaveBeenCalledWith('refresh-token');
       expect(res.clearCookie).toHaveBeenCalledWith('token');
       expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/api/auth' });
-      expect(result).toEqual({ message: 'Logout effettuato' });
+      expect(result).toEqual({ message: 'Logged out' });
     });
 
     it('still clears the cookies when there is no refresh cookie', async () => {

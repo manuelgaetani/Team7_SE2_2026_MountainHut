@@ -16,6 +16,7 @@ packages/
 e2e/          Playwright end-to-end tests
 docs/
   release-notes/  Detailed notes for each release
+  stories/        Documentation of each user story
 ```
 
 ## Prerequisites
@@ -74,6 +75,10 @@ In Docker this is not needed: the app container applies the pending migrations e
 ```bash
 npm run prisma:generate -w @mountain-hut/api
 ```
+
+## User stories
+
+- [MH-01 — Book a table](docs/stories/MH-01-book-a-table.md)
 
 ## Release notes
 
