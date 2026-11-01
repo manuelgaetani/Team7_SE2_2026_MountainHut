@@ -24,6 +24,12 @@ const REFRESH_COOKIE = 'refresh_token';
 // Il refresh cookie viene inviato solo alle rotte /api/auth/*
 const REFRESH_PATH = '/api/auth';
 
+// cookie-parser turns a value starting with "j:" into an object: it is not a token.
+function readRefreshCookie(req: Request): string | undefined {
+  const value = (req.cookies as Record<string, unknown> | undefined)?.[REFRESH_COOKIE];
+  return typeof value === 'string' ? value : undefined;
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -50,7 +56,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const raw = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
+    const raw = readRefreshCookie(req);
     if (!raw) throw new UnauthorizedException('Non autenticato');
     const session = await this.auth.refresh(raw);
     this.setSessionCookies(res, session);
@@ -60,8 +66,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const raw = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
-    await this.auth.logout(raw);
+    await this.auth.logout(readRefreshCookie(req));
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE, { path: REFRESH_PATH });
     return { message: 'Logout effettuato' };
