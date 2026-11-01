@@ -17,6 +17,13 @@ test.describe('register', () => {
     expect(response.status()).toBe(409);
   });
 
+  test('rejects a full name the database cannot store', async ({ request, newUser }) => {
+    const response = await request.post('/api/auth/register', {
+      data: { ...newUser, fullName: 'E2E\u0000User' },
+    });
+    expect(response.status()).toBe(400);
+  });
+
   test('rejects an invalid body', async ({ request }) => {
     const response = await request.post('/api/auth/register', {
       data: { email: 'not-an-email', password: 'short' },
@@ -77,6 +84,13 @@ test.describe('session', () => {
 
     // The reuse revoked the session of the real user too.
     expect((await loggedInRequest.post('/api/auth/refresh')).status()).toBe(401);
+  });
+
+  test('answers 401 and not 500 to a refresh cookie that is not a token', async ({ request }) => {
+    const response = await request.post('/api/auth/refresh', {
+      headers: { cookie: 'refresh_token=j:{"a":1}' },
+    });
+    expect(response.status()).toBe(401);
   });
 
   test('logout ends the session', async ({ loggedInRequest }) => {
