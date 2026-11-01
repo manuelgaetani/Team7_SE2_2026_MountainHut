@@ -16,6 +16,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variables: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `15m`) and `REFRESH_TOKEN_TTL_DAYS` (default `1`).
 - API documentation with Swagger at `/api/docs`.
 - Database schema for bookings (MH-01): slots, tables per slot, bookings and table assignments.
+- Slot capacity (MH-02): staff create time slots and define their tables and seats, or copy them from another slot (`POST /api/slots`, `PUT /api/slots/:id/tables`, `GET /api/slots/schedule`, `GET /api/slots/:id`).
+- Role checks: `@Roles(...)` with `RolesGuard` limits an endpoint to some roles (hikers get 403).
 
 ### Changed
 
@@ -30,5 +32,5 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
 
 ### Removed
-- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
 
+- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.

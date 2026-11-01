@@ -47,9 +47,10 @@ export class SlotsController {
     return this.slots.create(body);
   }
 
-  @Get()
+  // Not GET /slots: that route lists the bookable slots for hikers (MH-01).
+  @Get('schedule')
   @ApiQuery({ name: 'date', example: '2026-11-02' })
-  list(
+  schedule(
     @Query(new ZodValidationPipe(listSlotsQuerySchema)) query: ListSlotsQuery,
   ): Promise<SlotDetails[]> {
     return this.slots.listByDate(query.date);
