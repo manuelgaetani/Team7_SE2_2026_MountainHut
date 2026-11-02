@@ -109,9 +109,7 @@ test('shows full and closed slots but does not let the hiker choose them', async
     const slots = await openBookingPage(page, () => page.goto('/book'));
 
     const fullSlot = await chooseDayOf(page, slots, full);
-    await expect(
-      page.getByRole('radio', { name: fullSlot.startTime, exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('radio', { name: fullSlot.startTime, exact: true })).toBeDisabled();
 
     const closedSlot = await chooseDayOf(page, slots, closed);
     const closedRadio = page.getByRole('radio', { name: closedSlot.startTime, exact: true });
