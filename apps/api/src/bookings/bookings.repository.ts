@@ -52,7 +52,7 @@ export class BookingsRepository {
                    SELECT SUM(bt.assigned_seats)
                    FROM booking_tables bt
                    JOIN bookings b ON b.id = bt.booking_id
-                   WHERE bt.slot_id = s.id AND b.status = 'CONFIRMED'
+                   WHERE bt.slot_id = s.id AND b.status IN ('CONFIRMED', 'PENDING')
                  ), 0),
                0
              )::int AS free_seats
@@ -85,7 +85,7 @@ export class BookingsRepository {
   async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
     const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
-             (st.seats - COALESCE(SUM(bt.assigned_seats) FILTER (WHERE b.status = 'CONFIRMED'), 0))::int
+             (st.seats - COALESCE(SUM(bt.assigned_seats) FILTER (WHERE b.status IN ('CONFIRMED', 'PENDING')), 0))::int
                AS free_seats
       FROM slot_tables st
       LEFT JOIN booking_tables bt
@@ -110,7 +110,7 @@ export class BookingsRepository {
     return count > 0;
   }
 
-  async createConfirmedBooking(tx: Tx, data: NewBooking): Promise<StoredBooking> {
+  async createBooking(tx: Tx, data: NewBooking): Promise<StoredBooking> {
     const booking = await tx.booking.create({ data: { ...data, status: 'PENDING' } });
     return {
       id: booking.id,
