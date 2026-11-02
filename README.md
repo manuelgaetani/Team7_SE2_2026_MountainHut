@@ -50,6 +50,7 @@ cp .env.example .env
 docker compose up -d db
 npm run prisma:generate -w @mountain-hut/api
 npm run build -w @mountain-hut/shared
+npm run prisma:seed -w @mountain-hut/api
 npm run dev:api
 npm run dev:web
 ```
