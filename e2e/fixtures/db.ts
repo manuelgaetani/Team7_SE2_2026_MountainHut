@@ -27,7 +27,12 @@ function insertSlot(date: string, startTime: string, endTime: string, seats: num
     `INSERT INTO slots (date, start_time, end_time)
      VALUES (${date}, ${startTime}, ${endTime}) RETURNING id;`,
   );
-  sql(`INSERT INTO slot_tables (slot_id, table_number, seats) VALUES ${toValues(slotId, seats)};`);
+  // No seats: a slot without tables, which has 0 seats (MH-02, issue #17).
+  if (seats.length > 0) {
+    sql(
+      `INSERT INTO slot_tables (slot_id, table_number, seats) VALUES ${toValues(slotId, seats)};`,
+    );
+  }
   return Number(slotId);
 }
 
@@ -41,6 +46,18 @@ export function createSlot(seats: number[]): number {
 export function createImminentSlot(seats: number[]): number {
   const start = `(now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(1800)} * interval '1 second')`;
   return insertSlot(`${start}::date`, `${start}::time(0)`, `TIME '23:59'`, seats);
+}
+
+// A slot that is already over.
+export function createPastSlot(seats: number[]): number {
+  const date = `DATE '2001-01-01' + ${randomInt(3_650)}`;
+  return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
+}
+
+// Turns a registered user into an account without a hiker profile, like a staff account.
+export function removeHikerProfile(email: string): void {
+  const quoted = email.replaceAll("'", "''");
+  sql(`DELETE FROM hikers WHERE user_id = (SELECT id FROM users WHERE email = '${quoted}');`);
 }
 
 export function deleteSlot(slotId: number): void {
