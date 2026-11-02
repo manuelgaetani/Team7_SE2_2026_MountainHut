@@ -27,6 +27,8 @@ describe('Health (e2e)', () => {
 
   it('GET /api/health', async () => {
     if (!app) throw new Error('App non inizializzata');
-    await request(app.getHttpServer()).get('/api/health').expect(200).expect({ status: 'ok' });
+    const response = await request(app.getHttpServer()).get('/api/health');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
   });
 });
