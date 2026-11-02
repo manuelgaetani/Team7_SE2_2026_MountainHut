@@ -3,11 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import { router } from './router.tsx';
-<<<<<<< HEAD
-import './index.css';
-=======
 import './styles.css';
->>>>>>> feature/MH-00-auth-ui
 
 const queryClient = new QueryClient();
 
