@@ -69,7 +69,7 @@ async function openBookingPage(page: Page, open: () => Promise<unknown>): Promis
 // in ascending order, so the position does not depend on the date format.
 async function chooseDayOf(page: Page, slots: ListedSlot[], slotId: number): Promise<ListedSlot> {
   const slot = slots.find((s) => s.id === slotId)!;
-  const dates = [...new Set(slots.map((s) => s.date))].sort();
+  const dates = [...new Set(slots.map((s) => s.date))].sort((a, b) => a.localeCompare(b));
   await page
     .getByRole('radiogroup', { name: 'When are you coming?' })
     .getByRole('radio')

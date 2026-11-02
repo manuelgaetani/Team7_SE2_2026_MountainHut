@@ -42,7 +42,10 @@ function BookingFlow() {
   const [sentSummary, setSentSummary] = useState<string | null>(null);
 
   const slots = slotsQuery.data;
-  const dates = useMemo(() => [...new Set((slots ?? []).map((s) => s.date))].sort(), [slots]);
+  const dates = useMemo(
+    () => [...new Set((slots ?? []).map((s) => s.date))].sort((a, b) => a.localeCompare(b)),
+    [slots],
+  );
   const date = chosenDate && dates.includes(chosenDate) ? chosenDate : (dates[0] ?? null);
 
   const daySlots = useMemo(
