@@ -79,3 +79,10 @@
 @media (prefers-reduced-motion: reduce) {
   .choice { transition: none; }
 }
+
+.page__body {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 36px clamp(20px, 5vw, 64px) 56px;
+  zoom: 1.2;
+}

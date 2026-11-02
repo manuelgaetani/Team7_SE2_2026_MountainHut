@@ -7,7 +7,7 @@ import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { BookingSummary } from '../components/BookingSummary.tsx';
 import { DayPicker } from '../components/DayPicker.tsx';
-import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
+import { GuestStepper, MIN_GUESTS, MAX_GUESTS} from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
@@ -51,9 +51,12 @@ function BookingFlow() {
     [slots, date],
   );
 
-  const maxGuests = Math.max(
-    MIN_GUESTS,
-    ...daySlots.filter((s) => s.availability === 'AVAILABLE').map((s) => s.freeSeats),
+  const maxGuests = Math.min(
+    MAX_GUESTS,
+    Math.max(
+      MIN_GUESTS,
+      ...daySlots.filter((s) => s.availability === 'AVAILABLE').map((s) => s.freeSeats),
+    ),
   );
   const guests = Math.min(requestedGuests, maxGuests);
 
