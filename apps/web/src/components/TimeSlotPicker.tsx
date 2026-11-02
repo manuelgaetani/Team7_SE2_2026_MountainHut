@@ -31,7 +31,9 @@ export function TimeSlotPicker({ slots, guests, value, onChange }: TimeSlotPicke
             role="radio"
             aria-checked={slot.id === value}
             disabled={!isBookable(slot, guests)}
-            title={slot.availability === 'TOO_LATE' ? 'Bookings closed for this time slot' : undefined}
+            title={
+              slot.availability === 'TOO_LATE' ? 'Bookings closed for this time slot' : undefined
+            }
             className="choice slot"
             onClick={() => onChange(slot.id)}
           >

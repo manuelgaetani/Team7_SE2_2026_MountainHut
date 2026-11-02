@@ -33,14 +33,13 @@ export function BookingSummary({ dateLabel, time, guests, tables }: BookingSumma
           <dt>Seating</dt>
           <dd className="summary__seating">
             {tables
-                ? tables
-                    .map(
-                        (t) =>
-                        `Table ${t.tableNumber} (${t.assignedSeats} ${t.assignedSeats === 1 ? 'seat' : 'seats'})`,
-                    )
-                    .join(', ')
-                : 'The table will be assigned upon confirmation'
-            }
+              ? tables
+                  .map(
+                    (t) =>
+                      `Table ${t.tableNumber} (${t.assignedSeats} ${t.assignedSeats === 1 ? 'seat' : 'seats'})`,
+                  )
+                  .join(', ')
+              : 'The table will be assigned upon confirmation'}
           </dd>
         </div>
         <div>

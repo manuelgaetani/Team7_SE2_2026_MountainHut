@@ -7,7 +7,7 @@ import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { BookingSummary } from '../components/BookingSummary.tsx';
 import { DayPicker } from '../components/DayPicker.tsx';
-import { GuestStepper, MIN_GUESTS, MAX_GUESTS} from '../components/GuestStepper.tsx';
+import { GuestStepper, MIN_GUESTS, MAX_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
@@ -28,7 +28,6 @@ function bookingError(e: unknown): string {
 }
 
 function BookingFlow() {
-  
   const queryClient = useQueryClient();
   const slotsQuery = useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
   const book = useMutation({
@@ -151,8 +150,15 @@ function BookingFlow() {
         </aside>
       </div>
 
-      {sentSummary && <BookingSentDialog summary={sentSummary} onClose={() => {setSentSummary(null); setChosenSlotId(null);}} />}
-
+      {sentSummary && (
+        <BookingSentDialog
+          summary={sentSummary}
+          onClose={() => {
+            setSentSummary(null);
+            setChosenSlotId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
