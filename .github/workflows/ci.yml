@@ -16,6 +16,24 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: mountainhut
+          POSTGRES_PASSWORD: mountainhut
+          POSTGRES_DB: mountainhut
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://mountainhut:mountainhut@localhost:5432/mountainhut?schema=public
+
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +78,9 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Integration tests
+        run: npm run test:int
 
       - name: Build
         run: npm run build

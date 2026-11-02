@@ -1,6 +1,8 @@
+import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 
 // Same .env as prisma.config.ts. In CI the variables come from the environment instead.
+config({ path: fileURLToPath(new URL('../../../../.env', import.meta.url)), quiet: true });
 config({ path: '../../.env', quiet: true });
 
 const TEST_SUFFIX = '_test';
