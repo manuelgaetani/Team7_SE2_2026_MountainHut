@@ -193,6 +193,13 @@ npm run test -w @mountain-hut/api
 npm run test -w @mountain-hut/web
 ```
 
+Run the integration tests against PostgreSQL:
+
+```bash
+docker compose up -d db
+npm run test:int
+```
+
 Run the end-to-end tests with Docker running. Rebuild the stack first, so that it runs the current code:
 
 ```bash
@@ -200,18 +207,19 @@ docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                | Covers                                                     |
-| --------------------------------------------------- | ---------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`              | Request validation limits                                  |
-| `apps/api/src/bookings/seat-allocation.spec.ts`     | Table assignment                                           |
-| `apps/api/src/bookings/booking-policy.spec.ts`      | 2-hour rule, availability and booking decision             |
-| `apps/api/src/bookings/bookings.service.spec.ts`    | Transaction flow, slot list and error mapping              |
-| `apps/api/src/bookings/bookings.repository.spec.ts` | Database queries, with a mocked client                     |
-| `apps/api/src/bookings/bookings.controller.spec.ts` | Booking endpoint                                           |
-| `apps/api/src/bookings/slots.controller.spec.ts`    | Slot list endpoint                                         |
-| `apps/web/src/pages/BookingPage.test.tsx`           | Booking page                                               |
-| `e2e/tests/api/bookings.spec.ts`                    | API rules on the real stack, including concurrent bookings |
-| `e2e/tests/web/booking.spec.ts`                     | Sign-in and booking in a real browser                      |
+| Spec                                                | Covers                                                                |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`              | Request validation limits                                             |
+| `apps/api/src/bookings/seat-allocation.spec.ts`     | Table assignment                                                      |
+| `apps/api/src/bookings/booking-policy.spec.ts`      | 2-hour rule, availability and booking decision                        |
+| `apps/api/src/bookings/bookings.service.spec.ts`    | Transaction flow, slot list and error mapping                         |
+| `apps/api/src/bookings/bookings.repository.spec.ts` | Database queries, with a mocked client                                |
+| `apps/api/src/bookings/bookings.controller.spec.ts` | Booking endpoint                                                      |
+| `apps/api/src/bookings/slots.controller.spec.ts`    | Slot list endpoint                                                    |
+| `apps/api/test/bookings.int-spec.ts`                | Database queries, constraints, locks and transactions with PostgreSQL |
+| `apps/web/src/pages/BookingPage.test.tsx`           | Booking page                                                          |
+| `e2e/tests/api/bookings.spec.ts`                    | API rules on the real stack, including concurrent bookings            |
+| `e2e/tests/web/booking.spec.ts`                     | Sign-in and booking in a real browser                                 |
 
 The end-to-end tests create their slots directly in the database of the `docker compose` stack and delete them afterwards.
 

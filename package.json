@@ -31,6 +31,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:cov": "npm run test:cov --workspaces --if-present",
+    "test:int": "npm run test:int --workspaces --if-present",
     "test:e2e": "npm run e2e -w @mountain-hut/e2e"
   },
   "devDependencies": {
