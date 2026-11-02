@@ -69,7 +69,7 @@ export class AuthController {
     await this.auth.logout(readRefreshCookie(req));
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE, { path: REFRESH_PATH });
-    return { message: 'Logout effettuato' };
+    return { message: 'Logged out' };
   }
 
   @UseGuards(AuthGuard)
