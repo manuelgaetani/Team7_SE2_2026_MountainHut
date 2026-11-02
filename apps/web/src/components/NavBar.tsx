@@ -49,4 +49,3 @@ export function NavBar() {
     </nav>
   );
 }
-
