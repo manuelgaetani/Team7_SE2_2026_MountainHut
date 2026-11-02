@@ -1,137 +1,152 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { createBookingSchema } from '@mountain-hut/shared';
-import type { BookingResult, SlotSummary } from '@mountain-hut/shared';
 import { createBooking, fetchSlots } from '../api/bookings.ts';
 import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
-import { FormField } from '../components/FormField.tsx';
+import { BookingSummary } from '../components/BookingSummary.tsx';
+import { DayPicker } from '../components/DayPicker.tsx';
+import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
+import { HutHero } from '../components/HutHero.tsx';
+import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
+import { dateShort, fromIsoDate } from '../lib/dates.ts';
+import './BookingPage.css';
 
 const SLOTS_KEY = ['slots'] as const;
 
-function slotLabel(slot: SlotSummary): string {
-  const time = `${slot.startTime}–${slot.endTime}`;
-  if (slot.availability === 'FULL') return `${time} (full)`;
-  if (slot.availability === 'TOO_LATE') return `${time} (booking closed)`;
-  return `${time} (${slot.freeSeats} ${slot.freeSeats === 1 ? 'seat' : 'seats'} left)`;
-}
+const plural = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
 function bookingError(e: unknown): string {
   if (e instanceof ApiError && e.status === 401) {
-    return 'Your session has expired. Please sign in again.';
+    return 'The session has expired. Please log in again.';
   }
-  // The API explains these cases: slot gone, no seats, too late, already booked, no hiker profile.
+
   if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
   return 'Booking failed. Please try again.';
 }
 
-function Confirmation({ booking }: { booking: BookingResult }) {
-  return (
-    <div role="status">
-      <h2>Booking confirmed</h2>
-      <p>
-        {booking.partySize} {booking.partySize === 1 ? 'seat' : 'seats'} reserved:
-      </p>
-      <ul>
-        {booking.tables.map((t) => (
-          <li key={t.tableNumber}>
-            Table {t.tableNumber}: {t.assignedSeats} {t.assignedSeats === 1 ? 'seat' : 'seats'}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function BookingForm() {
+function BookingFlow() {
   const queryClient = useQueryClient();
-  const slots = useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
+  const slotsQuery = useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
   const book = useMutation({
     mutationFn: createBooking,
     onSettled: () => queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
   });
-  const [date, setDate] = useState('');
-  const [slotId, setSlotId] = useState('');
-  const [partySize, setPartySize] = useState('');
+
+  const [chosenDate, setChosenDate] = useState<string | null>(null);
+  const [requestedGuests, setRequestedGuests] = useState(2);
+  const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (slots.isPending) return <p>Loading the available dates…</p>;
-  if (slots.isError) return <p role="alert">{bookingError(slots.error)}</p>;
-  if (slots.data.length === 0) return <p>There are no dates to book yet.</p>;
+  const slots = slotsQuery.data;
+  const dates = useMemo(() => [...new Set((slots ?? []).map((s) => s.date))].sort(), [slots]);
+  const date = chosenDate && dates.includes(chosenDate) ? chosenDate : (dates[0] ?? null);
 
-  const dates = [...new Set(slots.data.map((s) => s.date))];
-  const times = slots.data.filter((s) => s.date === date);
+  const daySlots = useMemo(
+    () =>
+      (slots ?? [])
+        .filter((s) => s.date === date)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [slots, date],
+  );
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const maxGuests = Math.max(
+    MIN_GUESTS,
+    ...daySlots.filter((s) => s.availability === 'AVAILABLE').map((s) => s.freeSeats),
+  );
+  const guests = Math.min(requestedGuests, maxGuests);
+
+  const slot = daySlots.find((s) => s.id === chosenSlotId && isBookable(s, guests)) ?? null;
+
+  const handle =
+    <T,>(set: (v: T) => void) =>
+    (v: T) => {
+      set(v);
+      setError(null);
+      book.reset();
+    };
+
+  function handleSubmit() {
+    if (!slot) return;
     setError(null);
-    book.reset();
-
-    const parsed = createBookingSchema.safeParse({
-      slotId: Number(slotId),
-      partySize: Number(partySize),
-    });
+    const parsed = createBookingSchema.safeParse({ slotId: slot.id, partySize: guests });
     if (!parsed.success) {
-      setError('Choose a date and a time, and enter the number of people.');
+      setError('Choose a date, time, and number of people.');
       return;
     }
     book.mutate(parsed.data, { onError: (e) => setError(bookingError(e)) });
   }
 
+  if (slotsQuery.isPending) return <p role="status">Loading time slots…</p>;
+  if (slotsQuery.isError) {
+    return (
+      <p role="alert" className="notice notice--error">
+        {bookingError(slotsQuery.error)}
+      </p>
+    );
+  }
+  if (date === null) {
+    return <p className="notice notice--ok">At the moment there are no available time slots.</p>;
+  }
+
   return (
-    <>
-      <form onSubmit={onSubmit} noValidate>
-        <div>
-          <label htmlFor="date">Date</label>
-          <select
-            id="date"
-            value={date}
-            onChange={(e) => {
-              setDate(e.target.value);
-              setSlotId('');
-            }}
-          >
-            <option value="">Choose a date</option>
-            {dates.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="time">Time</label>
-          <select
-            id="time"
-            value={slotId}
-            disabled={!date}
-            onChange={(e) => setSlotId(e.target.value)}
-          >
-            <option value="">Choose a time</option>
-            {times.map((s) => (
-              <option key={s.id} value={s.id} disabled={s.availability !== 'AVAILABLE'}>
-                {slotLabel(s)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <FormField
-          id="partySize"
-          label="Number of people"
-          type="number"
-          min={1}
-          value={partySize}
-          onChange={(e) => setPartySize(e.target.value)}
+    <div className="layout">
+      <div className="layout__form">
+        <DayPicker dates={dates} value={date} onChange={handle(setChosenDate)} />
+        <GuestStepper value={guests} max={maxGuests} onChange={handle(setRequestedGuests)} />
+        <TimeSlotPicker
+          slots={daySlots}
+          guests={guests}
+          value={slot?.id ?? null}
+          onChange={handle(setChosenSlotId)}
         />
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={book.isPending}>
-          {book.isPending ? 'Booking…' : 'Book'}
+
+        {slot && (
+          <p className="recap">
+            <strong>
+              {dateShort(fromIsoDate(date))} · {slot.startTime} · {plural(guests)}
+            </strong>
+            <span>A table is waiting for you at {slot.startTime}</span>
+          </p>
+        )}
+
+        <button
+          type="button"
+          className="cta"
+          disabled={!slot || book.isPending}
+          onClick={handleSubmit}
+        >
+          {book.isPending ? 'Booking in progress…' : 'Book your table'}
+          <span aria-hidden="true">→</span>
         </button>
-      </form>
-      {book.isSuccess && <Confirmation booking={book.data} />}
-    </>
+
+        {error && (
+          <p role="alert" className="notice notice--error">
+            {error}
+          </p>
+        )}
+        {book.isSuccess && (
+          <p role="status" className="notice notice--ok">
+            Booking confirmed for {dateShort(fromIsoDate(date))} at{' '}
+            {daySlots.find((s) => s.id === book.data.slotId)?.startTime ?? ''}.
+          </p>
+        )}
+      </div>
+
+      <div className="layout__side">
+        <BookingSummary
+          dateLabel={dateShort(fromIsoDate(date))}
+          time={slot?.startTime ?? null}
+          guests={guests}
+          tables={book.isSuccess ? book.data.tables : null}
+        />
+        <aside className="experience">
+          <h3>An Alpine Experience</h3>
+          <p>Mountain cuisine, best enjoyed at a leisurely pace.</p>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -139,16 +154,20 @@ export function BookingPage() {
   const { data: user, isPending } = useCurrentUser();
 
   return (
-    <section>
-      <h1>Book a table</h1>
-      {!isPending &&
-        (user ? (
-          <BookingForm />
-        ) : (
-          <p>
-            <Link to="/login">Sign in</Link> to book a table.
-          </p>
-        ))}
-    </section>
+    <div className="page">
+      <HutHero />
+      <div className="page__body">
+        <h2 className="page__title">We'll hold a table for you.</h2>
+        <p className="page__subtitle">Mountain cuisine, best enjoyed at a leisurely pace.</p>
+        {!isPending &&
+          (user ? (
+            <BookingFlow />
+          ) : (
+            <p className="notice notice--ok">
+              <Link to="/login">Log in</Link> to book a table.
+            </p>
+          ))}
+      </div>
+    </div>
   );
 }
