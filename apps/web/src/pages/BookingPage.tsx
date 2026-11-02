@@ -11,6 +11,7 @@ import { GuestStepper, MIN_GUESTS, MAX_GUESTS} from '../components/GuestStepper.
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
+import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
 
 const SLOTS_KEY = ['slots'] as const;
@@ -27,6 +28,7 @@ function bookingError(e: unknown): string {
 }
 
 function BookingFlow() {
+  
   const queryClient = useQueryClient();
   const slotsQuery = useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
   const book = useMutation({
@@ -38,6 +40,7 @@ function BookingFlow() {
   const [requestedGuests, setRequestedGuests] = useState(2);
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sentSummary, setSentSummary] = useState<string | null>(null);
 
   const slots = slotsQuery.data;
   const dates = useMemo(() => [...new Set((slots ?? []).map((s) => s.date))].sort(), [slots]);
@@ -78,7 +81,11 @@ function BookingFlow() {
       setError('Choose a date, time, and number of people.');
       return;
     }
-    book.mutate(parsed.data, { onError: (e) => setError(bookingError(e)) });
+    const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
+    book.mutate(parsed.data, {
+      onSuccess: () => setSentSummary(summary),
+      onError: (e) => setError(bookingError(e)),
+    });
   }
 
   if (slotsQuery.isPending) return <p role="status">Loading time slots…</p>;
@@ -129,12 +136,6 @@ function BookingFlow() {
             {error}
           </p>
         )}
-        {book.isSuccess && (
-          <p role="status" className="notice notice--ok">
-            Booking confirmed for {dateShort(fromIsoDate(date))} at{' '}
-            {daySlots.find((s) => s.id === book.data.slotId)?.startTime ?? ''}.
-          </p>
-        )}
       </div>
 
       <div className="layout__side">
@@ -149,6 +150,9 @@ function BookingFlow() {
           <p>Mountain cuisine, best enjoyed at a leisurely pace.</p>
         </aside>
       </div>
+
+      {sentSummary && <BookingSentDialog summary={sentSummary} onClose={() => {setSentSummary(null); setChosenSlotId(null);}} />}
+
     </div>
   );
 }
