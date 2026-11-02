@@ -38,7 +38,15 @@ export function BookingSentDialog({ summary, onClose }: BookingSentDialogProps) 
         <p className="dialog__status">
           <span className="dialog__icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="3.5" y="5.5" width="17" height="13" rx="2" stroke="currentColor" strokeWidth="1.6" />
+              <rect
+                x="3.5"
+                y="5.5"
+                width="17"
+                height="13"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
               <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.6" />
             </svg>
           </span>

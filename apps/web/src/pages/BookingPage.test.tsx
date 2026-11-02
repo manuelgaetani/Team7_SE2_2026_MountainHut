@@ -118,7 +118,8 @@ describe('BookingPage', () => {
 
   it('disables the slots with fewer free seats than guests', async () => {
     stubApi({
-      slots: () => json([slot, { ...slot, id: 2, startTime: '20:00', endTime: '22:00', freeSeats: 2 }]),
+      slots: () =>
+        json([slot, { ...slot, id: 2, startTime: '20:00', endTime: '22:00', freeSeats: 2 }]),
     });
     renderPage();
     expect(await screen.findByRole('radio', { name: '20:00' })).toBeEnabled();
