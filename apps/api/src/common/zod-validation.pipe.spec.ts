@@ -25,7 +25,7 @@ describe('ZodValidationPipe', () => {
       message: string;
       issues: { path: PropertyKey[] }[];
     };
-    expect(body.message).toBe('Dati non validi');
+    expect(body.message).toBe('Invalid data');
     expect(body.issues.map((issue) => issue.path[0])).toEqual(
       expect.arrayContaining(['email', 'password']),
     );
