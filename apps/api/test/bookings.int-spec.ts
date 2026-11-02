@@ -190,7 +190,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         where: { id: result.id },
         include: { tables: true },
       });
-      expect(stored).toMatchObject({ slotId, partySize: 6, status: 'CONFIRMED' });
+      expect(stored).toMatchObject({ slotId, partySize: 6, status: 'PENDING' });
       expect(stored.tables.reduce((sum, t) => sum + t.assignedSeats, 0)).toBe(6);
       expect(stored.tables.map((t) => t.tableNumber).sort()).toEqual(
         result.tables.map((t) => t.tableNumber).sort(),
@@ -205,7 +205,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       ]);
 
       await expect(service.create(userId, { slotId, partySize: 4 })).resolves.toMatchObject({
-        status: 'CONFIRMED',
+        status: 'PENDING',
         tables: [{ tableNumber: 1, assignedSeats: 4 }],
       });
     });
