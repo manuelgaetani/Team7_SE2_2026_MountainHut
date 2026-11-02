@@ -82,7 +82,7 @@ They run the API code against a real database, a separate one named like `DATABA
 
 ```bash
 docker compose up -d db
-npm run test:int -w @mountain-hut/api
+npm run test:int
 ```
 
 They are not part of `npm test`, which runs without a database.
