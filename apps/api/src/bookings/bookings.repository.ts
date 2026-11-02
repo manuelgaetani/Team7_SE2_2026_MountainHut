@@ -111,7 +111,7 @@ export class BookingsRepository {
   }
 
   async createConfirmedBooking(tx: Tx, data: NewBooking): Promise<StoredBooking> {
-    const booking = await tx.booking.create({ data: { ...data, status: 'CONFIRMED' } });
+    const booking = await tx.booking.create({ data: { ...data, status: 'PENDING' } });
     return {
       id: booking.id,
       slotId: booking.slotId,
