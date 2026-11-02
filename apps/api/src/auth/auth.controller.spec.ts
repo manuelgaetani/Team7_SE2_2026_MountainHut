@@ -141,6 +141,13 @@ describe('AuthController', () => {
       expect(res.cookie).not.toHaveBeenCalled();
     });
 
+    it('rejects a cookie that was parsed as an object, without reaching the service', async () => {
+      await expect(
+        controller.refresh({ cookies: { refresh_token: { a: 1 } } } as never, {} as never),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(auth.refresh).not.toHaveBeenCalled();
+    });
+
     it('rejects a request where no cookies were parsed', async () => {
       await expect(
         controller.refresh(requestWithCookies(undefined), asResponse(fakeResponse())),
@@ -188,7 +195,7 @@ describe('AuthController', () => {
       expect(auth.logout).toHaveBeenCalledWith('refresh-token');
       expect(res.clearCookie).toHaveBeenCalledWith('token');
       expect(res.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/api/auth' });
-      expect(result).toEqual({ message: 'Logout effettuato' });
+      expect(result).toEqual({ message: 'Logged out' });
     });
 
     it('still clears the cookies when there is no refresh cookie', async () => {

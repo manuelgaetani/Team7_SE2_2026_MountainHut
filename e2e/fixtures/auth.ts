@@ -8,7 +8,6 @@ export interface TestUser {
   password: string;
   fullName: string;
   phone: string;
-  firstName: string;
 }
 
 interface AuthFixtures {
@@ -28,13 +27,12 @@ interface AuthFixtures {
 export const test = base.extend<AuthFixtures>({
   // Playwright requires the first argument to be a destructured object, even when empty.
   // eslint-disable-next-line no-empty-pattern
-  newUser: async ({}, use) => {
+  newUser: async ({ }, use) => {
     await use({
       email: `e2e-${randomUUID()}@example.test`,
       password: randomUUID(),
       fullName: 'E2E User',
       phone: '+39 333 1234567',
-      firstName: 'E2E',
     });
   },
 

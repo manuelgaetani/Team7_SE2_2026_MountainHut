@@ -16,12 +16,21 @@ export interface AuthSession {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUMMY_HASH = bcrypt.hashSync('password-fittizia', 10);
 
+function refreshTtlMs(): number {
+  const ttl = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS;
+  // An invalid duration would otherwise fail on every login, not at startup.
+  if (!(ttl > 0) || Number.isNaN(new Date(ttl).getTime())) {
+    throw new Error('REFRESH_TOKEN_TTL_DAYS must be a positive number of days');
+  }
+  return ttl;
+}
+
 // SHA-256 e non bcrypt: il token è già casuale e va cercato per uguaglianza.
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 @Injectable()
 export class AuthService {
-  private readonly refreshTtlMs = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS;
+  private readonly refreshTtlMs = refreshTtlMs();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -30,7 +39,7 @@ export class AuthService {
 
   async register(input: RegisterInput): Promise<AuthUser> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new ConflictException('Email già registrata');
+    if (existing) throw new ConflictException('Email already registered');
 
     const password = await bcrypt.hash(input.password, 10);
     try {
@@ -52,7 +61,7 @@ export class AuthService {
     } catch (e) {
       // Due registrazioni concorrenti con la stessa email: vince il vincolo unique del DB.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('Email già registrata');
+        throw new ConflictException('Email already registered');
       }
       throw e;
     }
@@ -60,7 +69,7 @@ export class AuthService {
 
   async me(userId: number): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('Non autenticato');
+    if (!user) throw new UnauthorizedException('Not authenticated');
     return { id: user.id, email: user.email, role: user.role };
   }
 
@@ -69,9 +78,8 @@ export class AuthService {
     // Il confronto avviene sempre, così i tempi non rivelano se l'email è registrata.
     const hash = user?.password ?? DUMMY_HASH;
     const matches = await bcrypt.compare(input.password, hash);
-    // Un utente temporaneo non ha password: non può fare login.
     if (!user || !matches) {
-      throw new UnauthorizedException('Credenziali non valide');
+      throw new UnauthorizedException('Invalid credentials');
     }
     return this.issueSession({ id: user.id, email: user.email, role: user.role });
   }
@@ -81,7 +89,7 @@ export class AuthService {
       where: { tokenHash: hashToken(rawToken) },
       include: { user: true },
     });
-    if (!stored) throw new UnauthorizedException('Sessione non valida');
+    if (!stored) throw new UnauthorizedException('Invalid session');
 
     if (stored.revokedAt) {
       // Token già ruotato presentato di nuovo: possibile furto, chiudiamo tutte le sessioni.
@@ -89,10 +97,10 @@ export class AuthService {
         where: { userId: stored.userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
-      throw new UnauthorizedException('Sessione non valida');
+      throw new UnauthorizedException('Invalid session');
     }
     if (stored.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Sessione scaduta');
+      throw new UnauthorizedException('Session expired');
     }
 
     // Revoca atomica: se due richieste usano lo stesso token, solo una vince.
@@ -100,7 +108,7 @@ export class AuthService {
       where: { id: stored.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    if (count !== 1) throw new UnauthorizedException('Sessione non valida');
+    if (count !== 1) throw new UnauthorizedException('Invalid session');
 
     return this.issueSession({
       id: stored.user.id,
