@@ -1,5 +1,5 @@
-import type { BookingResult, CreateBookingInput } from '@mountain-hut/shared';
-import { apiPost } from './client.ts';
+import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
+import { apiGet, apiPost } from './client.ts';
 
 export const fetchSlots = () => apiGet<SlotSummary[]>('/slots');
 
