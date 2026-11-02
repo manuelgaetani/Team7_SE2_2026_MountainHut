@@ -30,7 +30,7 @@ export function GuestStepper({ value, max, onChange }: GuestStepperProps) {
         <button
           type="button"
           className="stepper__btn stepper__btn--plus"
-          aria-label="Più ospiti"
+          aria-label="More guests"
           disabled={value >= max}
           onClick={() => onChange(value + 1)}
         >

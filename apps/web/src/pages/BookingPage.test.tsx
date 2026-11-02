@@ -61,18 +61,18 @@ function renderPage() {
   );
 }
 
-const clickGuests = (name: 'Più ospiti' | 'Meno ospiti') =>
+const clickGuests = (name: 'More guests' | 'Fewer guests') =>
   fireEvent.click(screen.getByRole('button', { name }));
 
 // The first day is already selected: only guests and time need to be chosen.
 async function fillForm(guests = 3) {
   await screen.findByRole('radio', { name: '19:00' });
-  for (let n = DEFAULT_GUESTS; n < guests; n++) clickGuests('Più ospiti');
-  for (let n = DEFAULT_GUESTS; n > guests; n--) clickGuests('Meno ospiti');
+  for (let n = DEFAULT_GUESTS; n < guests; n++) clickGuests('More guests');
+  for (let n = DEFAULT_GUESTS; n > guests; n--) clickGuests('Fewer guests');
   fireEvent.click(screen.getByRole('radio', { name: '19:00' }));
 }
 
-const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Prenota il tuo tavolo' }));
+const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Book your table' }));
 
 describe('BookingPage', () => {
   afterEach(() => {
@@ -82,8 +82,8 @@ describe('BookingPage', () => {
   it('asks to sign in when there is no session', async () => {
     stubApi({ me: () => json({}, 401) });
     renderPage();
-    expect(await screen.findByText(/per prenotare un tavolo/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Accedi' })).toBeInTheDocument();
+    expect(await screen.findByText(/to book a table/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Log in' })).toBeInTheDocument();
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
   });
 
@@ -91,14 +91,14 @@ describe('BookingPage', () => {
     stubApi({ slots: () => json([]) });
     renderPage();
     expect(
-      await screen.findByText('Al momento non ci sono orari prenotabili.'),
+      await screen.findByText('At the moment there are no available time slots.'),
     ).toBeInTheDocument();
   });
 
   it('shows an error when the slots cannot be loaded', async () => {
     stubApi({ slots: () => json({}, 500) });
     renderPage();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Prenotazione non riuscita');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Booking failed');
   });
 
   it('disables the slots that cannot be booked', async () => {
@@ -123,7 +123,7 @@ describe('BookingPage', () => {
     });
     renderPage();
     expect(await screen.findByRole('radio', { name: '20:00' })).toBeEnabled();
-    clickGuests('Più ospiti');
+    clickGuests('More guests');
     expect(screen.getByRole('radio', { name: '20:00' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: '19:00' })).toBeEnabled();
   });
@@ -131,7 +131,7 @@ describe('BookingPage', () => {
   it('keeps the booking button disabled until a time is chosen', async () => {
     const fetchMock = stubApi({});
     renderPage();
-    const button = await screen.findByRole('button', { name: 'Prenota il tuo tavolo' });
+    const button = await screen.findByRole('button', { name: 'Book your table' });
     expect(button).toBeDisabled();
     fireEvent.click(screen.getByRole('radio', { name: '19:00' }));
     expect(button).toBeEnabled();
@@ -143,10 +143,8 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm();
     submit();
-    expect(
-      await screen.findByText(/Prenotazione confermata per Mar 15 gen alle 19:00/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Tavolo 1 (2 posti), Tavolo 2 (1 posto)')).toBeInTheDocument();
+    expect(await screen.findByText('Booking request sent')).toBeInTheDocument();
+    expect(screen.getByText('Table 1 (2 seats), Table 2 (1 seat)')).toBeInTheDocument();
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/bookings') as unknown as [
       string,
       { body: string },
@@ -162,7 +160,7 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm(1);
     submit();
-    expect(await screen.findByText('Tavolo 1 (1 posto)')).toBeInTheDocument();
+    expect(await screen.findByText('Table 1 (1 seat)')).toBeInTheDocument();
   });
 
   it('shows the reason given by the API', async () => {
@@ -179,7 +177,7 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm();
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent('La sessione è scaduta');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The session has expired');
   });
 
   it('shows a generic error for an unexpected failure', async () => {
@@ -187,6 +185,6 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm();
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Prenotazione non riuscita');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Booking failed');
   });
 });
