@@ -45,13 +45,19 @@ export class NotificationService {
     recipient: Recipient,
     booking: BookingConfirmationData,
   ): Promise<DeliveryStatus> {
-    return this.deliver('BOOKING_CONFIRMATION', recipient, bookingConfirmationEmail(booking));
+    return this.deliver(
+      'BOOKING_CONFIRMATION',
+      recipient,
+      bookingConfirmationEmail(booking),
+      booking.bookingId,
+    );
   }
 
   private async deliver(
     type: NotificationType,
     recipient: Recipient,
     content: EmailContent,
+    bookingId: number | null,
   ): Promise<DeliveryStatus> {
     if (!recipient.email) return 'SKIPPED';
 
@@ -74,6 +80,7 @@ export class NotificationService {
           status,
           error,
           userId: recipient.userId,
+          bookingId,
         },
       });
     } catch (err) {

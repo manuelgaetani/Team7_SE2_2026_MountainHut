@@ -106,9 +106,10 @@ model Booking {
   status       BookingStatus @default(PENDING)
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  hiker  Hiker          @relation(fields: [hikerId], references: [id])
-  slot   Slot           @relation(fields: [slotId], references: [id])
-  tables BookingTable[]
+  hiker         Hiker          @relation(fields: [hikerId], references: [id])
+  slot          Slot           @relation(fields: [slotId], references: [id])
+  tables        BookingTable[]
+  notifications Notification[]
 
   // A partial unique index on (hikerId, slotId) ignores rejected bookings: see the
   // one_booking_per_slot migration.
@@ -145,7 +146,6 @@ enum NotificationStatus {
 }
 
 // One row per email the system tried to send, delivered or not.
-// TODO(MH-03): add `bookingId`, so that a FAILED email can be traced to its booking.
 model Notification {
   id        Int                @id @default(autoincrement())
   type      NotificationType
@@ -155,10 +155,13 @@ model Notification {
   // SMTP error message when status is FAILED.
   error     String?
   userId    Int?               @map("user_id")
+  bookingId Int?               @map("booking_id")
   createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([bookingId])
   @@map("notifications")
 }

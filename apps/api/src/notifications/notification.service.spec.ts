@@ -64,6 +64,7 @@ describe('NotificationService', () => {
           status: 'SENT',
           error: null,
           userId: 7,
+          bookingId: 42,
         },
       });
     });
@@ -78,6 +79,8 @@ describe('NotificationService', () => {
         data: expect.objectContaining({
           status: 'FAILED',
           error: 'connect ECONNREFUSED 127.0.0.1:1025',
+          // A failed email must lead back to its booking.
+          bookingId: 42,
         }),
       });
     });
