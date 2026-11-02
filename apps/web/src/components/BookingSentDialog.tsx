@@ -24,6 +24,7 @@ export function BookingSentDialog({ summary, onClose }: BookingSentDialogProps) 
   return createPortal(
     <div
       className="dialog-backdrop"
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

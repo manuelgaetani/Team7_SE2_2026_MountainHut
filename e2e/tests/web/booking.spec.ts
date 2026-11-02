@@ -32,7 +32,7 @@ async function openBookingPage(page: Page, open: () => Promise<unknown>): Promis
 // in ascending order, so the position does not depend on the date format.
 async function chooseDayOf(page: Page, slots: ListedSlot[], slotId: number): Promise<ListedSlot> {
   const slot = slots.find((s) => s.id === slotId)!;
-  const dates = [...new Set(slots.map((s) => s.date))].sort();
+  const dates = [...new Set(slots.map((s) => s.date))].sort((a, b) => a.localeCompare(b));
   await page
     .getByRole('radiogroup', { name: 'When are you coming?' })
     .getByRole('radio')
@@ -109,9 +109,7 @@ test('shows full and closed slots but does not let the hiker choose them', async
     const slots = await openBookingPage(page, () => page.goto('/book'));
 
     const fullSlot = await chooseDayOf(page, slots, full);
-    await expect(
-      page.getByRole('radio', { name: fullSlot.startTime, exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('radio', { name: fullSlot.startTime, exact: true })).toBeDisabled();
 
     const closedSlot = await chooseDayOf(page, slots, closed);
     const closedRadio = page.getByRole('radio', { name: closedSlot.startTime, exact: true });
