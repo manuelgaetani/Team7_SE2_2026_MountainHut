@@ -24,6 +24,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
 - Slot capacity (MH-02): staff create time slots and define their tables and seats, or copy them from another slot (`POST /api/slots`, `PUT /api/slots/:id/tables`, `GET /api/slots/schedule`, `GET /api/slots/:id`).
 - Role checks: `@Roles(...)` with `RolesGuard` limits an endpoint to some roles (hikers get 403).
+- Documentation of MH-02 in [docs/stories](docs/stories/MH-02-define-slot-capacity.md).
 
 ### Changed
 
