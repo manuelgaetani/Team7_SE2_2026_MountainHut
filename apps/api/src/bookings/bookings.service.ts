@@ -61,7 +61,7 @@ export class BookingsService {
       }
 
       // 4. Save booking and table assignments.
-      const booking = await this.repo.createConfirmedBooking(tx, {
+      const booking = await this.repo.createBooking(tx, {
         hikerId,
         slotId: input.slotId,
         partySize: input.partySize,
