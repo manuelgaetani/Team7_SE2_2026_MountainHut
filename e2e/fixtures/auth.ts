@@ -27,7 +27,7 @@ interface AuthFixtures {
 export const test = base.extend<AuthFixtures>({
   // Playwright requires the first argument to be a destructured object, even when empty.
   // eslint-disable-next-line no-empty-pattern
-  newUser: async ({ }, use) => {
+  newUser: async ({}, use) => {
     await use({
       email: `e2e-${randomUUID()}@example.test`,
       password: randomUUID(),

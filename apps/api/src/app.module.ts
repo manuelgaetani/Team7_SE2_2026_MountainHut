@@ -16,6 +16,6 @@ const staticModules = existsSync(webDistPath)
   : [];
 
 @Module({
-  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule, BookingsModule, SlotsModule]
+  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule, BookingsModule, SlotsModule],
 })
-export class AppModule { }
+export class AppModule {}

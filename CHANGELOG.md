@@ -47,5 +47,4 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Removed
 
-
 - Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
