@@ -70,3 +70,4 @@ export function deleteSlot(slotId: number): void {
 export function setUserRole(email: string, role: 'EMPLOYEE' | 'WARDEN' | 'HIKER'): void {
   const quoted = email.replaceAll("'", "''");
   sql(`UPDATE users SET role = '${role}' WHERE email = '${quoted}';`);
+}
