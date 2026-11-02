@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test as base } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
+import { setUserRole } from './db.js';
 
 export interface TestUser {
   email: string;
   password: string;
+  fullName: string;
+  phone: string;
   firstName: string;
 }
 
@@ -15,6 +18,10 @@ interface AuthFixtures {
   registeredUser: TestUser;
   // An API client that is logged in as `registeredUser`: it sends the session cookies.
   loggedInRequest: APIRequestContext;
+  // An API client logged in as an EMPLOYEE.
+  employeeRequest: APIRequestContext;
+  // An API client logged in as a WARDEN.
+  wardenRequest: APIRequestContext;
 }
 
 // Tests share the database, so every user gets a unique email and no cleanup is needed.
@@ -25,6 +32,8 @@ export const test = base.extend<AuthFixtures>({
     await use({
       email: `e2e-${randomUUID()}@example.test`,
       password: randomUUID(),
+      fullName: 'E2E User',
+      phone: '+39 333 1234567',
       firstName: 'E2E',
     });
   },
@@ -41,6 +50,50 @@ export const test = base.extend<AuthFixtures>({
       data: { email: registeredUser.email, password: registeredUser.password },
     });
     expect(response.status()).toBe(200);
+    await use(context);
+    await context.dispose();
+  },
+
+  employeeRequest: async ({ playwright, baseURL, request }, use) => {
+    const user = {
+      email: `e2e-employee-${randomUUID()}@example.test`,
+      password: randomUUID(),
+      fullName: 'E2E Employee',
+      phone: '+39 333 0000001',
+      firstName: 'Employee',
+    };
+    const regRes = await request.post('/api/auth/register', { data: user });
+    expect(regRes.status()).toBe(201);
+    setUserRole(user.email, 'EMPLOYEE');
+
+    const context = await playwright.request.newContext({ baseURL });
+    const loginRes = await context.post('/api/auth/login', {
+      data: { email: user.email, password: user.password },
+    });
+    expect(loginRes.status()).toBe(200);
+
+    await use(context);
+    await context.dispose();
+  },
+
+  wardenRequest: async ({ playwright, baseURL, request }, use) => {
+    const user = {
+      email: `e2e-warden-${randomUUID()}@example.test`,
+      password: randomUUID(),
+      fullName: 'E2E Warden',
+      phone: '+39 333 0000002',
+      firstName: 'Warden',
+    };
+    const regRes = await request.post('/api/auth/register', { data: user });
+    expect(regRes.status()).toBe(201);
+    setUserRole(user.email, 'WARDEN');
+
+    const context = await playwright.request.newContext({ baseURL });
+    const loginRes = await context.post('/api/auth/login', {
+      data: { email: user.email, password: user.password },
+    });
+    expect(loginRes.status()).toBe(200);
+
     await use(context);
     await context.dispose();
   },
