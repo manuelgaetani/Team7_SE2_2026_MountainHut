@@ -44,7 +44,6 @@ export function NavBar() {
         Mountain Hut
       </Link>
       <Link to="/book">Book a table</Link>
-      {account}
       <div className="nav-actions">{account}</div>
     </nav>
   );

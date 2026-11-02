@@ -27,10 +27,10 @@ describe('RegisterPage', () => {
     const fetchMock = stubApi();
     renderAt('/register');
     submit();
-    expect(screen.getByText('Full name is required.')).toBeInTheDocument();
+    expect(screen.getByText('Enter your full name (it must contain a letter).')).toBeInTheDocument();
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument();
-    expect(screen.getByText('Phone number is required.')).toBeInTheDocument();
-    expect(screen.getByText(/The password must be at least 8/)).toBeInTheDocument();
+    expect(screen.getByText('Enter 7 to 15 digits. Spaces, dashes and a leading + are allowed.')).toBeInTheDocument();
+    expect(screen.getByText(/Use at least 8 characters with a letter and a digit/)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
   });
 
