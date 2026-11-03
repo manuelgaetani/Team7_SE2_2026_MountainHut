@@ -69,11 +69,11 @@ function BookingFlow() {
 
   const handle =
     <T,>(set: (v: T) => void) =>
-      (v: T) => {
-        set(v);
-        setError(null);
-        book.reset();
-      };
+    (v: T) => {
+      set(v);
+      setError(null);
+      book.reset();
+    };
 
   function handleSubmit() {
     if (!slot) return;
