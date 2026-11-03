@@ -4,7 +4,6 @@ import type { HealthStatus } from '@mountain-hut/shared';
 import { apiGet } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
-
 export function HomePage() {
   const health = useQuery({
     queryKey: ['health'],
@@ -18,11 +17,7 @@ export function HomePage() {
   return (
     <main>
       <section className="home-hero">
-        <img
-          className="home-hero__image"
-          src={mountainImage}
-          alt="Monte Vettore"
-        />
+        <img className="home-hero__image" src={mountainImage} alt="Monte Vettore" />
 
         <div className="home-hero__overlay" />
 
@@ -32,15 +27,11 @@ export function HomePage() {
           <h1>Closer to the sky.</h1>
 
           <p className="lead">
-            A simple place to rest, eat and set off again.
-            Plan your stop with confidence.
+            A simple place to rest, eat and set off again. Plan your stop with confidence.
           </p>
 
           {!isPending && !user && (
-            <Link
-              to="/register"
-              className="button-primary button-primary--inline"
-            >
+            <Link to="/register" className="button-primary button-primary--inline">
               <span>Register to book a table</span>
               <span aria-hidden="true">→</span>
             </Link>
@@ -50,11 +41,7 @@ export function HomePage() {
 
       <section className="home-about">
         <div className="home-section home-about__grid">
-          <img
-            className="home-about__image"
-            src={hubImage}
-            alt="View of Monte Vettore"
-          />
+          <img className="home-about__image" src={hubImage} alt="View of Monte Vettore" />
 
           <div className="home-about__content">
             <p className="eyebrow eyebrow--dark">Our mountain hut</p>
@@ -62,9 +49,8 @@ export function HomePage() {
             <h2>A home among the mountains.</h2>
 
             <p>
-              Our mountain hut is a simple and welcoming place where
-              hikers can rest, enjoy local food and prepare for their
-              next trail.
+              Our mountain hut is a simple and welcoming place where hikers can rest, enjoy local
+              food and prepare for their next trail.
             </p>
           </div>
         </div>
@@ -92,17 +78,13 @@ export function HomePage() {
           </div>
 
           <p className="home-info__description">
-            Always check the weather and trail conditions before
-            starting your journey to the mountain hut.
+            Always check the weather and trail conditions before starting your journey to the
+            mountain hut.
           </p>
 
           <p className="api-status">
             API status:{' '}
-            {health.isPending
-              ? 'checking…'
-              : health.isError
-                ? 'unreachable'
-                : health.data.status}
+            {health.isPending ? 'checking…' : health.isError ? 'unreachable' : health.data.status}
           </p>
         </div>
       </section>
