@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { BookingsRepository } from '../src/bookings/bookings.repository.js';
 import { BookingsService } from '../src/bookings/bookings.service.js';
+import type { NotificationService } from '../src/notifications/notification.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
@@ -10,7 +11,11 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe('Bookings with PostgreSQL (integration)', () => {
   const prisma = new PrismaService();
   const repo = new BookingsRepository();
-  const service = new BookingsService(prisma, repo);
+
+  const notifications = {
+    sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
+  } as unknown as NotificationService;
+  const service = new BookingsService(prisma, repo, notifications);
 
   beforeEach(async () => {
     await resetDatabase(prisma);
@@ -138,6 +143,32 @@ describe('Bookings with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
       await expect(repo.hasActiveBooking(prisma, hikerId, slotId)).resolves.toBe(true);
+    });
+  });
+
+  describe('confirmation by the email', () => {
+    it('confirms a pending booking', async () => {
+      const { hikerId } = await createHiker(prisma, 'anna@example.test');
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const bookingId = await createBooking(prisma, hikerId, slotId, 'PENDING', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+
+      await expect(repo.confirmBooking(prisma, bookingId)).resolves.toBe(true);
+      const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+      expect(booking.status).toBe('CONFIRMED');
+    });
+
+    it('does not confirm a rejected booking', async () => {
+      const { hikerId } = await createHiker(prisma, 'anna@example.test');
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const bookingId = await createBooking(prisma, hikerId, slotId, 'REJECTED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+
+      await expect(repo.confirmBooking(prisma, bookingId)).resolves.toBe(false);
+      const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+      expect(booking.status).toBe('REJECTED');
     });
   });
 

@@ -128,6 +128,15 @@ export class BookingsRepository {
     };
   }
 
+  // Confirms a booking whose confirmation email has been sent.
+  async confirmBooking(client: Tx, bookingId: number): Promise<boolean> {
+    const { count } = await client.booking.updateMany({
+      where: { id: bookingId, status: 'PENDING' },
+      data: { status: 'CONFIRMED' },
+    });
+    return count > 0;
+  }
+
   // What the confirmation email needs. null if the booking does not exist.
   async findBookingConfirmation(
     client: Tx,

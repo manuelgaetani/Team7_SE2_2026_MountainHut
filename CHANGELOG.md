@@ -17,6 +17,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - API documentation with Swagger at `/api/docs`.
 - Database schema for bookings (MH-01): slots, tables per slot, bookings and table assignments.
 - Booking confirmation (MH-03): `POST /api/bookings` accepts optional party `requirements` (up to 500 characters, e.g. allergies) and the hiker receives a confirmation email after the booking is stored.
+- Booking confirmed by its email (MH-03): a new booking is `PENDING` and becomes `CONFIRMED` once its confirmation email is sent. A failed email is retried up to 3 times, after 1, 5 and 25 seconds; if all attempts fail, the booking stays `PENDING`.
 - Email service (MH-03): booking confirmation email, and a record of every email sent or failed, linked to its booking. By default emails go to Mailpit (http://localhost:8025); a real SMTP server is configured with the new environment variables `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`.
 - Table booking (MH-01): endpoint `POST /api/bookings` for logged-in hikers, with a 2-hour booking limit and automatic table assignment, and one booking for each hiker and slot.
 - Slot list (MH-01): endpoint `GET /api/slots` with the free seats and the availability of each future slot.
