@@ -35,6 +35,20 @@ describe('smtpOptionsFromEnv', () => {
   it('rejects a port that is not a number', () => {
     expect(() => smtpOptionsFromEnv({ SMTP_PORT: 'abc' })).toThrow('SMTP_PORT');
   });
+
+  it('uses an empty password when only the user is set', () => {
+    expect(smtpOptionsFromEnv({ SMTP_USER: 'hut' })).toMatchObject({
+      auth: { user: 'hut', pass: '' },
+    });
+  });
+
+  it('uses the default port when SMTP_PORT is empty', () => {
+    expect(smtpOptionsFromEnv({ SMTP_PORT: '' })).toMatchObject({ port: 1025 });
+  });
+
+  it('rejects a port with decimals', () => {
+    expect(() => smtpOptionsFromEnv({ SMTP_PORT: '25.5' })).toThrow('SMTP_PORT');
+  });
 });
 
 describe('mailFromEnv', () => {
