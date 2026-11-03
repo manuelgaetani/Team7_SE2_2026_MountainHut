@@ -120,5 +120,33 @@ describe('NotificationService', () => {
       expect(mailer.send).not.toHaveBeenCalled();
       expect(prisma.notification.create).not.toHaveBeenCalled();
     });
+
+    it('records the email of a hiker without account', async () => {
+      mailer.send.mockResolvedValue(undefined);
+
+      await service.sendBookingConfirmation({ userId: null, email: 'anna@example.com' }, booking);
+
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ userId: null, bookingId: 42 }),
+      });
+    });
+
+    it('records the failure when the error is not an Error object', async () => {
+      mailer.send.mockRejectedValue('timeout');
+
+      const status = await service.sendBookingConfirmation(recipient, booking);
+
+      expect(status).toBe('FAILED');
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ status: 'FAILED', error: 'timeout' }),
+      });
+    });
+
+    it('sends nothing to a hiker with an empty email', async () => {
+      const status = await service.sendBookingConfirmation({ userId: 7, email: '' }, booking);
+
+      expect(status).toBe('SKIPPED');
+      expect(mailer.send).not.toHaveBeenCalled();
+    });
   });
 });
