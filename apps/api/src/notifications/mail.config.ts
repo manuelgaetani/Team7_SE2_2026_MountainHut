@@ -8,6 +8,7 @@ type Env = Record<string, string | undefined>;
 // Mailpit on localhost (in Docker, docker-compose.yml points SMTP_HOST to the mailpit service).
 export function smtpOptionsFromEnv(env: Env): SMTPTransport.Options {
   const port = Number(env.SMTP_PORT || '1025');
+  // TODO: SMTP_PORT accepts any integer. Reject values outside 1-65535.
   if (!Number.isInteger(port)) throw new Error(`SMTP_PORT is not a valid port: ${env.SMTP_PORT}`);
 
   const options: SMTPTransport.Options = {
