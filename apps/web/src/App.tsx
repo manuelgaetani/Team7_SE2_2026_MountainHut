@@ -4,7 +4,7 @@ import { NavBar } from './components/NavBar.tsx';
 export function App() {
   return (
     <>
-      <header>
+      <header className="site-header">
         <NavBar />
       </header>
       <main>

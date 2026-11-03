@@ -4,15 +4,16 @@ import { Link, useNavigate } from 'react-router';
 import { registerSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useRegister } from '../api/useAuth.ts';
+import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
 
 type Errors = Partial<Record<string, string>>;
 
 const FIELD_MESSAGES: Record<string, string> = {
   email: 'Enter a valid email address.',
-  password: 'The password must be at least 8 characters (maximum 72 bytes).',
-  fullName: 'Full name is required.',
-  phone: 'Phone number is required.',
+  password: 'Use at least 8 characters with a letter and a digit (maximum 72 bytes).',
+  fullName: 'Enter your full name (it must contain a letter).',
+  phone: 'Enter 7 to 15 digits. Spaces, dashes and a leading + are allowed.',
   notes: 'The notes are not valid.',
   emergencyContact: 'The emergency contact is not valid.',
 };
@@ -67,8 +68,11 @@ export function RegisterPage() {
   }
 
   return (
-    <section>
-      <h1>Register</h1>
+    <section className="auth">
+      <p className="eyebrow">Join us</p>
+      <h1>Start here.</h1>
+      <p className="auth-subtitle">Create your Mountain Hut profile.</p>
+      <AuthTabs />
       <form onSubmit={onSubmit} noValidate>
         <FormField
           id="fullName"
@@ -83,6 +87,7 @@ export function RegisterPage() {
           label="Email"
           type="email"
           autoComplete="email"
+          placeholder="name@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
@@ -101,6 +106,7 @@ export function RegisterPage() {
           label="Password"
           type="password"
           autoComplete="new-password"
+          placeholder="At least 8 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={errors.password}
@@ -112,17 +118,26 @@ export function RegisterPage() {
           onChange={(e) => setEmergencyContact(e.target.value)}
           error={errors.emergencyContact}
         />
-        <div>
+        <div className="field">
           <label htmlFor="notes">Notes (optional)</label>
           <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          {errors.notes && <p role="alert">{errors.notes}</p>}
+          {errors.notes && (
+            <p role="alert" className="field-error">
+              {errors.notes}
+            </p>
+          )}
         </div>
-        {formError && <p role="alert">{formError}</p>}
-        <button type="submit" disabled={register.isPending}>
-          {register.isPending ? 'Registering…' : 'Register'}
+        {formError && (
+          <p role="alert" className="form-error">
+            {formError}
+          </p>
+        )}
+        <button type="submit" className="button-primary" disabled={register.isPending}>
+          <span>{register.isPending ? 'Registering…' : 'Register'}</span>
+          <span aria-hidden="true">→</span>
         </button>
       </form>
-      <p>
+      <p className="auth-switch">
         Already have an account? <Link to="/login">Sign in</Link>
       </p>
     </section>
