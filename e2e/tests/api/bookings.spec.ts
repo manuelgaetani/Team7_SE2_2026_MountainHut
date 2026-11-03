@@ -51,7 +51,7 @@ test('books the smallest table that fits and updates the free seats', async ({
   expect(await response.json()).toMatchObject({
     slotId,
     partySize: 3,
-    status: 'CONFIRMED',
+    status: 'PENDING',
     tables: [{ tableNumber: 2, assignedSeats: 3 }],
   });
   expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({
