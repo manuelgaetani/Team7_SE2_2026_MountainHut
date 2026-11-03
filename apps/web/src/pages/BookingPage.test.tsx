@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createBookingSchema } from '@mountain-hut/shared';
 import type { SlotSummary } from '@mountain-hut/shared';
 import { routes } from '../router.tsx';
 
@@ -149,6 +150,11 @@ describe('BookingPage', () => {
     renderPage();
     const button = await screen.findByRole('button', { name: TEXT.submit });
     expect(button).toBeDisabled();
+    const reactPropsKey = Object.keys(button).find((k) => k.startsWith('__reactProps$'));
+    if (reactPropsKey) {
+      (button as unknown as Record<string, { onClick?: () => void }>)[reactPropsKey]?.onClick?.();
+    }
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
     fireEvent.click(screen.getByRole('radio', { name: '19:00' }));
     expect(button).toBeEnabled();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
@@ -169,6 +175,10 @@ describe('BookingPage', () => {
       { body: string },
     ];
     expect(JSON.parse(call[1].body)).toEqual({ slotId: 1, partySize: 3 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: TEXT.submit })).toBeDisabled();
   });
 
   it('uses the singular for one seat', async () => {
@@ -205,5 +215,45 @@ describe('BookingPage', () => {
     await fillForm();
     submit();
     expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.bookingFailed);
+  });
+
+  it('shows a validation error if booking payload fails schema validation', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    const parseSpy = vi.spyOn(createBookingSchema, 'safeParse').mockReturnValueOnce({
+      success: false,
+      error: { issues: [], name: 'ZodError' } as unknown as ReturnType<
+        typeof createBookingSchema.safeParse
+      > extends { success: false; error: infer E }
+        ? E
+        : never,
+    });
+
+    submit();
+    expect(
+      await screen.findByText('Choose a date, time, and number of people.'),
+    ).toBeInTheDocument();
+    parseSpy.mockRestore();
+  });
+
+  it('allows switching between available dates', async () => {
+    const slotDay2: SlotSummary = {
+      ...slot,
+      id: 2,
+      date: '2030-01-16',
+      startTime: '12:00',
+      endTime: '14:00',
+    };
+    stubApi({ slots: () => json([slot, slotDay2]) });
+    renderPage();
+
+    expect(await screen.findByRole('radio', { name: '19:00' })).toBeInTheDocument();
+
+    const day2Radio = screen.getByRole('radio', { name: /16/ });
+    fireEvent.click(day2Radio);
+
+    expect(await screen.findByRole('radio', { name: '12:00' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: '19:00' })).not.toBeInTheDocument();
   });
 });
