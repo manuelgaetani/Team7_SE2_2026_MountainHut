@@ -1,0 +1,32 @@
+:root {
+  --bg: #f7f4ed;
+  --surface: #fffefb;
+  --tint: #ebeee6;
+  --ink: #1f2a24;
+  --muted: #6f776f;
+  --line: #dedbd0;
+  --green: #2a5241;
+  --green-dark: #1f3f32;
+  --font-serif: 'Lora', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
