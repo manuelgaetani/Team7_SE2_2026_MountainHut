@@ -49,6 +49,12 @@ describe('smtpOptionsFromEnv', () => {
   it('rejects a port with decimals', () => {
     expect(() => smtpOptionsFromEnv({ SMTP_PORT: '25.5' })).toThrow('SMTP_PORT');
   });
+
+  it('rejects a port outside the valid 1-65535 range', () => {
+    expect(() => smtpOptionsFromEnv({ SMTP_PORT: '0' })).toThrow('SMTP_PORT');
+    expect(() => smtpOptionsFromEnv({ SMTP_PORT: '-1' })).toThrow('SMTP_PORT');
+    expect(() => smtpOptionsFromEnv({ SMTP_PORT: '65536' })).toThrow('SMTP_PORT');
+  });
 });
 
 describe('mailFromEnv', () => {
