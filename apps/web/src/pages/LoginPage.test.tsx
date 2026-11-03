@@ -25,8 +25,10 @@ describe('LoginPage', () => {
   it('signs in, shows the user and goes to the home page', async () => {
     const fetchMock = stubApi({ '/api/auth/login': () => json(user) });
     const router = renderAt('/login');
-    // The session check of the navigation bar must end first: its answer would replace the user.
-    await screen.findByRole('link', { name: 'Sign in' });
+    // Wait for the background auth check to settle so its refresh response does not overwrite the login.
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/refresh', expect.anything()),
+    );
     fill(user.email, 'secret');
     submit();
     expect(await screen.findByText(user.email)).toBeInTheDocument();

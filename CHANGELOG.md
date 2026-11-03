@@ -26,6 +26,10 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
 - Home page and look of the sign-in and register pages (MH-00): hut presentation with essential information, shared form fields, sign-in/register tabs and a navigation bar that shows the signed-in user with a sign-out button.
+- Time slots page for the staff at `/staff/slots` (MH-02), linked in the navigation bar for employees and wardens: the slots of a day with their tables and seats, a form to create a slot with its tables entered or copied from another slot, and the tables of a slot that has none. It works on sample data until it is connected to the slot API.
+- Slot capacity (MH-02): staff create time slots and define their tables and seats, or copy them from another slot (`POST /api/slots`, `PUT /api/slots/:id/tables`, `GET /api/slots/schedule`, `GET /api/slots/:id`).
+- Role checks: `@Roles(...)` with `RolesGuard` limits an endpoint to some roles (hikers get 403).
+- Documentation of MH-02 in [docs/stories](docs/stories/MH-02-define-slot-capacity.md).
 
 ### Changed
 
