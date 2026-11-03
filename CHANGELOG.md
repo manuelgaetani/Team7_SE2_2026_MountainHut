@@ -22,6 +22,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variable: `BOOKING_TIMEZONE` (default `Europe/Rome`).
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
+- Home page and look of the sign-in and register pages (MH-00): hut presentation with essential information, shared form fields, sign-in/register tabs and a navigation bar that shows the signed-in user with a sign-out button.
+- Time slots page for the staff at `/staff/slots` (MH-02), linked in the navigation bar for employees and wardens: the slots of a day with their tables and seats, a form to create a slot with its tables entered or copied from another slot, and the tables of a slot that has none. It works on sample data until it is connected to the slot API.
 - Slot capacity (MH-02): staff create time slots and define their tables and seats, or copy them from another slot (`POST /api/slots`, `PUT /api/slots/:id/tables`, `GET /api/slots/schedule`, `GET /api/slots/:id`).
 - Role checks: `@Roles(...)` with `RolesGuard` limits an endpoint to some roles (hikers get 403).
 - Documentation of MH-02 in [docs/stories](docs/stories/MH-02-define-slot-capacity.md).
@@ -35,6 +37,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - `docker compose` passes `BOOKING_TIMEZONE` to the application.
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
 - La migration `split_user_hiker` elimina colonne di `users` e `bookings`: chi ha dati locali deve ripartire con `docker compose down -v`.
+- The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
 
 ### Fixed
 
