@@ -71,7 +71,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await page.getByRole('button', { name: 'Create the slot' }).click();
 
     // Verify confirmation and display in schedule
-    await expect(page.getByRole('status')).toContainText('Slot created: 11:30–13:00, 10 seats.');
+    await expect(page.getByText('Slot created: 11:30–13:00, 10 seats.')).toBeVisible();
     const slotCard = page.locator('.schedule__slot', { hasText: '11:30–13:00' });
     await expect(slotCard).toContainText('2 tables · 10 seats');
     await expect(slotCard).toContainText('Table 1 · 4 seats');
@@ -83,20 +83,22 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await page.getByRole('radio', { name: 'Add them later' }).click();
     await page.getByRole('button', { name: 'Create the slot' }).click();
 
-    await expect(page.getByRole('status')).toContainText('Slot created: 13:00–14:30, 0 seats.');
+    await expect(page.getByText('Slot created: 13:00–14:30, 0 seats.')).toBeVisible();
     const emptyCard = page.locator('.schedule__slot', { hasText: '13:00–14:30' });
     await expect(emptyCard).toContainText('0 tables · 0 seats');
     await expect(emptyCard).toContainText('No tables yet: hikers cannot book this slot.');
 
     // 3. Define tables on the empty slot via DefineTablesForm
-    const defineBtn = emptyCard.getByRole('button', { name: 'Define tables' });
+    const defineBtn = emptyCard.getByRole('button', {
+      name: 'Define the tables of 13:00–14:30',
+    });
     await defineBtn.click();
 
     await expect(page.getByRole('heading', { name: /Tables for 13:00–14:30/ })).toBeVisible();
     await page.getByLabel('Seats, row 1').fill('8');
     await page.getByRole('button', { name: 'Save the tables' }).click();
 
-    await expect(page.getByRole('status')).toContainText('Tables saved for 13:00–14:30, 8 seats.');
+    await expect(page.getByText('Tables saved for 13:00–14:30, 8 seats.')).toBeVisible();
     await expect(emptyCard).toContainText('1 table · 8 seats');
     await expect(emptyCard).toContainText('Table 1 · 8 seats');
 
@@ -107,7 +109,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await page.getByLabel('Copy the tables of').selectOption({ index: 1 });
     await page.getByRole('button', { name: 'Create the slot' }).click();
 
-    await expect(page.getByRole('status')).toContainText('Slot created: 19:00–20:30, 10 seats.');
+    await expect(page.getByText('Slot created: 19:00–20:30, 10 seats.')).toBeVisible();
     const copiedCard = page.locator('.schedule__slot', { hasText: '19:00–20:30' });
     await expect(copiedCard).toContainText('2 tables · 10 seats');
   });
