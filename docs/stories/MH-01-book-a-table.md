@@ -34,10 +34,11 @@ Mandatory input: date, time, and number of people.
 - A party equal to the free seats is accepted, so a slot can fill up completely. The story says "smaller than".
 - When a party is split, the last people go to the smallest table that fits them.
 - The hiker sees all future slots. Full slots and slots starting in less than 2 hours are shown but cannot be chosen.
+- A booking request created by a hiker receives a `PENDING` status awaiting confirmation by the hut. Both `PENDING` and `CONFIRMED` bookings occupy table seats.
 - A second booking for the same slot is rejected with `409`. Only `REJECTED` bookings allow the hiker to try again.
 - There is no upper limit on the party size other than the free seats.
 - The booking page and all the API messages are in English.
-- There is no seed: slots are created by hand until MH-02.
+- Until MH-02 adds an API for slot creation, slots can be populated using the seed script (`npm run prisma:seed -w @mountain-hut/api`) or inserted directly in PostgreSQL.
 
 ## How it works
 
@@ -46,9 +47,9 @@ The hiker is taken from the session cookie, never from the request body. The who
 1. Find the hiker profile of the logged-in user.
 2. Lock the slot row with `SELECT ... FOR UPDATE`, and read its start time in `BOOKING_TIMEZONE`.
 3. Reject the request if the hiker already has a booking for this slot.
-4. Read the free seats of each table. Only `CONFIRMED` bookings occupy seats.
+4. Read the free seats of each table. Both `CONFIRMED` and `PENDING` bookings occupy seats.
 5. Apply the booking policy: first the 2-hour rule, then the seat allocation.
-6. Save the booking as `CONFIRMED`, together with its table assignments.
+6. Save the booking as `PENDING`, together with its table assignments.
 
 The row lock makes concurrent bookings for the same slot wait for each other, so two requests cannot take the same seats, and one hiker cannot book twice with two simultaneous requests. Bookings for different slots do not block each other.
 
@@ -120,7 +121,7 @@ Response `201 Created`:
   "id": 1,
   "slotId": 1,
   "partySize": 3,
-  "status": "CONFIRMED",
+  "status": "PENDING",
   "tables": [{ "tableNumber": 2, "assignedSeats": 3 }]
 }
 ```
@@ -141,9 +142,15 @@ Response `201 Created`:
 
 ## Web app
 
-The page `/book` is linked from the navigation bar. A visitor without a session sees a link to sign in.
+The page `/book` is linked from the navigation bar. A visitor without a session sees a prompt and link to log in.
 
-The hiker chooses a date, then a time, and enters the number of people. Each time shows the seats left, and times that cannot be booked are disabled. After booking, the page shows the assigned tables and reloads the free seats. If the API refuses the booking, the page shows its message.
+The booking interface is organized into interactive components:
+
+1. **Day picker (`DayPicker`):** radio group showing upcoming dates (weekday and day number) in chronological order.
+2. **Party size stepper (`GuestStepper`):** stepper starting at 2 guests (with decrement/increment buttons), bounded between 1 and the maximum available seats (up to 12).
+3. **Time slot picker (`TimeSlotPicker`):** radio group displaying the available shifts for the chosen date. Slots that are full, start in less than 2 hours, or offer fewer seats than the selected party size are disabled.
+4. **Booking summary card (`BookingSummary`):** a side panel showing the selected date, time, guests, booking policy, and the assigned table(s) once the request is submitted.
+5. **Confirmation dialog (`BookingSentDialog`):** an accessible modal confirming that the booking request was sent with `PENDING` status, explaining that it is awaiting confirmation from the hut.
 
 ## Data model
 
@@ -158,7 +165,7 @@ The partial unique index `bookings_hiker_id_slot_id_active_key` allows one non-r
 
 `booking_tables` has a composite foreign key on `(booking_id, slot_id)`, so a table assignment always belongs to the same slot as its booking.
 
-`bookings.status` can be `CONFIRMED`, `PENDING` or `REJECTED`. This story only creates `CONFIRMED` bookings.
+`bookings.status` can be `CONFIRMED`, `PENDING` or `REJECTED`. In this story, new bookings are created with `PENDING` status, awaiting confirmation. Both `CONFIRMED` and `PENDING` bookings occupy table seats.
 
 ## Configuration
 
@@ -170,18 +177,25 @@ The partial unique index `bookings_hiker_id_slot_id_active_key` allows one non-r
 
 ## Code map
 
-| Path                                           | Content                                |
-| ---------------------------------------------- | -------------------------------------- |
-| `packages/shared/src/bookings.ts`              | Request schema and response type       |
-| `apps/api/src/bookings/bookings.controller.ts` | Booking endpoint                       |
-| `apps/api/src/bookings/slots.controller.ts`    | Slot list endpoint                     |
-| `apps/api/src/bookings/bookings.service.ts`    | Transaction and mapping to HTTP errors |
-| `apps/api/src/bookings/booking-policy.ts`      | 2-hour rule and booking decision       |
-| `apps/api/src/bookings/seat-allocation.ts`     | Table assignment                       |
-| `apps/api/src/bookings/bookings.repository.ts` | Database queries                       |
-| `apps/api/prisma/schema.prisma`                | Data model                             |
-| `apps/web/src/pages/BookingPage.tsx`           | Booking page                           |
-| `apps/web/src/api/bookings.ts`                 | Web client for the two endpoints       |
+| Path                                            | Content                                      |
+| ----------------------------------------------- | -------------------------------------------- |
+| `packages/shared/src/bookings.ts`               | Request schema and response type             |
+| `apps/api/src/bookings/bookings.controller.ts`  | Booking endpoint                             |
+| `apps/api/src/bookings/slots.controller.ts`     | Slot list endpoint                           |
+| `apps/api/src/bookings/bookings.service.ts`     | Transaction and mapping to HTTP errors       |
+| `apps/api/src/bookings/booking-policy.ts`       | 2-hour rule and booking decision             |
+| `apps/api/src/bookings/seat-allocation.ts`      | Table assignment                             |
+| `apps/api/src/bookings/bookings.repository.ts`  | Database queries                             |
+| `apps/api/prisma/schema.prisma`                 | Data model                                   |
+| `apps/api/prisma/seed.ts`                       | Development seed script for slots and tables |
+| `apps/web/src/pages/BookingPage.tsx`            | Booking page flow and layout                 |
+| `apps/web/src/components/DayPicker.tsx`         | Date selection radio group                   |
+| `apps/web/src/components/GuestStepper.tsx`      | Guest counter with +/- stepper               |
+| `apps/web/src/components/TimeSlotPicker.tsx`    | Shift selection radio group                  |
+| `apps/web/src/components/BookingSummary.tsx`    | Summary sidebar with seat assignments        |
+| `apps/web/src/components/BookingSentDialog.tsx` | Confirmation dialog modal                    |
+| `apps/web/src/lib/dates.ts`                     | Date formatting and conversion utilities     |
+| `apps/web/src/api/bookings.ts`                  | Web client for the two endpoints             |
 
 ## Testing
 
@@ -225,7 +239,13 @@ The end-to-end tests create their slots directly in the database of the `docker 
 
 ### Try it manually
 
-No endpoint creates slots yet, so insert one directly. Run this against a local database only:
+No endpoint creates slots yet. For manual testing in development, you can seed upcoming slots for 14 days:
+
+```bash
+npm run prisma:seed -w @mountain-hut/api
+```
+
+Or insert a slot directly in the running PostgreSQL container:
 
 ```bash
 docker compose exec -T db psql -U mountainhut -d mountainhut <<'SQL'
@@ -241,5 +261,5 @@ Then open <http://localhost:3000/register>, create an account, sign in, and choo
 
 ## Open points
 
-- **Slot creation.** Slots and tables can only be inserted by hand until MH-02.
+- **Slot creation.** Slots and tables can only be created via the seed script or direct SQL insertion until MH-02 adds management endpoints.
 - **Modifying a booking.** A hiker who needs more seats must modify the reservation, which is covered by MH-06. No endpoint can read, modify or cancel a booking yet.
