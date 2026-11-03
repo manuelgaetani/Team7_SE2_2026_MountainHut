@@ -2,6 +2,7 @@ import type { APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import {
+  bookingStatus,
   createImminentSlot,
   createPastSlot,
   createSlot,
@@ -127,6 +128,17 @@ test('emails the hiker a confirmation with the details of the booking', async ({
   expect(message.Text).toContain('Time: 19:00 - 21:00');
   expect(message.Text).toContain('People: 3 people');
   expect(message.Text).toContain('Requirements: One nut allergy');
+});
+
+test('confirms the booking once its confirmation email is sent', async ({ loggedInRequest }) => {
+  const response = await loggedInRequest.post('/api/bookings', {
+    data: { slotId: slot([4]), partySize: 2 },
+  });
+  expect(response.status()).toBe(201);
+  const { id, status } = (await response.json()) as { id: number; status: string };
+  expect(status).toBe('PENDING');
+
+  await expect.poll(() => bookingStatus(id)).toBe('CONFIRMED');
 });
 
 test('rejects a party larger than the free seats', async ({ loggedInRequest }) => {

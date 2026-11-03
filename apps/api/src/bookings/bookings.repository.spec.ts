@@ -7,7 +7,7 @@ describe('BookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
+    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     bookingTable: { createMany: vi.fn() },
   };
   const tx = client as unknown as Prisma.TransactionClient;
@@ -134,8 +134,27 @@ describe('BookingsRepository', () => {
     });
   });
 
+  describe('confirmBooking', () => {
+    it('confirms the booking only while it is still pending', async () => {
+      client.booking.updateMany.mockResolvedValue({ count: 1 });
+      await repository.confirmBooking(tx, 9);
+      expect(client.booking.updateMany).toHaveBeenCalledWith({
+        where: { id: 9, status: 'PENDING' },
+        data: { status: 'CONFIRMED' },
+      });
+    });
+
+    it('tells whether the booking was confirmed', async () => {
+      client.booking.updateMany.mockResolvedValue({ count: 1 });
+      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(true);
+      // Rejected or already confirmed in the meantime.
+      client.booking.updateMany.mockResolvedValue({ count: 0 });
+      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(false);
+    });
+  });
+
   describe('createBooking', () => {
-    const data = { hikerId: 7, slotId: 3, partySize: 2 };
+    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: null };
 
     it('stores the booking as pending', async () => {
       client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });

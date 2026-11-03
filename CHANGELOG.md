@@ -17,6 +17,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - API documentation with Swagger at `/api/docs`.
 - Database schema for bookings (MH-01): slots, tables per slot, bookings and table assignments.
 - Booking confirmation (MH-03): `POST /api/bookings` accepts optional party `requirements` (up to 500 characters, e.g. allergies) and the hiker receives a confirmation email after the booking is stored.
+- Booking confirmed by its email (MH-03): a new booking is `PENDING` and becomes `CONFIRMED` once its confirmation email is sent. A failed email is retried up to 3 times, after 1, 5 and 25 seconds; if all attempts fail, the booking stays `PENDING`.
 - Email service (MH-03): booking confirmation email, and a record of every email sent or failed, linked to its booking. By default emails go to Mailpit (http://localhost:8025); a real SMTP server is configured with the new environment variables `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`.
 - Table booking (MH-01): endpoint `POST /api/bookings` for logged-in hikers, with a 2-hour booking limit and automatic table assignment, and one booking for each hiker and slot.
 - Slot list (MH-01): endpoint `GET /api/slots` with the free seats and the availability of each future slot.
@@ -24,6 +25,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variable: `BOOKING_TIMEZONE` (default `Europe/Rome`).
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
+- Home page and look of the sign-in and register pages (MH-00): hut presentation with essential information, shared form fields, sign-in/register tabs and a navigation bar that shows the signed-in user with a sign-out button.
 - Documentation of MH-03 in [docs/stories](docs/stories/MH-03-receive-confirmation.md).
 
 ### Changed
@@ -35,6 +37,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - `docker compose` passes `BOOKING_TIMEZONE` to the application.
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
 - La migration `split_user_hiker` elimina colonne di `users` e `bookings`: chi ha dati locali deve ripartire con `docker compose down -v`.
+- The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
 
 ### Fixed
 

@@ -13,6 +13,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { decideBooking, slotAvailability } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
 
+// Waits before each new attempt to send a failed confirmation email: 1 send + 3 retries.
+// The retries live in this process only, so they are lost if the API restarts.
+export const CONFIRMATION_RETRY_DELAYS_MS = [1_000, 5_000, 25_000];
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
@@ -82,17 +88,29 @@ export class BookingsService {
     return result;
   }
 
+  // Sends the confirmation email and, once it is sent, confirms the booking.
+  // A failed email is retried after each delay of CONFIRMATION_RETRY_DELAYS_MS; after the last
+  // failure, or when the hiker has no email, the booking stays PENDING.
   // Never rejects: the booking is already stored, whatever happens to its email.
   private async sendConfirmation(bookingId: number): Promise<void> {
     try {
       const confirmation = await this.repo.findBookingConfirmation(this.prisma, bookingId);
       if (!confirmation) return;
-      await this.notifications.sendBookingConfirmation(
-        confirmation.recipient,
-        confirmation.booking,
-      );
+
+      for (let attempt = 0; ; attempt++) {
+        const status = await this.notifications.sendBookingConfirmation(
+          confirmation.recipient,
+          confirmation.booking,
+        );
+        if (status === 'SENT') break;
+        if (status !== 'FAILED' || attempt >= CONFIRMATION_RETRY_DELAYS_MS.length) return;
+        await wait(CONFIRMATION_RETRY_DELAYS_MS[attempt]);
+      }
+
+      // Outside the loop: if confirming fails, the email must not be sent again.
+      await this.repo.confirmBooking(this.prisma, bookingId);
     } catch (err) {
-      this.logger.error(`Confirmation of booking ${bookingId} not sent`, err);
+      this.logger.error(`Confirmation of booking ${bookingId} not completed`, err);
     }
   }
 }
