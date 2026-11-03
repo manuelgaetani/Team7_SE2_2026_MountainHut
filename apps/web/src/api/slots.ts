@@ -1,12 +1,7 @@
-import type {
-  CreateSlotInput,
-  DefineSlotTablesInput,
-  SlotDetails,
-  SlotTable,
-} from '@mountain-hut/shared';
+import type { CreateSlotInput, DefineSlotTablesInput, SlotDetails } from '@mountain-hut/shared';
 import { apiGet, apiPost, apiPut } from './client.ts';
 
-export type { SlotDetails, SlotTable };
+export type { SlotDetails };
 export type TablesSource = DefineSlotTablesInput;
 export type NewSlot = CreateSlotInput;
 
