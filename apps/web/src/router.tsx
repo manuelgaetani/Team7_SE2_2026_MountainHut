@@ -5,6 +5,7 @@ import { HomePage } from './pages/HomePage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
+import { SlotsPage } from './pages/SlotsPage.tsx';
 
 export const routes = [
   {
@@ -15,6 +16,7 @@ export const routes = [
       { path: 'book', element: <BookingPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      { path: 'staff/slots', element: <SlotsPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
