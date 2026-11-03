@@ -26,6 +26,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
 - Home page and look of the sign-in and register pages (MH-00): hut presentation with essential information, shared form fields, sign-in/register tabs and a navigation bar that shows the signed-in user with a sign-out button.
+- Documentation of MH-03 in [docs/stories](docs/stories/MH-03-receive-confirmation.md).
 
 ### Changed
 

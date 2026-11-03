@@ -97,6 +97,7 @@ They are not part of `npm test`, which runs without a database.
 ## User stories
 
 - [MH-01 — Book a table](docs/stories/MH-01-book-a-table.md)
+- [MH-03 — Receive confirmation](docs/stories/MH-03-receive-confirmation.md)
 
 ## Release notes
 
