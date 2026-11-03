@@ -1,34 +1,50 @@
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
 
 export function NavBar() {
   const { data: user, isPending } = useCurrentUser();
   const logout = useLogout();
+  const { pathname } = useLocation();
+  // The auth pages already have their own Sign in / Register tabs.
+  const onAuthPage = pathname === '/login' || pathname === '/register';
 
   let account = null;
   if (!isPending) {
-    account = user ? (
-      <>
-        <span>{user.email}</span>
-        <button type="button" onClick={() => logout.mutate()} disabled={logout.isPending}>
-          Sign out
-        </button>
-      </>
-    ) : (
-      <>
-        <Link to="/login">Sign in</Link>
-        <Link to="/register">Register</Link>
-      </>
-    );
+    if (user) {
+      account = (
+        <>
+          <span className="nav-user">{user.email}</span>
+          <button
+            type="button"
+            className="pill"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+          >
+            Sign out
+          </button>
+        </>
+      );
+    } else if (!onAuthPage) {
+      account = (
+        <>
+          <Link to="/login" className="nav-link">
+            Sign in
+          </Link>
+          <Link to="/register" className="pill">
+            Register
+          </Link>
+        </>
+      );
+    }
   }
 
   return (
-    <nav>
-      <Link to="/">
-        <strong>Mountain Hut</strong>
+    <nav className="nav">
+      <Link to="/" className="brand">
+        Mountain Hut
       </Link>
       <Link to="/book">Book a table</Link>
-      {account}
+      <div className="nav-actions">{account}</div>
     </nav>
   );
 }
