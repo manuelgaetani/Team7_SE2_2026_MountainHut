@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { loginSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useLogin } from '../api/useAuth.ts';
+import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
 
 export function LoginPage() {
@@ -38,14 +39,18 @@ export function LoginPage() {
   }
 
   return (
-    <section>
-      <h1>Sign in</h1>
+    <section className="auth">
+      <p className="eyebrow">Personal area</p>
+      <h1>Welcome back.</h1>
+      <p className="auth-subtitle">Sign in to manage your bookings.</p>
+      <AuthTabs />
       <form onSubmit={onSubmit} noValidate>
         <FormField
           id="email"
           label="Email"
           type="email"
           autoComplete="email"
+          placeholder="name@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -57,12 +62,17 @@ export function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={login.isPending}>
-          {login.isPending ? 'Signing in…' : 'Sign in'}
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="button-primary" disabled={login.isPending}>
+          <span>{login.isPending ? 'Signing in…' : 'Sign in'}</span>
+          <span aria-hidden="true">→</span>
         </button>
       </form>
-      <p>
+      <p className="auth-switch">
         Don't have an account? <Link to="/register">Register</Link>
       </p>
     </section>

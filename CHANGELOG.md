@@ -24,6 +24,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - New environment variable: `BOOKING_TIMEZONE` (default `Europe/Rome`).
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
 - Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
+- Home page and look of the sign-in and register pages (MH-00): hut presentation with essential information, shared form fields, sign-in/register tabs and a navigation bar that shows the signed-in user with a sign-out button.
 
 ### Changed
 
@@ -34,6 +35,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - `docker compose` passes `BOOKING_TIMEZONE` to the application.
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
 - La migration `split_user_hiker` elimina colonne di `users` e `bookings`: chi ha dati locali deve ripartire con `docker compose down -v`.
+- The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
 
 ### Fixed
 
