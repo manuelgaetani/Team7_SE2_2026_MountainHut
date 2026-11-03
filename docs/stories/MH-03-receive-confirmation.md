@@ -1,70 +1,83 @@
 # MH-03 — Receive confirmation
 
-|                |                                                                                                                                           |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **Status**     | Email sent by the API. In progress: the booking becomes `CONFIRMED` once its email is sent. The booking page cannot send requirements yet |
-| **Depends on** | MH-01 (book a table), Mailpit or an SMTP server, hiker profile (`Hiker`)                                                                  |
+|                |                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| **Status**     | Complete (confirmation email, notification logging, confirmation status transition, retries backoff) |
+| **Depends on** | MH-01 (book a table), Mailpit or an SMTP server, hiker profile (`Hiker`)                             |
 
 ## User story
 
+**Business value:** 980
+
 As a hiker, I want to receive confirmation containing the details of my booking, so that I know the reservation was successful.
 
-The notification is an email, sent to the hiker who made the reservation.
+Notification is sent via email to the hiker who made the reservation.
+
+### Clarifications
+
+The email contains:
+
+- a booking reference,
+- the date and time slot,
+- the party size,
+- possible party requirements (e.g. allergies),
+- the name of the hiker that made the reservation.
 
 ## Requirements
 
-| #   | Requirement                                                   | Status  | Implemented in                                  |
-| --- | ------------------------------------------------------------- | ------- | ----------------------------------------------- |
-| R1  | An email is sent to the hiker who made the reservation        | Done    | `BookingsService.create`, `NotificationService` |
-| R2  | The email contains a booking reference                        | Done    | `bookingConfirmationEmail`                      |
-| R3  | The email contains the date and the time slot                 | Done    | `bookingConfirmationEmail`                      |
-| R4  | The email contains the party size                             | Done    | `bookingConfirmationEmail`                      |
-| R5  | The email contains the party requirements, e.g. allergies     | Partial | `bookings.requirements`, one free-text field    |
-| R6  | The email contains the name of the hiker who made the booking | Done    | `bookingConfirmationEmail`                      |
+| #   | Requirement                                                   | Status | Implemented in                                                          |
+| --- | ------------------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| R1  | An email is sent to the hiker who made the reservation        | Done   | `BookingsService.create`, `NotificationService`                         |
+| R2  | The email contains a booking reference                        | Done   | `bookingConfirmationEmail` (booking id)                                 |
+| R3  | The email contains the date and the time slot                 | Done   | `bookingConfirmationEmail`                                              |
+| R4  | The email contains the party size                             | Done   | `bookingConfirmationEmail`                                              |
+| R5  | The email contains the party requirements, e.g. allergies     | Done   | `bookings.requirements`, optional free-text (up to 500 chars)           |
+| R6  | The email contains the name of the hiker who made the booking | Done   | `bookingConfirmationEmail`                                              |
+| R7  | The booking is confirmed when its confirmation email is sent  | Done   | `BookingsService.sendConfirmation`, `BookingsRepository.confirmBooking` |
 
 ### Decisions
 
-- **The email confirms the booking.** A new booking is `PENDING` (see [MH-01](MH-01-book-a-table.md)). In progress: when the SMTP server accepts the confirmation email, the booking becomes `CONFIRMED`; if the email fails, it stays `PENDING`. See [Booking status](#booking-status).
-- **The email never undoes a booking.** It is sent after the booking transaction has been committed, and an SMTP error is recorded instead of being returned to the hiker. The booking is stored even if the email fails.
-- **The API does not wait for the email.** `POST /api/bookings` answers as soon as the booking is stored; the email follows a moment later.
-- **Every attempt is recorded** in the `notifications` table as `SENT` or `FAILED`, with the SMTP error and the booking it is about.
-- **The party requirements are one free-text field** of at most 500 characters. MH-05 asks for a list of requirements, each with an allergies flag; that list is left to MH-05, which will replace this field.
-- **No requirements, no row.** The email shows the requirements only when the hiker typed some; text made only of spaces counts as none.
-- **The booking reference is the booking id.**
-- **A hiker without an email receives nothing** and no row is recorded. Today every hiker who books has an account and therefore an email; the case exists for hikers registered by the staff (MH-07).
-- **By default emails go to Mailpit**, a fake SMTP server that catches them. A real server is configured through environment variables.
+- **The email confirms the booking.** A new booking starts with `PENDING` status (from [MH-01](MH-01-book-a-table.md)). When the SMTP server accepts the confirmation email, the booking status transitions to `CONFIRMED`. If the email delivery fails after all retries, the booking remains `PENDING`. See [Booking status](#booking-status).
+- **Automatic retries for delivery failures.** A failed email attempt is retried up to 3 times with exponential backoff (delays of 1s, 5s, and 25s, defined in `CONFIRMATION_RETRY_DELAYS_MS`). If all 4 attempts (1 initial + 3 retries) fail, the booking stays `PENDING`.
+- **The email never blocks or rolls back a booking.** It is sent asynchronously after the booking transaction has been committed. A slow SMTP server or delivery failure never delays or fails the HTTP `201 Created` response to the hiker.
+- **Every attempt is audited** in the `notifications` table as `SENT` or `FAILED`, with the recipient, subject, timestamp, SMTP error message (if failed), and foreign keys to the user and booking.
+- **Party requirements are one free-text field** of at most 500 characters. Text is trimmed, and NUL characters (`\u0000`) are rejected. Structured requirements with individual allergy flags are planned for MH-05.
+- **Omission when empty.** The email displays the requirements line only when the hiker provided some; empty strings or whitespace-only inputs are stored as `null` and omitted from the email.
+- **The booking reference is the database booking ID.**
+- **Hikers without an email.** If a hiker profile has no email address (e.g. future walk-ins registered by staff without an email), the notification step is skipped (`SKIPPED`), no email is sent, and no notification error is recorded.
+- **Mailpit by default.** In local development and Docker Compose, emails are captured by Mailpit (`localhost:1025`) and can be viewed in its web interface at <http://localhost:8025>. A real SMTP server is configured via environment variables.
+- **Strict port validation.** `SMTP_PORT` must be a valid integer in the range 1–65535; invalid values throw an error at configuration loading.
 
 ## How it works
 
-1. `POST /api/bookings` stores the booking as `PENDING` in one transaction, as described in [MH-01](MH-01-book-a-table.md).
-2. After the commit, `BookingsService` starts sending the confirmation without waiting for it, and answers `201`.
-3. It reads the booking again, with the hiker's full name and email and the slot's date and times.
-4. `NotificationService` builds the email from the template and sends it through the `Mailer`.
-5. It records the attempt in `notifications`: `SENT`, or `FAILED` with the reason.
-6. _In progress:_ if the email was sent, the booking becomes `CONFIRMED`.
+1. `POST /api/bookings` validates input (including optional `requirements`) and executes the booking transaction as described in [MH-01](MH-01-book-a-table.md).
+2. The booking is inserted with status `PENDING`, and table seats are assigned.
+3. The transaction commits and the HTTP handler immediately returns `201 Created` with the booking details.
+4. Asynchronously, `BookingsService.sendConfirmation` reads the booking details along with the hiker's full name, email, and slot schedule.
+5. `NotificationService` renders the email template (both plain text and HTML) and attempts delivery through `Mailer`.
+6. Each attempt is logged in `notifications` (`SENT` or `FAILED`).
+7. If the email fails with `FAILED`, it is retried after 1s, 5s, and 25s.
+8. Once the email is accepted (`status === 'SENT'`), `BookingsRepository.confirmBooking` transitions the booking from `PENDING` to `CONFIRMED`.
+9. If all attempts fail or the recipient has no email, the booking remains `PENDING`.
 
-If the booking is refused (for example `409` or `422`), no email is sent.
-
-None of these steps can make the booking fail: errors are logged by the API and, from step 4, recorded in `notifications`.
+If the booking request itself is rejected (e.g. `409 Conflict` or `422 Unprocessable Entity`), no email attempt is triggered.
 
 ### Booking status
 
-| Moment                                 | Today     | In progress |
-| -------------------------------------- | --------- | ----------- |
-| Booking stored                         | `PENDING` | `PENDING`   |
-| Email accepted by the SMTP server      | `PENDING` | `CONFIRMED` |
-| Email failed (`FAILED` in the table)   | `PENDING` | `PENDING`   |
-| Hiker without an email (no email sent) | `PENDING` | `PENDING`   |
+| Condition                                   | Status      |
+| ------------------------------------------- | ----------- |
+| Booking stored                              | `PENDING`   |
+| Email accepted by SMTP server               | `CONFIRMED` |
+| Email failed after all retries (4 attempts) | `PENDING`   |
+| Hiker without email (skipped)               | `PENDING`   |
 
-Both `PENDING` and `CONFIRMED` bookings occupy their seats, so the outcome of the email never frees or takes seats.
+Both `PENDING` and `CONFIRMED` bookings occupy table seats, so the outcome of the email never alters table availability.
 
-Today the email says "confirmed" while the booking is still `PENDING`. The booking page already tells the hiker to wait for the confirmation email, which matches the behaviour in progress.
-
-"Sent" means that the SMTP server (Mailpit, or a real one) accepted the email. It does not mean that it reached the hiker's inbox.
+"Sent" means that the SMTP server (Mailpit or a real provider) accepted the message for delivery.
 
 ### The email
 
-Subject: `Booking n. <id> confirmed - <date>`. The email has a plain-text and an HTML version with the same content:
+Subject: `Booking n. <id> confirmed - <date>`. The email provides both a plain-text and an HTML version with identical information:
 
 ```text
 Hi Anna Rossi,
@@ -82,21 +95,22 @@ We await you!
 Mountain Hut
 ```
 
-- Dates and times are shown exactly as stored for the slot, in the hut's local time.
-- `People` uses the singular for a party of one.
-- In the HTML version the name and the requirements are escaped, and line breaks in the requirements are kept.
+- Dates and times are displayed in the hut's local time (`BOOKING_TIMEZONE`).
+- `People` uses the singular format for a party of one (`1 person`).
+- In the HTML version, user-provided inputs (`name` and `requirements`) are escaped to prevent XSS, and line breaks in requirements are preserved as `<br>`.
+- If no requirements were entered, the `Requirements:` line is omitted.
 
 ## API
 
 ### `POST /api/bookings`
 
-The endpoint of [MH-01](MH-01-book-a-table.md#post-apibookings) accepts one more optional field:
+Extends the endpoint of [MH-01](MH-01-book-a-table.md#post-apibookings) with an optional `requirements` field:
 
-| Field          | Type   | Rules                                                                  |
-| -------------- | ------ | ---------------------------------------------------------------------- |
-| `requirements` | string | Optional; trimmed; at most 500 characters; no NUL character (`\u0000`) |
-
-An empty string is stored as no requirements. A value that breaks these rules is rejected with `400`.
+| Field          | Type    | Rules                                                                  |
+| -------------- | ------- | ---------------------------------------------------------------------- |
+| `slotId`       | integer | Positive, at most 2147483647                                           |
+| `partySize`    | integer | Positive; must fit in the free seats of the slot                       |
+| `requirements` | string  | Optional; trimmed; at most 500 characters; no NUL character (`\u0000`) |
 
 ```bash
 curl -b cookies.txt -H 'Content-Type: application/json' \
@@ -104,106 +118,150 @@ curl -b cookies.txt -H 'Content-Type: application/json' \
   -d '{"slotId":1,"partySize":3,"requirements":"One nut allergy"}'
 ```
 
-The response is unchanged. A failed email never changes the response.
+Response `201 Created`:
+
+```json
+{
+  "id": 42,
+  "slotId": 1,
+  "partySize": 3,
+  "status": "PENDING",
+  "tables": [{ "tableNumber": 2, "assignedSeats": 3 }]
+}
+```
+
+The response is returned immediately as `PENDING`. Once the email is delivered in the background, the booking record in the database transitions to `CONFIRMED`.
+
+### Errors
+
+| Status | When                                                   | `message`                                            |
+| ------ | ------------------------------------------------------ | ---------------------------------------------------- |
+| `400`  | Body is invalid, `requirements` > 500 chars or has NUL | `Invalid data` (details in `issues`)                 |
+| `401`  | No active user session                                 | `Not authenticated`                                  |
+| `403`  | The authenticated user has no hiker profile            | `A hiker profile is required to book a table`        |
+| `404`  | The specified slot does not exist                      | `Slot not found`                                     |
+| `409`  | Insufficient free seats for party size                 | `Insufficient seats available for this slot`         |
+| `409`  | The hiker already has an active booking for this slot  | `You already have a booking for this slot`           |
+| `422`  | The slot starts in less than 2 hours                   | `Less than 2 hours remaining before the slot starts` |
+
+## Web app
+
+The booking flow on `/book` communicates the confirmation lifecycle:
+
+1. **Confirmation modal (`BookingSentDialog`):** When the booking request completes, an accessible dialog modal is displayed:
+   - Header: _"Booking request sent"_.
+   - Badge: _"Awaiting confirmation"_.
+   - Description: _"We have received your request. The booking is not confirmed yet: wait for the hut's confirmation email to be sure your table is reserved."_
+2. **Requirements note:** In the current release, requirements are accepted through API clients; the web booking form will feature dedicated input for structured requirements and allergy tags with MH-05.
 
 ## Data model
 
-| Table           | Change                                                                  |
+| Table           | Change / Role                                                           |
 | --------------- | ----------------------------------------------------------------------- |
-| `bookings`      | New nullable column `requirements`                                      |
-| `notifications` | New table: one row for each email the system tried to send, sent or not |
+| `bookings`      | Nullable column `requirements` (`TEXT`); status updated to `CONFIRMED`  |
+| `notifications` | Audit log table: records every notification attempt and delivery status |
 
-`notifications` columns:
+`notifications` table schema:
 
-| Column       | Content                                                       |
-| ------------ | ------------------------------------------------------------- |
-| `type`       | `BOOKING_CONFIRMATION`                                        |
-| `recipient`  | Email address the message was sent to                         |
-| `subject`    | Subject of the email                                          |
-| `status`     | `SENT` or `FAILED`                                            |
-| `error`      | SMTP error message when `status` is `FAILED`, otherwise empty |
-| `user_id`    | The hiker's account                                           |
-| `booking_id` | The booking the email is about                                |
-| `created_at` | When the attempt was made                                     |
+| Column       | Type          | Description                                                  |
+| ------------ | ------------- | ------------------------------------------------------------ |
+| `id`         | `SERIAL`      | Primary key                                                  |
+| `type`       | `VARCHAR`     | `BOOKING_CONFIRMATION`                                       |
+| `recipient`  | `VARCHAR`     | Recipient email address                                      |
+| `subject`    | `VARCHAR`     | Subject line of the email                                    |
+| `status`     | `VARCHAR`     | `SENT` or `FAILED`                                           |
+| `error`      | `TEXT`        | SMTP error details when `status` is `FAILED`, otherwise null |
+| `user_id`    | `INTEGER`     | Foreign key to `users(id)` (`ON DELETE SET NULL`)            |
+| `booking_id` | `INTEGER`     | Foreign key to `bookings(id)` (`ON DELETE SET NULL`)         |
+| `created_at` | `TIMESTAMPTZ` | Timestamp of the attempt                                     |
 
-`user_id` and `booking_id` are set to `NULL` when the account or the booking is deleted, so the history of sent emails is kept.
+Migrations:
 
-Migrations: `add_notifications`, `add_booking_requirements`, `add_notification_booking`.
+- `20261028104416_add_booking_tables`
+- `20261030085156_split_user_hiker`
+- `20261031120000_one_booking_per_slot`
 
 ## Configuration
 
-| Variable    | Default                                     | Purpose                                       |
-| ----------- | ------------------------------------------- | --------------------------------------------- |
-| `SMTP_HOST` | `localhost`; `mailpit` in Docker            | SMTP server                                   |
-| `SMTP_PORT` | `1025`                                      | SMTP port; `465` uses implicit TLS            |
-| `SMTP_USER` | empty                                       | SMTP user; without it no credentials are sent |
-| `SMTP_PASS` | empty                                       | SMTP password                                 |
-| `MAIL_FROM` | `Mountain Hut <no-reply@mountain-hut.test>` | Sender of every email                         |
+| Variable    | Default                                     | Purpose                                         |
+| ----------- | ------------------------------------------- | ----------------------------------------------- |
+| `SMTP_HOST` | `localhost` (`mailpit` in Docker)           | SMTP server hostname                            |
+| `SMTP_PORT` | `1025`                                      | SMTP port (1–65535); port 465 uses implicit TLS |
+| `SMTP_USER` | _empty_                                     | SMTP username (credentials omitted if empty)    |
+| `SMTP_PASS` | _empty_                                     | SMTP password                                   |
+| `MAIL_FROM` | `Mountain Hut <no-reply@mountain-hut.test>` | Sender address (`From`) for outgoing emails     |
 
-`docker-compose.yml` starts Mailpit and passes these variables to the `app` container. Leave `SMTP_HOST` and `SMTP_PORT` empty in `.env` to use Mailpit, both locally and in Docker.
+`docker-compose.yml` runs Mailpit as a service and configures these variables for the `app` container.
 
-Read the emails caught by Mailpit at <http://localhost:8025>.
+Emails can be inspected in development at <http://localhost:8025>.
 
 ## Code map
 
-| Path                                                           | Content                                          |
-| -------------------------------------------------------------- | ------------------------------------------------ |
-| `packages/shared/src/bookings.ts`                              | `requirements` field of the request schema       |
-| `apps/api/src/bookings/bookings.service.ts`                    | Sends the confirmation after the commit          |
-| `apps/api/src/bookings/bookings.repository.ts`                 | Reads the data the email needs                   |
-| `apps/api/src/notifications/notification.service.ts`           | Sends and records each email                     |
-| `apps/api/src/notifications/templates/booking-confirmation.ts` | Subject, text and HTML of the confirmation       |
-| `apps/api/src/notifications/templates/escape-html.ts`          | Escapes values typed by users                    |
-| `apps/api/src/notifications/mailer.ts`                         | `Mailer` abstraction and its SMTP implementation |
-| `apps/api/src/notifications/mail.config.ts`                    | SMTP settings read from the environment          |
-| `apps/api/src/notifications/notifications.module.ts`           | Nest module imported by the bookings module      |
-| `apps/api/prisma/schema.prisma`                                | `Notification` model, `Booking.requirements`     |
-
-To send another kind of email (for example MH-14), add a template next to `booking-confirmation.ts`, a value to `NotificationType`, and a method to `NotificationService`. Call it only after the database transaction has been committed.
+| Path                                                           | Content                                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `packages/shared/src/bookings.ts`                              | Schema with `requirements` field (max 500 chars)           |
+| `apps/api/src/bookings/bookings.service.ts`                    | Asynchronous confirmation dispatch, retry backoff, confirm |
+| `apps/api/src/bookings/bookings.repository.ts`                 | Reads booking email details, `confirmBooking` query        |
+| `apps/api/src/notifications/notification.service.ts`           | Sends email and logs to `notifications` table              |
+| `apps/api/src/notifications/templates/booking-confirmation.ts` | Email subject, plain-text and HTML templates               |
+| `apps/api/src/notifications/templates/escape-html.ts`          | HTML escaping utility for safe rendering                   |
+| `apps/api/src/notifications/mailer.ts`                         | `Mailer` interface and Nodemailer `SmtpMailer`             |
+| `apps/api/src/notifications/mail.config.ts`                    | SMTP configuration and port range validation               |
+| `apps/api/src/notifications/notifications.module.ts`           | NestJS notifications module                                |
+| `apps/api/prisma/schema.prisma`                                | `Notification` model and `Booking.requirements`            |
+| `apps/web/src/components/BookingSentDialog.tsx`                | Dialog explaining the email confirmation status            |
 
 ## Testing
 
-Run the unit tests:
+Run unit tests:
 
 ```bash
 npm run test -w @mountain-hut/shared
 npm run test -w @mountain-hut/api
+npm run test -w @mountain-hut/web
 ```
 
-Run the end-to-end tests with Docker running. Rebuild the stack first, so that it runs the current code:
+Run integration tests against PostgreSQL:
+
+```bash
+docker compose up -d db
+npm run test:int
+```
+
+Run end-to-end tests:
 
 ```bash
 docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                                | Covers                                                           |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`                              | Validation of `requirements`                                     |
-| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Content of the email, time zone, escaping, optional requirements |
-| `apps/api/src/notifications/notification.service.spec.ts`           | Sending, recording `SENT`/`FAILED`, SMTP errors, missing email   |
-| `apps/api/src/notifications/mail.config.spec.ts`                    | SMTP settings from the environment                               |
-| `apps/api/src/notifications/mailer.spec.ts`                         | `SmtpMailer` sends through Nodemailer with the configured sender |
-| `apps/api/src/notifications/templates/escape-html.spec.ts`          | Escaping of the values typed by users                            |
-| `apps/api/src/notifications/notifications.module.spec.ts`           | The module provides the SMTP mailer                              |
-| `apps/api/src/bookings/bookings.service.spec.ts`                    | Email sent after the commit, never blocking or failing a booking |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Data read for the email                                          |
-| `e2e/tests/api/bookings.spec.ts`                                    | The real email, read from Mailpit through its API                |
-
-The end-to-end test reads Mailpit at `http://localhost:8025`; override it with `E2E_MAILPIT_URL`. The end-to-end tests delete their bookings afterwards, so their rows in `notifications` keep `booking_id` empty.
+| Spec                                                                | Covers                                                                 |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`                              | Request schema validation, length bounds, rejection of NUL bytes       |
+| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email content, timezone formatting, party size pluralization, escaping |
+| `apps/api/src/notifications/templates/escape-html.spec.ts`          | Escaping of user input in HTML templates                               |
+| `apps/api/src/notifications/notification.service.spec.ts`           | Delivery flow, recording `SENT`/`FAILED`, missing recipient handling   |
+| `apps/api/src/notifications/mail.config.spec.ts`                    | SMTP settings from env, port number and range (1–65535) validation     |
+| `apps/api/src/notifications/mailer.spec.ts`                         | `SmtpMailer` sends emails via Nodemailer with correct options          |
+| `apps/api/src/notifications/notifications.module.spec.ts`           | Module wiring and dependency injection                                 |
+| `apps/api/src/bookings/bookings.service.spec.ts`                    | Confirmation trigger after commit, retry loop with backoff, confirm    |
+| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Booking confirmation data query and `confirmBooking` status update     |
+| `apps/api/test/bookings.int-spec.ts`                                | Integration test for `confirmBooking` with real PostgreSQL             |
+| `apps/web/src/components/BookingSentDialog.test.tsx`                | Dialog message advising the hiker to wait for confirmation email       |
+| `e2e/tests/api/bookings.spec.ts`                                    | E2E test verifying Mailpit receives email and booking is `CONFIRMED`   |
 
 ### Try it manually
 
-1. Start the stack with `docker compose up --build -d --wait`.
-2. Book a table as described in [MH-01](MH-01-book-a-table.md#try-it-manually), or call `POST /api/bookings` with `requirements` as shown above.
-3. Open <http://localhost:8025>: the confirmation is the newest email.
-
-To see a failure, stop Mailpit with `docker compose stop mailpit` and book again: the booking succeeds, and the row in `notifications` has `status = FAILED` and the reason in `error`.
+1. Start the stack: `docker compose up --build -d --wait`.
+2. Book a table using the UI (<http://localhost:3000/book>) or via API:
+   ```bash
+   curl -b cookies.txt -H 'Content-Type: application/json' \
+     http://localhost:3000/api/bookings \
+     -d '{"slotId":1,"partySize":2,"requirements":"Gluten allergy"}'
+   ```
+3. Open Mailpit at <http://localhost:8025> to view the confirmation email with the booking details and allergen notes.
+4. To test failure and retries, stop Mailpit (`docker compose stop mailpit`) and make a booking: the booking succeeds with `PENDING`, retries 3 times, records `FAILED` in `notifications`, and remains `PENDING`.
 
 ## Open points
 
-- **Booking confirmed by the email (in progress).** Until it is done, the email says "confirmed" while the booking stays `PENDING`. Bookings whose email failed stay `PENDING`, and nothing sends their email again.
-- **Requirements in the web app.** The booking page has no field for the requirements yet, so only API clients can send them.
-- **Requirements as a list (MH-05).** MH-05 will replace the free-text field with a list of requirements, each with an allergies flag. The email will then show the list.
-- **No retry.** A `FAILED` email is recorded but not sent again. A retry job would need the email body and an attempt counter in `notifications`.
-- **SMTP port range.** `SMTP_PORT` accepts any integer; values outside 1–65535 should be rejected at startup (TODO in `mail.config.ts`).
+- **Structured requirements (MH-05).** MH-05 will replace the free-text field with a structured list of requirements and allergy tags, including UI selection on the booking page.
