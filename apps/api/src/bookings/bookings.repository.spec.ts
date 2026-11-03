@@ -47,10 +47,10 @@ describe('BookingsRepository', () => {
       ]);
     });
 
-    it('counts only confirmed bookings and binds the values', async () => {
+    it('counts confirmed and pending bookings and binds the values', async () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.findUpcomingSlots(tx, 'Europe/Rome', now);
-      expect(queryText()).toContain("b.status = 'CONFIRMED'");
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
       expect(queryValues()).toEqual(['Europe/Rome', 'Europe/Rome', now]);
     });
   });
@@ -110,10 +110,10 @@ describe('BookingsRepository', () => {
       await expect(repository.findFreeSeatsByTable(tx, 3)).resolves.toEqual([]);
     });
 
-    it('counts only the confirmed bookings of the requested slot', async () => {
+    it('counts the confirmed and pending bookings of the requested slot', async () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.findFreeSeatsByTable(tx, 3);
-      expect(queryText()).toContain("b.status = 'CONFIRMED'");
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
       expect(queryValues()).toEqual([3]);
     });
   });
@@ -134,24 +134,24 @@ describe('BookingsRepository', () => {
     });
   });
 
-  describe('createConfirmedBooking', () => {
-    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: 'no nuts' };
+  describe('createBooking', () => {
+    const data = { hikerId: 7, slotId: 3, partySize: 2 };
 
-    it('stores the booking as confirmed', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'CONFIRMED' });
-      await repository.createConfirmedBooking(tx, data);
+    it('stores the booking as pending', async () => {
+      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      await repository.createBooking(tx, data);
       expect(client.booking.create).toHaveBeenCalledWith({
-        data: { ...data, status: 'CONFIRMED' },
+        data: { ...data, status: 'PENDING' },
       });
     });
 
     it('does not expose the hiker id in the result', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'CONFIRMED' });
-      await expect(repository.createConfirmedBooking(tx, data)).resolves.toEqual({
+      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      await expect(repository.createBooking(tx, data)).resolves.toEqual({
         id: 9,
         slotId: 3,
         partySize: 2,
-        status: 'CONFIRMED',
+        status: 'PENDING',
       });
     });
   });

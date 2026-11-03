@@ -56,6 +56,7 @@ cp .env.example .env
 docker compose up -d db mailpit
 npm run prisma:generate -w @mountain-hut/api
 npm run build -w @mountain-hut/shared
+npm run prisma:seed -w @mountain-hut/api
 npm run dev:api
 npm run dev:web
 ```
@@ -81,6 +82,17 @@ In Docker this is not needed: the app container applies the pending migrations e
 ```bash
 npm run prisma:generate -w @mountain-hut/api
 ```
+
+### Integration tests (API + PostgreSQL)
+
+They run the API code against a real database, a separate one named like `DATABASE_URL` plus `_test` (e.g. `mountainhut_test`). It is created and migrated automatically, and emptied before every test: the development database is never touched.
+
+```bash
+docker compose up -d db
+npm run test:int
+```
+
+They are not part of `npm test`, which runs without a database.
 
 ## User stories
 

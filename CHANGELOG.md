@@ -23,6 +23,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Booking page at `/book`, sign-in and registration pages in the web app.
 - New environment variable: `BOOKING_TIMEZONE` (default `Europe/Rome`).
 - Documentation of MH-01 in [docs/stories](docs/stories/MH-01-book-a-table.md).
+- Integration tests with PostgreSQL for bookings (`npm run test:int`) and PostgreSQL service container in CI.
 
 ### Changed
 

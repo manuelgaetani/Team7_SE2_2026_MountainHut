@@ -27,7 +27,7 @@ describe('BookingsService', () => {
     findHikerIdByUserId: vi.fn(),
     findUpcomingSlots: vi.fn(),
     hasActiveBooking: vi.fn(),
-    createConfirmedBooking: vi.fn(),
+    createBooking: vi.fn(),
     createBookingTables: vi.fn(),
     findBookingConfirmation: vi.fn(),
   };
@@ -45,9 +45,7 @@ describe('BookingsService', () => {
     repo.lockSlotAndGetStart.mockResolvedValue(slotStart);
     repo.hasActiveBooking.mockResolvedValue(false);
     repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 4 }]);
-    repo.createConfirmedBooking.mockResolvedValue(storedBooking);
-    repo.findBookingConfirmation.mockResolvedValue(confirmation);
-    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    repo.createBooking.mockResolvedValue(storedBooking);
     const module = await Test.createTestingModule({
       providers: [
         BookingsService,
@@ -65,7 +63,7 @@ describe('BookingsService', () => {
   });
 
   const expectNothingWritten = () => {
-    expect(repo.createConfirmedBooking).not.toHaveBeenCalled();
+    expect(repo.createBooking).not.toHaveBeenCalled();
     expect(repo.createBookingTables).not.toHaveBeenCalled();
   };
 
@@ -80,7 +78,7 @@ describe('BookingsService', () => {
     it('stores the booking for the hiker of the user, not for the user id', async () => {
       await service.create(1, input);
       expect(repo.findHikerIdByUserId).toHaveBeenCalledWith(tx, 1);
-      expect(repo.createConfirmedBooking).toHaveBeenCalledWith(tx, {
+      expect(repo.createBooking).toHaveBeenCalledWith(tx, {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
@@ -126,7 +124,7 @@ describe('BookingsService', () => {
 
     it('stores the booking before its table assignments', async () => {
       await service.create(1, input);
-      const bookingOrder = repo.createConfirmedBooking.mock.invocationCallOrder[0];
+      const bookingOrder = repo.createBooking.mock.invocationCallOrder[0];
       const tablesOrder = repo.createBookingTables.mock.invocationCallOrder[0];
       expect(bookingOrder).toBeLessThan(tablesOrder);
     });
