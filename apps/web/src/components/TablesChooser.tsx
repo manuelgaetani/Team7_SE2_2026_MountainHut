@@ -6,7 +6,7 @@ import { FormField } from './FormField.tsx';
 
 const MODE_LABELS: Record<TablesMode, string> = {
   list: 'Enter the tables',
-  copy: 'Copy from another slot',
+  copy: 'Copy tables from another slot',
   later: 'Add them later',
 };
 
@@ -159,7 +159,7 @@ function CopySource({
     <div className="copy-source">
       <FormField
         id={`${idPrefix}-copy-date`}
-        label="Copy from the day"
+        label="Day of the slot to copy"
         type="date"
         value={date}
         onChange={(e) => {
@@ -173,7 +173,7 @@ function CopySource({
       )}
       {sources.length > 0 && (
         <div className="field">
-          <label htmlFor={`${idPrefix}-copy-slot`}>Slot to copy</label>
+          <label htmlFor={`${idPrefix}-copy-slot`}>Copy the tables of</label>
           <select
             id={`${idPrefix}-copy-slot`}
             value={value ?? ''}
