@@ -88,4 +88,33 @@ describe('bookingConfirmationEmail', () => {
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
   });
+
+  it('shows every detail of the booking in the HTML version', () => {
+    const { html } = bookingConfirmationEmail(booking);
+    expect(html).toContain('<th align="left">Booking n.</th><td>42</td>');
+    expect(html).toContain('<th align="left">Name</th><td>Anna Rossi</td>');
+    expect(html).toContain('<th align="left">Date</th><td>Saturday, 14 November 2026</td>');
+    expect(html).toContain('<th align="left">Time</th><td>12:30 - 13:30</td>');
+    expect(html).toContain('<th align="left">People</th><td>4 people</td>');
+  });
+
+  it('uses the singular for a party of one in the HTML version', () => {
+    expect(bookingConfirmationEmail({ ...booking, partySize: 1 }).html).toContain(
+      '<td>1 person</td>',
+    );
+  });
+
+  it('keeps the line breaks of Windows-style requirements in the HTML version', () => {
+    const { html } = bookingConfirmationEmail({ ...booking, requirements: 'Celiac\r\nNuts' });
+    expect(html).toContain('<td>Celiac<br>Nuts</td>');
+  });
+
+  it('does not escape twice the requirements', () => {
+    const { html } = bookingConfirmationEmail({ ...booking, requirements: '&lt;' });
+    expect(html).toContain('<td>&amp;lt;</td>');
+  });
+
+  it('shows the name of the hiker in the greeting of the subject-less text', () => {
+    expect(bookingConfirmationEmail(booking).text.startsWith('Hi Anna Rossi,')).toBe(true);
+  });
 });
