@@ -28,6 +28,25 @@ describe('createBookingSchema', () => {
     expect(createBookingSchema.safeParse({ ...validBooking, slotId }).success).toBe(false);
   });
 
+  it('accepts a booking without requirements', () => {
+    expect(createBookingSchema.safeParse(validBooking).success).toBe(true);
+  });
+
+  it('trims the requirements', () => {
+    const parsed = createBookingSchema.parse({ ...validBooking, requirements: '  no nuts ' });
+    expect(parsed.requirements).toBe('no nuts');
+  });
+
+  it('accepts requirements up to the maximum length', () => {
+    const requirements = 'a'.repeat(500);
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(true);
+  });
+
+  it.each(['a'.repeat(501), 'no\u0000nuts', 5, null])('rejects the requirements %j', (value) => {
+    const parsed = createBookingSchema.safeParse({ ...validBooking, requirements: value });
+    expect(parsed.success).toBe(false);
+  });
+
   it.each([1, 100, 101, MAX_DB_INT])('accepts the partySize %d', (partySize) => {
     expect(createBookingSchema.safeParse({ ...validBooking, partySize }).success).toBe(true);
   });
