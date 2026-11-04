@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-  test('home page loads', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveTitle('Mountain Hut');
-    await expect(page.getByRole('heading', { name: 'Closer to the sky.' })).toBeVisible();
-  });
+test('home page loads', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle('Mountain Hut');
+  await expect(page.getByRole('heading', { name: 'Closer to the sky.' })).toBeVisible();
+});
