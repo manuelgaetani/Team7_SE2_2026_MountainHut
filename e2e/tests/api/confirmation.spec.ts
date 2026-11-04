@@ -131,4 +131,4 @@ test('the requirements cannot inject HTML in the email', async ({
   expect(message.Text).toContain(requirements);
   expect(message.HTML).not.toContain('<script>');
   expect(message.HTML).toContain('&lt;script&gt;');
-})
+});

@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../generated/prisma/client.js';
