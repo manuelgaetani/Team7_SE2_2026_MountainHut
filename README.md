@@ -48,6 +48,14 @@ The API is documented with Swagger (OpenAPI), available whenever the API is runn
 
 The session is kept in `httpOnly` cookies. To call protected endpoints, first call the login endpoint from the Swagger UI: the browser stores the cookies and sends them with every next request.
 
+### Seeded development accounts
+
+Running the seed script (`npm run prisma:seed -w @mountain-hut/api`) populates the database with 14 days of slots and a staff account to test employee-restricted features:
+
+| Role       | Email                      | Password       | Full Name    |
+| ---------- | -------------------------- | -------------- | ------------ |
+| `EMPLOYEE` | `employee@mountainhut.com` | `Password123!` | Hut Employee |
+
 ## Local development
 
 ```bash
