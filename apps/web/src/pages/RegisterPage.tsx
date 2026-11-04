@@ -13,7 +13,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   email: 'Enter a valid email address.',
   password: 'Use at least 8 characters with a letter and a digit.',
   fullName: 'Enter your full name (it must contain a letter).',
-  phone: 'Enter 7 to 15 digits. Spaces, dashes and a leading + are allowed.',
+  phone: 'Phone number is too short.',
   notes: 'The notes are not valid.',
   emergencyContact: 'The emergency contact is not valid.',
 };
