@@ -1,4 +1,4 @@
-import { Link,NavLink, useLocation } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
 
 export function NavBar() {

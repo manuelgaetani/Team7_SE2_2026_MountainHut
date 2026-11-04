@@ -2,8 +2,6 @@ import { Link } from 'react-router';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function HomePage() {
-  
-
   const { data: user, isPending } = useCurrentUser();
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
