@@ -30,3 +30,14 @@ button {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
+
+.text-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-link:hover {
+  opacity: 0.8;
+}

@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
 
 export function NavBar() {
@@ -44,8 +44,9 @@ export function NavBar() {
       <Link to="/" className="brand">
         Mountain Hut
       </Link>
-      <Link to="/book">Book a table</Link>
-      {isStaff && <Link to="/staff/slots">Time slots</Link>}
+      <NavLink to="/book" className="nav-link">
+        Book a table
+      </NavLink>
       <div className="nav-actions">{account}</div>
     </nav>
   );
