@@ -78,13 +78,13 @@ The single-page web application runs at `http://localhost:5173` in development (
 | Route           | Description                                                                              | Access               |
 | --------------- | ---------------------------------------------------------------------------------------- | -------------------- |
 | `/`             | Home landing page with mountain hut presentation, availability notice, and quick actions | Public               |
-| `/book`         | Table reservation interface with date, time slot, and guest party picker (MH-01)        | Authenticated hikers |
+| `/book`         | Table reservation interface with date, time slot, and guest party picker (MH-01)         | Authenticated hikers |
 | `/login`        | User sign-in with email and password (MH-00)                                             | Public               |
 | `/register`     | New user registration with profile details (MH-00)                                       | Public               |
-| `/staff/slots`  | Time slot schedule, table capacity definition, and slot creation (MH-02)                | `EMPLOYEE`, `WARDEN` |
+| `/staff/slots`  | Time slot schedule, table capacity definition, and slot creation (MH-02)                 | `EMPLOYEE`, `WARDEN` |
 | `/unauthorized` | Landing page for access restrictions (401/403) with role-aware guidance and actions      | Public               |
 | `/forbidden`    | Alias to `/unauthorized`                                                                 | Public               |
-| `*`             | 404 "Page not found" landing page for unknown routes with navigation back to home       | Public               |
+| `*`             | 404 "Page not found" landing page for unknown routes with navigation back to home        | Public               |
 
 ## Local development
 
