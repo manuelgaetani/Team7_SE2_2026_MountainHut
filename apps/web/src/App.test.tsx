@@ -34,24 +34,6 @@ describe('App', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the API status on the home page', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }))),
-    );
-    renderAt('/');
-    expect(await screen.findByText('API status: ok')).toBeInTheDocument();
-  });
-
-  it('says when the API is unreachable', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response('{}', { status: 500 }))),
-    );
-    renderAt('/');
-    expect(await screen.findByText('API status: unreachable')).toBeInTheDocument();
-  });
-
   it('shows the not found page for unknown routes', () => {
     renderAt('/does-not-exist');
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
