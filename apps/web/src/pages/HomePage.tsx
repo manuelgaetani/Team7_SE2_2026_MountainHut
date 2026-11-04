@@ -11,6 +11,7 @@ export function HomePage() {
   });
 
   const { data: user, isPending } = useCurrentUser();
+  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
 
@@ -22,20 +23,39 @@ export function HomePage() {
         <div className="home-hero__overlay" />
 
         <div className="home-hero__content">
-          <p className="eyebrow">Mountain hut · Monte Vettore</p>
-
-          <h1>Closer to the sky.</h1>
-
-          <p className="lead">
-            A simple place to rest, eat and set off again. Plan your stop with confidence.
-          </p>
-
-          {!isPending && !user && (
-            <Link to="/register" className="button-primary button-primary--inline">
-              <span>Register to book a table</span>
-              <span aria-hidden="true">→</span>
-            </Link>
-          )}
+          <div className="home-hero__content">
+            {isStaff ? (
+              <>
+                <p className="eyebrow">Hut staff · Monte Vettore</p>
+                <h1>Ready for service.</h1>
+                <p className="lead">
+                  Define the time slots and the tables of each day, so the hut never takes more
+                  guests than it can serve.
+                </p>
+                <Link to="/staff/slots" className="button-primary button-primary--inline">
+                  <span>Manage time slots</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="eyebrow">Mountain hut · Monte Vettore</p>
+                <h1>Closer to the sky.</h1>
+                <p className="lead">
+                  A simple place to rest, eat and set off again. Plan your stop with confidence.
+                </p>
+                {!isPending && (
+                  <Link
+                    to={user ? '/book' : '/register'}
+                    className="button-primary button-primary--inline"
+                  >
+                    <span>{user ? 'Book a table' : 'Register to book a table'}</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </section>
 

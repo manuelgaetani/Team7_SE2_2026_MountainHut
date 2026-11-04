@@ -11,10 +11,9 @@ export function HutHero() {
               strokeLinejoin="round"
             />
           </svg>
-          Hospitality at 1,500 m
+          Hospitality at 2,476 m
         </p>
-        <h1 className="hero__name">Selvapiana Mountain Hut</h1>
-        <p className="hero__place">Val di Funes, Dolomiti</p>
+        <h1 className="hero__name">Mountain hut · Monte Vettore</h1>
       </div>
     </section>
   );

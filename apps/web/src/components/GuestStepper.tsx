@@ -1,5 +1,4 @@
 export const MIN_GUESTS = 1;
-export const MAX_GUESTS = 12;
 
 interface GuestStepperProps {
   value: number;
