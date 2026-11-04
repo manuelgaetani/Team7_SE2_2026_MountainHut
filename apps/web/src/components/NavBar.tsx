@@ -7,7 +7,6 @@ export function NavBar() {
   const { pathname } = useLocation();
   // The auth pages already have their own Sign in / Register tabs.
   const onAuthPage = pathname === '/login' || pathname === '/register';
-  //TO DO:const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let account = null;
   if (!isPending) {
