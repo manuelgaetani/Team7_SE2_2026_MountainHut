@@ -20,17 +20,19 @@ sections:
 
 - Unit Tests passing
 - Code review completed
-- Code present on VCS
+- Code present on Git
 - End-to-End tests performed
-
-> Please refine your DoD
+- UI testing performed
+- Deployment ready
 
 ### Detailed statistics
 
 | Story | # Tasks | Points | Hours est. | Hours actual |
 | ----- | ------- | ------ | ---------- | ------------ |
-| _#0_  |         | -      |            |              |
-| n     |         |        |            |              |
+| _#0_  | 20      | -      | 35h        |              |
+| #1    |         |        |            |              |
+| #2    |         |        |            |              |
+| #3    |         |        |            |              |
 
 > place technical tasks corresponding to story `#0` and leave out story points (not applicable in this case)
 
