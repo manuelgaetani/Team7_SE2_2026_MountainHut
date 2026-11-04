@@ -48,7 +48,10 @@ describe('SlotsController', () => {
   it('answers 403 to a hiker without calling the service', async () => {
     role = 'HIKER';
     await request(app.getHttpServer()).post('/slots').send(body).expect(403);
-    await request(app.getHttpServer()).get('/slots/schedule').query({ date: '2026-11-02' }).expect(403);
+    await request(app.getHttpServer())
+      .get('/slots/schedule')
+      .query({ date: '2026-11-02' })
+      .expect(403);
     expect(slots.create).not.toHaveBeenCalled();
     expect(slots.listByDate).not.toHaveBeenCalled();
   });
@@ -63,7 +66,10 @@ describe('SlotsController', () => {
 
   it('lists the slots of the requested day', async () => {
     slots.listByDate.mockResolvedValue([]);
-    await request(app.getHttpServer()).get('/slots/schedule').query({ date: '2026-11-02' }).expect(200);
+    await request(app.getHttpServer())
+      .get('/slots/schedule')
+      .query({ date: '2026-11-02' })
+      .expect(200);
     expect(slots.listByDate).toHaveBeenCalledWith('2026-11-02');
   });
 });
