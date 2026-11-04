@@ -6,10 +6,10 @@ How users register, log in and stay logged in. Code lives in `apps/api/src/auth`
 
 A hiker registers with email and password, then logs in to get a session made of two tokens, both sent as `httpOnly` cookies:
 
-| Token         | What it is                         | Lifetime                          | Used for                               |
-| ------------- | ---------------------------------- | --------------------------------- | -------------------------------------- |
-| Access token  | JWT (`HS256`)                      | 15 minutes (`JWT_EXPIRES_IN`)     | Proving who the user is on every request |
-| Refresh token | 32 random bytes, base64url         | 1 day (`REFRESH_TOKEN_TTL_DAYS`)  | Getting a new pair of tokens, nothing else |
+| Token         | What it is                 | Lifetime                         | Used for                                   |
+| ------------- | -------------------------- | -------------------------------- | ------------------------------------------ |
+| Access token  | JWT (`HS256`)              | 15 minutes (`JWT_EXPIRES_IN`)    | Proving who the user is on every request   |
+| Refresh token | 32 random bytes, base64url | 1 day (`REFRESH_TOKEN_TTL_DAYS`) | Getting a new pair of tokens, nothing else |
 
 Tokens never appear in a response body, so JavaScript in the browser cannot read them. The web app always calls relative URLs (`/api/auth/...`), so the browser attaches the cookies automatically.
 
@@ -88,10 +88,10 @@ Body, validated by `loginSchema`: `email` and `password`. The password only need
 
 On success the response sets two cookies:
 
-| Cookie          | Content            | Attributes                                                                                       |
-| --------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
-| `token`         | access token (JWT) | `httpOnly`, `sameSite=lax`, `secure` in production. No `maxAge`: the JWT carries the expiry      |
-| `refresh_token` | refresh token      | `httpOnly`, `sameSite=lax`, `secure` in production, `path=/api/auth`, `expires` = token expiry   |
+| Cookie          | Content            | Attributes                                                                                     |
+| --------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `token`         | access token (JWT) | `httpOnly`, `sameSite=lax`, `secure` in production. No `maxAge`: the JWT carries the expiry    |
+| `refresh_token` | refresh token      | `httpOnly`, `sameSite=lax`, `secure` in production, `path=/api/auth`, `expires` = token expiry |
 
 The refresh cookie is restricted to `/api/auth`, so the browser sends it only to the authentication routes and not to the rest of the API.
 
@@ -118,10 +118,8 @@ Returns the user read from the database, so the `role` is always current even if
 | `401`  | Unknown, revoked or already used refresh token                | `Invalid session`                    |
 | `401`  | Expired refresh token                                         | `Session expired`                    |
 | `401`  | Missing or invalid access token, or the user no longer exists | `Not authenticated`                  |
-| `401`  | `/refresh` without a refresh cookie                           |  `Not authenticated`   |
+| `401`  | `/refresh` without a refresh cookie                           | `Not authenticated`                  |
 | `409`  | The email is already registered                               | `Email already registered`           |
-
-
 
 ## Tokens in detail
 
