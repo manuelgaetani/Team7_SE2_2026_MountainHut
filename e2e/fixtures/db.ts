@@ -70,3 +70,8 @@ export function deleteSlot(slotId: number): void {
        DELETE FROM slot_tables WHERE slot_id = ${slotId};
        DELETE FROM slots WHERE id = ${slotId};`);
 }
+// Changes the role of a user in the database so they can act as staff.
+export function setUserRole(email: string, role: 'EMPLOYEE' | 'WARDEN' | 'HIKER'): void {
+  const quoted = email.replaceAll("'", "''");
+  sql(`UPDATE users SET role = '${role}' WHERE email = '${quoted}';`);
+}

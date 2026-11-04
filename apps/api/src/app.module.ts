@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
+import { SlotsModule } from './slots/slots.module.js';
 
 // In production the API also serves the built SPA (same origin, no CORS).
 // In development the SPA runs on the Vite dev server instead.
@@ -15,6 +16,6 @@ const staticModules = existsSync(webDistPath)
   : [];
 
 @Module({
-  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule, BookingsModule],
+  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule, BookingsModule, SlotsModule],
 })
 export class AppModule {}

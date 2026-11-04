@@ -8,6 +8,12 @@ export function fromIsoDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/** The local calendar date of a Date as YYYY-MM-DD, the format of slot dates. */
+export function toIsoDate(d: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export const weekdayShort = (d: Date): string =>
   capitalize(new Intl.DateTimeFormat(LOCALE, { weekday: 'short' }).format(d).replace('.', ''));
 
