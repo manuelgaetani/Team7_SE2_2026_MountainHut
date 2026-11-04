@@ -70,11 +70,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
   });
 
   afterEach(() => {
-    CONFIRMATION_RETRY_DELAYS_MS.splice(
-      0,
-      CONFIRMATION_RETRY_DELAYS_MS.length,
-      ...originalDelays,
-    );
+    CONFIRMATION_RETRY_DELAYS_MS.splice(0, CONFIRMATION_RETRY_DELAYS_MS.length, ...originalDelays);
   });
 
   afterAll(async () => {
