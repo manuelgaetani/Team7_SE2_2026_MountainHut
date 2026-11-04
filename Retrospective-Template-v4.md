@@ -30,9 +30,9 @@ sections:
 | Story | # Tasks | Points | Hours est. | Hours actual |
 | ----- | ------- | ------ | ---------- | ------------ |
 | _#0_  | 20      | -      | 35h        |              |
-| #1    |         |        |            |              |
-| #2    |         |        |            |              |
-| #3    |         |        |            |              |
+| #1    | 12      | 5      | 13h        | 15h 27m      |
+| #2    | 12      | 3      | 13h        | 11h 5m       |
+| #3    | 12      | 5      | 18h 30m    |              |
 
 > place technical tasks corresponding to story `#0` and leave out story points (not applicable in this case)
 
