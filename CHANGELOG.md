@@ -31,6 +31,10 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Role checks: `@Roles(...)` with `RolesGuard` limits an endpoint to some roles (hikers get 403).
 - Documentation of MH-02 in [docs/stories](docs/stories/MH-02-define-slot-capacity.md).
 - Documentation of MH-03 in [docs/stories](docs/stories/MH-03-receive-confirmation.md).
+- Landing pages for Page Not Found (404, `NotFoundPage`) and Access Restricted (401/403, `UnauthorizedPage`) with custom responsive layouts matching the hut branding.
+- Dedicated client routes `/unauthorized` and `/forbidden` in `apps/web/src/router.tsx` providing contextual guidance and actions depending on whether the visitor is unauthenticated, a hiker, or a staff member.
+- Catch-all route `*` for missing or invalid URLs with quick return links to home and table booking.
+- Unit tests with 100% test coverage for `NotFoundPage` and `UnauthorizedPage`.
 
 ### Changed
 

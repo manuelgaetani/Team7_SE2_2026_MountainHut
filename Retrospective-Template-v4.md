@@ -44,7 +44,7 @@ sections:
 - Unit Testing:
   - Total hours estimated: 5h
   - Total hours spent: 5h 5m
-  - Nr of automated unit test cases: 443
+  - Nr of automated unit test cases: 447
   - Coverage (if available): 100%
 - Integration testing:
   - Total hours estimated: 3h
