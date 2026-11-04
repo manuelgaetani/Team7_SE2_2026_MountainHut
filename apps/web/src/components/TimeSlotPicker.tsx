@@ -1,5 +1,6 @@
 import type { SlotSummary } from '@mountain-hut/shared';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const isBookable = (slot: SlotSummary, guests: number): boolean =>
   slot.availability === 'AVAILABLE' && slot.freeSeats >= guests;
 

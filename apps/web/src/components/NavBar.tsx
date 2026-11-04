@@ -47,6 +47,11 @@ export function NavBar() {
       <NavLink to="/book" className="nav-link">
         Book a table
       </NavLink>
+      {isStaff && (
+        <NavLink to="/staff/slots" className="nav-link">
+          Time slots
+        </NavLink>
+      )}
       <div className="nav-actions">{account}</div>
     </nav>
   );
