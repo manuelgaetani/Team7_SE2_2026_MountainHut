@@ -7,9 +7,10 @@ export function NotFoundPage() {
         <p className="eyebrow">404 · Off the trail</p>
         <h1 className="landing-status__title">Page not found</h1>
         <p className="landing-status__text">
-          The path you are looking for does not exist, has been moved, or is temporarily unavailable
-          in this mountain pass.
+          The trail you are following doesn't lead anywhere. The page might have been moved,
+          deleted, or perhaps it never existed in this part of the mountain.
         </p>
+
         <div className="landing-status__actions">
           <Link to="/" className="button-primary button-primary--inline">
             <span>Back to home</span>

@@ -7,7 +7,7 @@ import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { BookingSummary } from '../components/BookingSummary.tsx';
 import { DayPicker } from '../components/DayPicker.tsx';
-import { GuestStepper, MIN_GUESTS, MAX_GUESTS } from '../components/GuestStepper.tsx';
+import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
@@ -56,12 +56,9 @@ function BookingFlow() {
     [slots, date],
   );
 
-  const maxGuests = Math.min(
-    MAX_GUESTS,
-    Math.max(
-      MIN_GUESTS,
-      ...daySlots.filter((s) => s.availability === 'AVAILABLE').map((s) => s.freeSeats),
-    ),
+  const maxGuests = Math.max(
+    MIN_GUESTS,
+    ...daySlots.filter((s) => s.availability === 'AVAILABLE').map((s) => s.freeSeats),
   );
   const guests = Math.min(requestedGuests, maxGuests);
 
@@ -168,6 +165,22 @@ function BookingFlow() {
 
 export function BookingPage() {
   const { data: user, isPending } = useCurrentUser();
+  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
+
+  let content = null;
+  if (!isPending) {
+    if (!user) {
+      content = (
+        <p className="notice notice--ok">
+          <Link to="/login">Log in</Link> to book a table.
+        </p>
+      );
+    } else if (isStaff) {
+      content = <p className="notice notice--ok">Staff accounts cannot book a table.</p>;
+    } else {
+      content = <BookingFlow />;
+    }
+  }
 
   return (
     <div className="page">
@@ -175,17 +188,7 @@ export function BookingPage() {
       <div className="page__body">
         <h2 className="page__title">We'll hold a table for you.</h2>
         <p className="page__subtitle">Mountain cuisine, best enjoyed at a leisurely pace.</p>
-        {!isPending &&
-          (user ? (
-            <BookingFlow />
-          ) : (
-            <p className="notice notice--ok">
-              <Link to="/login" className="text-link">
-                Log in
-              </Link>{' '}
-              to book a table.
-            </p>
-          ))}
+        {content}
       </div>
     </div>
   );

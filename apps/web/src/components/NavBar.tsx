@@ -7,7 +7,6 @@ export function NavBar() {
   const { pathname } = useLocation();
   // The auth pages already have their own Sign in / Register tabs.
   const onAuthPage = pathname === '/login' || pathname === '/register';
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let account = null;
   if (!isPending) {
@@ -44,14 +43,6 @@ export function NavBar() {
       <Link to="/" className="brand">
         Mountain Hut
       </Link>
-      <NavLink to="/book" className="nav-link">
-        Book a table
-      </NavLink>
-      {isStaff && (
-        <NavLink to="/staff/slots" className="nav-link">
-          Time slots
-        </NavLink>
-      )}
       <div className="nav-actions">{account}</div>
     </nav>
   );

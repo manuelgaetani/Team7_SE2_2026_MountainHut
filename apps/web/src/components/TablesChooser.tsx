@@ -109,15 +109,16 @@ function TableRows({
             value={row.seats}
             onChange={(e) => update(i, { seats: e.target.value })}
           />
-          <button
-            type="button"
-            className="pill"
-            aria-label={`Remove row ${i + 1}`}
-            disabled={rows.length === 1}
-            onClick={() => onChange(rows.filter((_, j) => j !== i))}
-          >
-            Remove
-          </button>
+          {rows.length > 1 && (
+            <button
+              type="button"
+              className="pill"
+              aria-label={`Remove row ${i + 1}`}
+              onClick={() => onChange(rows.filter((_, j) => j !== i))}
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
       <div className="tables-editor__foot">

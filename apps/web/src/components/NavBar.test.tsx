@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -12,7 +12,9 @@ describe('NavBar', () => {
     renderAt('/');
     expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Register' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Book a table' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('navigation')).queryByRole('link', { name: 'Book a table' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the user of the session', async () => {

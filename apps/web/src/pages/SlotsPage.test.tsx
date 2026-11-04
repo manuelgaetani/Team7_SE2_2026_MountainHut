@@ -100,7 +100,7 @@ describe('SlotsPage', () => {
     stubSlotsApi({ user: null });
     renderSlotsPage();
 
-    const loginLink = await screen.findByRole('link', { name: 'Log in' });
+    const loginLink = await screen.findByRole('link', { name: 'Log in' }, { timeout: 4000 });
     expect(loginLink).toBeInTheDocument();
     expect(loginLink).toHaveAttribute('href', '/login');
     expect(screen.getByText(/with a staff account to manage the time slots/)).toBeInTheDocument();

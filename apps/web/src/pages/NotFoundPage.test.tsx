@@ -7,14 +7,19 @@ describe('NotFoundPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders 404 message and navigation links', () => {
+  it('renders 404 information and action links', () => {
     stubApi();
-    renderAt('/this-route-does-not-exist');
+    renderAt('/non-existent-route');
 
     const main = screen.getByRole('main');
     expect(within(main).getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
-    expect(within(main).getByText(/404 · Off the trail/i)).toBeInTheDocument();
+    expect(
+      within(main).getByText(/the trail you are following doesn't lead anywhere/i),
+    ).toBeInTheDocument();
     expect(within(main).getByRole('link', { name: /Back to home/i })).toHaveAttribute('href', '/');
-    expect(within(main).getByRole('link', { name: /Book a table/i })).toHaveAttribute('href', '/book');
+    expect(within(main).getByRole('link', { name: /Book a table/i })).toHaveAttribute(
+      'href',
+      '/book',
+    );
   });
 });

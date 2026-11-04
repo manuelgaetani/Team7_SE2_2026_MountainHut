@@ -127,7 +127,25 @@ One slot with its tables.
 
 ## Web app
 
-Not built yet. The staff pages to create slots, enter or copy their tables, and see the schedule of a day are the next tasks of this story.
+The page `/staff/slots` allows hut staff (`EMPLOYEE` and `WARDEN`) to view and manage time slots:
+
+- View the schedule of any selected date with active slots, table counts, and seat capacities.
+- Form to create a new time slot with start/end times and tables/seats specified inline or copied from an existing slot.
+- Define tables for a slot that has none (`PUT /api/slots/:id/tables`).
+- Access restriction handling: visitors without an active session or users with non-staff roles are notified of the restriction or routed to the unauthorized landing page (`/unauthorized`).
+
+The staff interface components:
+
+| Component                                      | Purpose                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| `apps/web/src/pages/SlotsPage.tsx`             | Main page for managing slots and tables                      |
+| `apps/web/src/pages/UnauthorizedPage.tsx`      | Landing page for 401/403 access restrictions                 |
+| `apps/web/src/pages/NotFoundPage.tsx`          | Landing page for 404 missing route                           |
+| `apps/web/src/components/SlotSchedule.tsx`     | Schedule view of all slots for a given day                   |
+| `apps/web/src/components/NewSlotForm.tsx`      | Form to create a slot and define its tables                  |
+| `apps/web/src/components/DefineTablesForm.tsx` | Form to configure tables and seats for an empty slot         |
+| `apps/web/src/lib/slotTables.ts`               | Validation and helpers for slot tables and seat calculations |
+| `apps/web/src/api/slots.ts`                    | Web client for slot management endpoints                     |
 
 ## Data model
 
