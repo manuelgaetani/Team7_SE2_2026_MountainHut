@@ -54,6 +54,10 @@ export function createPastSlot(seats: number[]): number {
   return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
 }
 
+export function bookingStatus(bookingId: number): string {
+  return sql(`SELECT status FROM bookings WHERE id = ${Number(bookingId)};`);
+}
+
 // Turns a registered user into an account without a hiker profile, like a staff account.
 export function removeHikerProfile(email: string): void {
   const quoted = email.replaceAll("'", "''");
@@ -65,4 +69,9 @@ export function deleteSlot(slotId: number): void {
        DELETE FROM bookings WHERE slot_id = ${slotId};
        DELETE FROM slot_tables WHERE slot_id = ${slotId};
        DELETE FROM slots WHERE id = ${slotId};`);
+}
+// Changes the role of a user in the database so they can act as staff.
+export function setUserRole(email: string, role: 'EMPLOYEE' | 'WARDEN' | 'HIKER'): void {
+  const quoted = email.replaceAll("'", "''");
+  sql(`UPDATE users SET role = '${role}' WHERE email = '${quoted}';`);
 }

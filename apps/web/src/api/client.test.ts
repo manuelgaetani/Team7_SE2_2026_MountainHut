@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiPost } from './client.ts';
+import { ApiError, apiGet, apiPost, apiPut } from './client.ts';
 
 describe('API client', () => {
   afterEach(() => {
@@ -24,6 +24,34 @@ describe('API client', () => {
       '/api/x',
       expect.objectContaining({ method: 'POST', body: undefined }),
     );
+  });
+
+  it('supports PUT requests with a JSON body', async () => {
+    const fetchMock = answer(new Response('{"updated":true}'));
+    const result = await apiPut('/x/1', { name: 'test' });
+    expect(result).toEqual({ updated: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/x/1',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test' }),
+      }),
+    );
+  });
+
+  it('supports PUT requests without a body', async () => {
+    const fetchMock = answer(new Response('{}'));
+    await apiPut('/x/1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/x/1',
+      expect.objectContaining({ method: 'PUT', body: undefined }),
+    );
+  });
+
+  it('throws ApiError on failed PUT request', async () => {
+    answer(new Response('{"message":"Conflict"}', { status: 409 }));
+    await expect(apiPut('/x/1', {})).rejects.toThrow('Conflict');
   });
 
   it('uses the message of the API in the error', async () => {

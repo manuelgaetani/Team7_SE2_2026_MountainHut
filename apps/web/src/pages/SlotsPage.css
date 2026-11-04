@@ -1,0 +1,110 @@
+/* Staff page for the time slots (MH-02). Builds on the classes of BookingPage.css and styles.css. */
+
+.schedule {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schedule__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.schedule__head .summary__title {
+  margin: 0 0 10px;
+}
+.schedule__tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schedule__table {
+  padding: 4px 10px;
+  background: var(--tint);
+  border-radius: 999px;
+  font-size: 11px;
+}
+.schedule__empty {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.slot-form {
+  display: grid;
+  gap: 14px;
+}
+.slot-form .field {
+  margin-bottom: 0;
+}
+.slot-form__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.slot-form__cancel {
+  justify-self: center;
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.mode {
+  padding: 8px 12px;
+  font-size: 11px;
+}
+
+.tables-editor {
+  display: grid;
+  gap: 8px;
+}
+.tables-editor__head,
+.tables-editor__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.tables-editor__head {
+  color: var(--muted);
+  font-size: 10px;
+}
+.tables-editor__row input,
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.tables-editor__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.copy-source {
+  display: grid;
+  gap: 12px;
+}
+
+/* On small screens the booking page shows its side card first; here the day and its
+   schedule come first, because the form refers to them. */
+@media (max-width: 820px) {
+  .layout--staff .layout__side {
+    order: 0;
+  }
+}

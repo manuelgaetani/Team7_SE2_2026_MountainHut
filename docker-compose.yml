@@ -9,8 +9,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mountainhut}:${POSTGRES_PASSWORD:-mountainhut}@db:5432/${POSTGRES_DB:-mountainhut}?schema=public
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
       BOOKING_TIMEZONE: ${BOOKING_TIMEZONE:-Europe/Rome}
+      # Emails go to Mailpit unless a real SMTP server is configured.
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Mountain Hut <no-reply@mountain-hut.test>}
     depends_on:
       db:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
 
   db:
@@ -28,6 +36,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Fake SMTP server: catches every email instead of delivering it.
+  # Read the emails at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.32
+    ports:
+      - '1025:1025'
+      - '8025:8025'
 
 volumes:
   db-data:

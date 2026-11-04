@@ -7,7 +7,7 @@ type BookingStatus = 'CONFIRMED' | 'PENDING' | 'REJECTED';
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   assertTestDatabase(process.env.DATABASE_URL);
   await prisma.$executeRaw`
-    TRUNCATE booking_tables, bookings, slot_tables, slots, refresh_tokens, hikers, users
+    TRUNCATE notifications, booking_tables, bookings, slot_tables, slots, refresh_tokens, hikers, users
     RESTART IDENTITY CASCADE`;
 }
 

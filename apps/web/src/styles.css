@@ -441,3 +441,67 @@ a.button-primary {
     padding: 72px 0;
   }
 }
+
+/* Landing status pages (404 Not Found, 403 Access Restricted) */
+.landing-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(75vh - 80px);
+  padding: 40px 24px 80px;
+}
+
+.landing-status__card {
+  max-width: 580px;
+  width: 100%;
+  padding: 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(23, 61, 51, 0.05);
+}
+
+.landing-status__title {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.landing-status__text {
+  margin: 0 0 32px;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.landing-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .landing-status__card {
+    padding: 32px 24px;
+  }
+
+  .landing-status__title {
+    font-size: 2.2rem;
+  }
+
+  .landing-status__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .landing-status__actions .button-primary--inline,
+  .landing-status__actions .pill {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}

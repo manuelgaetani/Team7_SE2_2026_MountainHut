@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MIN_LEAD_MS } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
@@ -14,7 +15,8 @@ import { BookingsService } from './bookings.service.js';
 const NOW = new Date('2026-11-01T10:00:00Z');
 const slotStart = new Date(NOW.getTime() + MIN_LEAD_MS);
 const input = { slotId: 3, partySize: 2 };
-const storedBooking = { id: 9, slotId: 3, partySize: 2, status: 'CONFIRMED' as const };
+// New bookings are stored as pending: the confirmation email confirms them.
+const storedBooking = { id: 9, slotId: 3, partySize: 2, status: 'PENDING' as const };
 
 describe('BookingsService', () => {
   let service: BookingsService;
@@ -28,6 +30,13 @@ describe('BookingsService', () => {
     hasActiveBooking: vi.fn(),
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
+    findBookingConfirmation: vi.fn(),
+    confirmBooking: vi.fn(),
+  };
+  const notifications = { sendBookingConfirmation: vi.fn() };
+  const confirmation = {
+    recipient: { userId: 1, email: 'anna@example.com' },
+    booking: { bookingId: 9 },
   };
 
   beforeEach(async () => {
@@ -39,11 +48,13 @@ describe('BookingsService', () => {
     repo.hasActiveBooking.mockResolvedValue(false);
     repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 4 }]);
     repo.createBooking.mockResolvedValue(storedBooking);
+    repo.findBookingConfirmation.mockResolvedValue(confirmation);
     const module = await Test.createTestingModule({
       providers: [
         BookingsService,
         { provide: PrismaService, useValue: prisma },
         { provide: BookingsRepository, useValue: repo },
+        { provide: NotificationService, useValue: notifications },
       ],
     }).compile();
     service = module.get(BookingsService);
@@ -74,7 +85,24 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
+        requirements: null,
       });
+    });
+
+    it('stores the requirements of the party', async () => {
+      await service.create(1, { ...input, requirements: 'no nuts' });
+      expect(repo.createBooking).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ requirements: 'no nuts' }),
+      );
+    });
+
+    it('stores empty requirements as none', async () => {
+      await service.create(1, { ...input, requirements: '' });
+      expect(repo.createBooking).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ requirements: null }),
+      );
     });
 
     it('stores the table assignments on the new booking', async () => {
@@ -114,6 +142,134 @@ describe('BookingsService', () => {
       vi.stubEnv('BOOKING_TIMEZONE', 'UTC');
       await service.create(1, input);
       expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'UTC');
+    });
+  });
+
+  describe('confirmation email', () => {
+    const sent = () => notifications.sendBookingConfirmation;
+
+    it('is sent to the hiker with the stored booking', async () => {
+      await service.create(1, input);
+      await vi.waitFor(() =>
+        expect(sent()).toHaveBeenCalledWith(confirmation.recipient, confirmation.booking),
+      );
+      expect(repo.findBookingConfirmation).toHaveBeenCalledWith(prisma, 9);
+    });
+
+    it('is read outside the transaction, once it has been committed', async () => {
+      let committed = false;
+      prisma.$transaction.mockImplementation(async (work: (client: typeof tx) => unknown) => {
+        const result = await work(tx);
+        committed = true;
+        return result;
+      });
+      repo.findBookingConfirmation.mockImplementation(() => {
+        expect(committed).toBe(true);
+        return Promise.resolve(confirmation);
+      });
+      await service.create(1, input);
+      await vi.waitFor(() => expect(sent()).toHaveBeenCalledOnce());
+    });
+
+    it('does not make the answer wait for the SMTP server', async () => {
+      sent().mockReturnValue(new Promise(() => undefined));
+      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
+    });
+
+    it('does not fail the booking when it cannot be read', async () => {
+      repo.findBookingConfirmation.mockRejectedValue(new Error('database down'));
+      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
+      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
+      expect(sent()).not.toHaveBeenCalled();
+    });
+
+    it('is not sent when the booking has disappeared', async () => {
+      repo.findBookingConfirmation.mockResolvedValue(null);
+      await service.create(1, input);
+      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
+      expect(sent()).not.toHaveBeenCalled();
+    });
+
+    it('is not sent when the booking is refused', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
+      await expect(service.create(1, input)).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('confirmation of the booking by the email', () => {
+    const sent = () => notifications.sendBookingConfirmation;
+
+    it('confirms the booking once its email is sent', async () => {
+      sent().mockResolvedValue('SENT');
+      await service.create(1, input);
+      await vi.waitFor(() => expect(repo.confirmBooking).toHaveBeenCalledWith(prisma, 9));
+      expect(sent()).toHaveBeenCalledOnce();
+    });
+
+    it('retries a failed email up to three times, waiting longer each time', async () => {
+      vi.useFakeTimers({ now: NOW });
+      sent()
+        .mockResolvedValueOnce('FAILED')
+        .mockResolvedValueOnce('FAILED')
+        .mockResolvedValueOnce('FAILED')
+        .mockResolvedValueOnce('SENT');
+      await service.create(1, input);
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sent()).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(sent()).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sent()).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(sent()).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(25_000);
+      expect(sent()).toHaveBeenCalledTimes(4);
+      expect(repo.confirmBooking).toHaveBeenCalledOnce();
+    });
+
+    it('confirms the booking when a retry succeeds', async () => {
+      vi.useFakeTimers({ now: NOW });
+      sent().mockResolvedValueOnce('FAILED').mockResolvedValueOnce('SENT');
+      await service.create(1, input);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(sent()).toHaveBeenCalledTimes(2);
+      expect(repo.confirmBooking).toHaveBeenCalledWith(prisma, 9);
+    });
+
+    it('leaves the booking pending after four failed attempts', async () => {
+      vi.useFakeTimers({ now: NOW });
+      sent().mockResolvedValue('FAILED');
+      await service.create(1, input);
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+      expect(sent()).toHaveBeenCalledTimes(4);
+      expect(repo.confirmBooking).not.toHaveBeenCalled();
+    });
+
+    it('neither retries nor confirms when the hiker has no email', async () => {
+      vi.useFakeTimers({ now: NOW });
+      sent().mockResolvedValue('SKIPPED');
+      await service.create(1, input);
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+      expect(sent()).toHaveBeenCalledOnce();
+      expect(repo.confirmBooking).not.toHaveBeenCalled();
+    });
+
+    it('does not resend the email when the booking cannot be confirmed', async () => {
+      vi.useFakeTimers({ now: NOW });
+      sent().mockResolvedValue('SENT');
+      repo.confirmBooking.mockRejectedValue(new Error('database down'));
+      await expect(service.create(1, input)).resolves.toMatchObject({ status: 'PENDING' });
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+      expect(repo.confirmBooking).toHaveBeenCalledOnce();
+      expect(sent()).toHaveBeenCalledOnce();
+    });
+
+    it('answers with the booking still pending, before the email is sent', async () => {
+      sent().mockReturnValue(new Promise(() => undefined));
+      await expect(service.create(1, input)).resolves.toMatchObject({ status: 'PENDING' });
+      expect(repo.confirmBooking).not.toHaveBeenCalled();
     });
   });
 
