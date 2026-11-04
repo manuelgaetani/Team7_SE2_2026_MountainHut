@@ -239,11 +239,13 @@ The end-to-end tests create their slots directly in the database of the `docker 
 
 ### Try it manually
 
-No endpoint creates slots yet. For manual testing in development, you can seed upcoming slots for 14 days:
+No endpoint creates slots yet. For manual testing in development, you can seed upcoming slots for 14 days and a pre-configured employee account:
 
 ```bash
 npm run prisma:seed -w @mountain-hut/api
 ```
+
+This populates slots and tables, and seeds a staff employee account (`employee@mountainhut.com` / `Password123!`).
 
 Or insert a slot directly in the running PostgreSQL container:
 
