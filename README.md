@@ -46,9 +46,9 @@ The session is kept in `httpOnly` cookies. To call protected endpoints, first ca
 
 Running the seed script (`npm run prisma:seed -w @mountain-hut/api`) populates the database with 14 days of slots and a staff account to test employee-restricted features:
 
-| Role       | Email                      | Password       | Full Name     |
-| ---------- | -------------------------- | -------------- | ------------- |
-| `EMPLOYEE` | `employee@mountainhut.com` | `Password123!` | Hut Employee  |
+| Role       | Email                      | Password       | Full Name    |
+| ---------- | -------------------------- | -------------- | ------------ |
+| `EMPLOYEE` | `employee@mountainhut.com` | `Password123!` | Hut Employee |
 
 ## Local development
 
