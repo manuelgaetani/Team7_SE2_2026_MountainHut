@@ -1,10 +1,18 @@
 import { PrismaPg } from '@prisma/adapter-pg';
+import bcrypt from 'bcrypt';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is not defined');
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+
+const SEED_EMPLOYEE = {
+  email: 'employee@mountainhut.com',
+  password: 'Password123!',
+  fullName: 'Hut Employee',
+  phone: '+39 012 3456789',
+};
 
 const DAYS = 14;
 // Pranzo: quattro turni da un'ora, a partire dalle 12:00 ogni mezz'ora.
@@ -32,6 +40,41 @@ const dayAt = (offset: number): Date => {
 const timeOf = (hhmm: string): Date => new Date(`1970-01-01T${hhmm}:00Z`);
 
 async function main() {
+  const passwordHash = await bcrypt.hash(SEED_EMPLOYEE.password, 10);
+  const employee = await prisma.user.upsert({
+    where: { email: SEED_EMPLOYEE.email },
+    update: {
+      password: passwordHash,
+      role: 'EMPLOYEE',
+    },
+    create: {
+      email: SEED_EMPLOYEE.email,
+      password: passwordHash,
+      role: 'EMPLOYEE',
+      hiker: {
+        create: {
+          fullName: SEED_EMPLOYEE.fullName,
+          phone: SEED_EMPLOYEE.phone,
+        },
+      },
+    },
+  });
+
+  await prisma.hiker.upsert({
+    where: { userId: employee.id },
+    update: {
+      fullName: SEED_EMPLOYEE.fullName,
+      phone: SEED_EMPLOYEE.phone,
+    },
+    create: {
+      userId: employee.id,
+      fullName: SEED_EMPLOYEE.fullName,
+      phone: SEED_EMPLOYEE.phone,
+    },
+  });
+
+  console.log(`Seeded employee user: ${SEED_EMPLOYEE.email} (password: ${SEED_EMPLOYEE.password})`);
+
   for (let day = 0; day < DAYS; day++) {
     const date = dayAt(day);
     for (const [start, end] of TIMES) {
