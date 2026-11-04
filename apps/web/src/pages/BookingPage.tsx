@@ -180,7 +180,7 @@ export function BookingPage() {
             <BookingFlow />
           ) : (
             <p className="notice notice--ok">
-              <Link to="/login">Log in</Link> to book a table.
+              <Link to="/login"className="text-link">Log in</Link> to book a table.
             </p>
           ))}
       </div>
