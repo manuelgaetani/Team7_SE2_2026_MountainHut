@@ -54,19 +54,25 @@ export class BookingsRepository {
              to_char(s.start_time, 'HH24:MI') AS start_time,
              to_char(s.end_time, 'HH24:MI') AS end_time,
              ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at,
-             GREATEST(
-               COALESCE((SELECT SUM(st.seats) FROM slot_tables st WHERE st.slot_id = s.id), 0)
-               - COALESCE((
-                   SELECT SUM(bt.assigned_seats)
-                   FROM booking_tables bt
-                   JOIN bookings b ON b.id = bt.booking_id
-                   WHERE bt.slot_id = s.id AND b.status IN ('CONFIRMED', 'PENDING')
-                 ), 0),
-               0
-             )::int AS free_seats
+             COALESCE((
+               SELECT SUM(GREATEST(st.seats - COALESCE((
+                 SELECT SUM(bt.assigned_seats)
+                 FROM booking_tables bt
+                 JOIN bookings b ON b.id = bt.booking_id
+                 JOIN slots s_other ON s_other.id = bt.slot_id
+                 WHERE bt.table_number = st.table_number
+                   AND b.status IN ('CONFIRMED', 'PENDING')
+                   AND s_other.date = s.date
+                   AND s_other.start_time < s.end_time
+                   AND s_other.end_time > s.start_time
+               ), 0), 0))
+               FROM slot_tables st
+               WHERE st.slot_id = s.id
+             ), 0)::int AS free_seats
       FROM slots s
       WHERE ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
       ORDER BY starts_at, s.id`;
+
     return rows.map((r) => ({
       id: r.id,
       date: r.date,
@@ -81,10 +87,26 @@ export class BookingsRepository {
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
   async lockSlotAndGetStart(tx: Tx, slotId: number, timeZone: string): Promise<Date | null> {
     const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
-      SELECT ((date + start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
-      FROM slots
-      WHERE id = ${slotId}
-      FOR UPDATE`;
+      SELECT ((s_target.date + s_target.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
+      FROM slots s_target
+      JOIN slots s_other
+        ON s_other.date = s_target.date
+       AND s_other.start_time < s_target.end_time
+       AND s_other.end_time > s_target.start_time
+       AND (
+         s_other.id = s_target.id
+         OR EXISTS (
+           SELECT 1
+           FROM slot_tables t_target
+           JOIN slot_tables t_other ON t_other.table_number = t_target.table_number
+           WHERE t_target.slot_id = s_target.id
+             AND t_other.slot_id = s_other.id
+         )
+       )
+      WHERE s_target.id = ${slotId}
+      ORDER BY s_other.id
+      FOR UPDATE OF s_other`;
+
     return rows[0]?.starts_at ?? null;
   }
 
@@ -93,14 +115,20 @@ export class BookingsRepository {
   async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
     const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
-             (st.seats - COALESCE(SUM(bt.assigned_seats) FILTER (WHERE b.status IN ('CONFIRMED', 'PENDING')), 0))::int
-               AS free_seats
-      FROM slot_tables st
-      LEFT JOIN booking_tables bt
-        ON bt.slot_id = st.slot_id AND bt.table_number = st.table_number
-      LEFT JOIN bookings b ON b.id = bt.booking_id
-      WHERE st.slot_id = ${slotId}
-      GROUP BY st.table_number, st.seats
+             (st.seats - COALESCE((
+               SELECT SUM(bt.assigned_seats)
+               FROM booking_tables bt
+               JOIN bookings b ON b.id = bt.booking_id
+               JOIN slots s_other ON s_other.id = bt.slot_id
+               WHERE bt.table_number = st.table_number
+                 AND b.status IN ('CONFIRMED', 'PENDING')
+                 AND s_other.date = s_target.date
+                 AND s_other.start_time < s_target.end_time
+                 AND s_other.end_time > s_target.start_time
+             ), 0))::int AS free_seats
+      FROM slots s_target
+      JOIN slot_tables st ON st.slot_id = s_target.id
+      WHERE s_target.id = ${slotId}
       ORDER BY st.table_number`;
     return rows.map((r) => ({ tableNumber: r.table_number, freeSeats: r.free_seats }));
   }

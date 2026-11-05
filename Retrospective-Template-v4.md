@@ -38,7 +38,6 @@ sections:
 
 - Hours per task <span style="color:red">per person</span> (average, standard deviation)
 
-
 | Team Member          | # Tasks | Total Hours | Avg: Hours/Task | Std Dev        |
 | -------------------- | ------- | ----------- | --------------- | -------------- |
 | Giuseppe A. Calvello | 14      | 16h 12m     | 1h 09m (1.16h)  | 0h 32m (0.53h) |
@@ -64,25 +63,23 @@ sections:
   - Total hours spent: 4h 35m
 - Code review:
   - Total hours estimated: 8h
-  - Total hours spent: 
+  - Total hours spent:
 
 ## ASSESSMENT
 
 - What caused your errors in estimation (if any)?
 
-    Some tasks were overestimated, because not knowing the type of work needed we considered it more complex
+  Some tasks were overestimated, because not knowing the type of work needed we considered it more complex
 
 - What lessons did you learn (both positive and negative) in this sprint?
 
-   We've learned that you need to make your work as parallel as possible to avoid stalling story development.
-
+  We've learned that you need to make your work as parallel as possible to avoid stalling story development.
 
 - Improvement goals for the next sprint and how to achieve them (technical tasks, team coordination, etc.)
 
 Better coordination on tasks that are directly connected to each other but it is still possible to continue in parallel.
- Increase code review hours. 
- Working together as much as possible, we've noticed that it works very well.
-
+Increase code review hours.
+Working together as much as possible, we've noticed that it works very well.
 
 - One thing you are proud of as a Team!!
- Even if we stalled at a point during the sprint we were able to do all the stories that we had planned to do. We were able of doing this thanks to a good communication between team members.
+  Even if we stalled at a point during the sprint we were able to do all the stories that we had planned to do. We were able of doing this thanks to a good communication between team members.
