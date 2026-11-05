@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bookingConfirmationEmail } from './booking-confirmation.js';
 import type { BookingConfirmationData } from './booking-confirmation.js';
@@ -12,6 +13,9 @@ const booking: BookingConfirmationData = {
   partySize: 4,
   requirements: null,
 };
+
+// The HTML version is full of inline styles: the tests look at its content.
+const withoutStyles = (html: string): string => html.replace(/ style="[^"]*"/g, '');
 
 describe('bookingConfirmationEmail', () => {
   it('puts the booking number and the date in the subject', () => {
@@ -69,7 +73,7 @@ describe('bookingConfirmationEmail', () => {
       requirements: 'One celiac, one allergy to nuts',
     });
     expect(text).toContain('Requirements: One celiac, one allergy to nuts');
-    expect(html).toContain('<td>One celiac, one allergy to nuts</td>');
+    expect(withoutStyles(html)).toContain('<td>One celiac, one allergy to nuts</td>');
   });
 
   it('escapes the requirements and keeps their line breaks in the HTML version', () => {
@@ -77,7 +81,9 @@ describe('bookingConfirmationEmail', () => {
       ...booking,
       requirements: 'Celiac\n<b>Nuts</b> & "lactose"',
     });
-    expect(html).toContain('<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>');
+    expect(withoutStyles(html)).toContain(
+      '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
+    );
   });
 
   it('escapes the name of the hiker in the HTML version', () => {
@@ -90,28 +96,48 @@ describe('bookingConfirmationEmail', () => {
   });
 
   it('shows every detail of the booking in the HTML version', () => {
+    const html = withoutStyles(bookingConfirmationEmail(booking).html);
+    expect(html).toContain('>Booking n.</th><td>42</td>');
+    expect(html).toContain('>Name</th><td>Anna Rossi</td>');
+    expect(html).toContain('>People</th><td>4 people</td>');
+    expect(html).toContain('<td>Saturday, 14 November 2026</td>');
+    expect(html).toContain('<td>12:30 - 13:30</td>');
+  });
+
+  it('shows a summary of the booking in the inbox preview', () => {
+    expect(bookingConfirmationEmail(booking).html).toContain(
+      '>Saturday, 14 November 2026, 12:30 - 13:30, 4 people</div>',
+    );
+  });
+
+  it('sends the header photo with the email and shows it in the HTML version', () => {
+    const { html, attachments } = bookingConfirmationEmail(booking);
+    expect(attachments).toHaveLength(1);
+    expect(existsSync(attachments[0].path)).toBe(true);
+    expect(html).toContain(`src="cid:${attachments[0].cid}"`);
+    expect(html).toContain('alt="Trail leading to Monte Vettore"');
+  });
+
+  it('is a complete HTML document with the subject as its title', () => {
     const { html } = bookingConfirmationEmail(booking);
-    expect(html).toContain('<th align="left">Booking n.</th><td>42</td>');
-    expect(html).toContain('<th align="left">Name</th><td>Anna Rossi</td>');
-    expect(html).toContain('<th align="left">Date</th><td>Saturday, 14 November 2026</td>');
-    expect(html).toContain('<th align="left">Time</th><td>12:30 - 13:30</td>');
-    expect(html).toContain('<th align="left">People</th><td>4 people</td>');
+    expect(html.startsWith('<!doctype html>')).toBe(true);
+    expect(html).toContain('<title>Booking n. 42 confirmed - Saturday, 14 November 2026</title>');
   });
 
   it('uses the singular for a party of one in the HTML version', () => {
-    expect(bookingConfirmationEmail({ ...booking, partySize: 1 }).html).toContain(
+    expect(withoutStyles(bookingConfirmationEmail({ ...booking, partySize: 1 }).html)).toContain(
       '<td>1 person</td>',
     );
   });
 
   it('keeps the line breaks of Windows-style requirements in the HTML version', () => {
     const { html } = bookingConfirmationEmail({ ...booking, requirements: 'Celiac\r\nNuts' });
-    expect(html).toContain('<td>Celiac<br>Nuts</td>');
+    expect(withoutStyles(html)).toContain('<td>Celiac<br>Nuts</td>');
   });
 
   it('does not escape twice the requirements', () => {
     const { html } = bookingConfirmationEmail({ ...booking, requirements: '&lt;' });
-    expect(html).toContain('<td>&amp;lt;</td>');
+    expect(withoutStyles(html)).toContain('<td>&amp;lt;</td>');
   });
 
   it('shows the name of the hiker in the greeting of the subject-less text', () => {
