@@ -5,7 +5,10 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Role } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
+import { ROLES_KEY } from '../auth/roles.decorator.js';
+import { RolesGuard } from '../auth/roles.guard.js';
 import { BookingsController } from './bookings.controller.js';
 import { BookingsService } from './bookings.service.js';
 
@@ -20,9 +23,12 @@ const result = {
 describe('BookingsController', () => {
   let app: INestApplication<App>;
   const bookings = { create: vi.fn() };
+  // Role of the fake authenticated user: each test can change it.
+  let role: Role;
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    role = 'HIKER';
     const module = await Test.createTestingModule({
       controllers: [BookingsController],
       providers: [{ provide: BookingsService, useValue: bookings }],
@@ -30,7 +36,10 @@ describe('BookingsController', () => {
       .overrideGuard(AuthGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          context.switchToHttp().getRequest<{ user: { id: number } }>().user = { id: 1 };
+          context.switchToHttp().getRequest<{ user: { id: number; role: Role } }>().user = {
+            id: 1,
+            role,
+          };
           return true;
         },
       })
@@ -45,8 +54,14 @@ describe('BookingsController', () => {
 
   const post = (body: object) => request(app.getHttpServer()).post('/bookings').send(body);
 
-  it('protects every route with the auth guard', () => {
-    expect(Reflect.getMetadata(GUARDS_METADATA, BookingsController)).toContain(AuthGuard);
+  it('protects every route with the auth guard and the roles guard', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, BookingsController) as unknown[];
+    expect(guards).toContain(AuthGuard);
+    expect(guards).toContain(RolesGuard);
+  });
+
+  it('allows only hikers to book', () => {
+    expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.create)).toEqual(['HIKER']);
   });
 
   it('answers 201 with the created booking', async () => {
@@ -76,5 +91,23 @@ describe('BookingsController', () => {
     bookings.create.mockRejectedValue(new ConflictException('No seats'));
     const response = await post({ slotId: 3, partySize: 2 });
     expect(response.status).toBe(409);
+  });
+
+  describe('staff accounts', () => {
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 for a %s without calling the service',
+      async (staffRole) => {
+        role = staffRole;
+        const response = await post({ slotId: 3, partySize: 2 }).expect(403);
+        expect(response.body).toMatchObject({ message: 'Operation not allowed for your role' });
+        expect(bookings.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('checks the role before validating the body', async () => {
+      role = 'EMPLOYEE';
+      await post({ slotId: 3, partySize: 0 }).expect(403);
+      expect(bookings.create).not.toHaveBeenCalled();
+    });
   });
 });
