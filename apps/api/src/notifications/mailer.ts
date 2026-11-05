@@ -3,11 +3,20 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { mailFromEnv, smtpOptionsFromEnv } from './mail.config.js';
 
+// A file sent with the email. The HTML shows it with <img src="cid:...">, so the image needs no
+// public URL and most email clients show it without asking.
+export interface MailAttachment {
+  filename: string;
+  path: string;
+  cid: string;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
   html: string;
+  attachments?: MailAttachment[];
 }
 
 // Sends an email. It is an abstract class so it can be used as an injection token:
