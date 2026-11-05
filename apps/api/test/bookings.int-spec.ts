@@ -278,7 +278,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       expect(result.tables.reduce((sum, t) => sum + t.assignedSeats, 0)).toBe(21);
     });
 
-        it('shares the tables of overlapping slots', async () => {
+    it('shares the tables of overlapping slots', async () => {
       const anna = await createHiker(prisma, 'anna@example.test');
       const bruno = await createHiker(prisma, 'bruno@example.test');
       const a = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
@@ -358,26 +358,26 @@ describe('Bookings with PostgreSQL (integration)', () => {
   });
 
   it('prevents overbooking across overlapping slots (12:00 and 12:30) in parallel', async () => {
-  const anna = await createHiker(prisma, 'anna@example.test');
-  const bruno = await createHiker(prisma, 'bruno@example.test');
+    const anna = await createHiker(prisma, 'anna@example.test');
+    const bruno = await createHiker(prisma, 'bruno@example.test');
 
-  // Slot 1: 12:00 - 13:30 (Totale 24 posti sui tavoli)
-  const slot1200 = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
-  // Slot 2: 12:30 - 14:00 (Stessa sala, sovrapposto dalle 12:30 alle 13:30)
-  const slot1230 = await createSlot(prisma, '2031-07-01', '12:30', '14:00', [6, 6, 6, 6]);
+    // Slot 1: 12:00 - 13:30 (Totale 24 posti sui tavoli)
+    const slot1200 = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
+    // Slot 2: 12:30 - 14:00 (Stessa sala, sovrapposto dalle 12:30 alle 13:30)
+    const slot1230 = await createSlot(prisma, '2031-07-01', '12:30', '14:00', [6, 6, 6, 6]);
 
-  // Lanciamo in parallelo nello stesso millisecondo:
-  // Anna prenota 15 posti alle 12:00, Bruno prenota 15 posti alle 12:30.
-  // Totale richiesto per la finestra 12:30-13:30 = 30 posti (> 24 disponibili).
-  const [res1200, res1230] = await Promise.allSettled([
-    service.create(anna.userId, { slotId: slot1200, partySize: 15 }),
-    service.create(bruno.userId, { slotId: slot1230, partySize: 15 }),
-  ]);
+    // Lanciamo in parallelo nello stesso millisecondo:
+    // Anna prenota 15 posti alle 12:00, Bruno prenota 15 posti alle 12:30.
+    // Totale richiesto per la finestra 12:30-13:30 = 30 posti (> 24 disponibili).
+    const [res1200, res1230] = await Promise.allSettled([
+      service.create(anna.userId, { slotId: slot1200, partySize: 15 }),
+      service.create(bruno.userId, { slotId: slot1230, partySize: 15 }),
+    ]);
 
-  const fulfilled = [res1200, res1230].filter((r) => r.status === 'fulfilled');
-  const rejected = [res1200, res1230].filter((r) => r.status === 'rejected');
+    const fulfilled = [res1200, res1230].filter((r) => r.status === 'fulfilled');
+    const rejected = [res1200, res1230].filter((r) => r.status === 'rejected');
 
-  expect(fulfilled).toHaveLength(1);
-  expect(rejected).toHaveLength(1);
-});
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+  });
 });

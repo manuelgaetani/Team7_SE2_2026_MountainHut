@@ -38,7 +38,7 @@ export interface StoredBooking {
 @Injectable()
 export class BookingsRepository {
   // Slots that have not started yet, with the seats left over all their tables.
-    async findUpcomingSlots(tx: Tx, timeZone: string, now: Date): Promise<UpcomingSlot[]> {
+  async findUpcomingSlots(tx: Tx, timeZone: string, now: Date): Promise<UpcomingSlot[]> {
     const rows = await tx.$queryRaw<
       {
         id: number;
@@ -86,7 +86,7 @@ export class BookingsRepository {
   // Blocca la riga dello slot (le altre prenotazioni dello stesso slot aspettano)
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
   async lockSlotAndGetStart(tx: Tx, slotId: number, timeZone: string): Promise<Date | null> {
-      const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
+    const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
       SELECT ((s_target.date + s_target.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
       FROM slots s_target
       JOIN slots s_other
@@ -97,13 +97,13 @@ export class BookingsRepository {
       ORDER BY s_other.id
       FOR UPDATE OF s_other`;
 
-  return rows[0]?.starts_at ?? null;
-}
+    return rows[0]?.starts_at ?? null;
+  }
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
   async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
-        const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
+    const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
              (st.seats - COALESCE((
                SELECT SUM(bt.assigned_seats)
