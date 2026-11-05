@@ -11,7 +11,7 @@ type Errors = Partial<Record<string, string>>;
 
 const FIELD_MESSAGES: Record<string, string> = {
   email: 'Enter a valid email address.',
-  password: 'Use at least 8 characters with a letter and a digit (maximum 72 bytes).',
+  password: 'Use at least 8 characters with a letter and a digit.',
   fullName: 'Enter your full name (it must contain a letter).',
   phone: 'Enter 7 to 15 digits. Spaces, dashes and a leading + are allowed.',
   notes: 'The notes are not valid.',
@@ -30,6 +30,17 @@ export function RegisterPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  const PHONE_ALLOWED_CHARS = /^\+?[\d\s-]*$/;
+  const PHONE_INVALID_CHARS_MESSAGE =
+    'The phone number can only contain digits, spaces, dashes and a leading +.';
+
+  function fieldMessage(field: string, phone: string): string {
+    if (field === 'phone' && !PHONE_ALLOWED_CHARS.test(phone.trim())) {
+      return PHONE_INVALID_CHARS_MESSAGE;
+    }
+    return FIELD_MESSAGES[field] ?? 'Invalid value.';
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrors({});
@@ -47,7 +58,7 @@ export function RegisterPage() {
       const found: Errors = {};
       for (const issue of parsed.error.issues) {
         const field = String(issue.path[0]);
-        found[field] ??= FIELD_MESSAGES[field] ?? 'Invalid value.';
+        found[field] ??= fieldMessage(field, phone);
       }
       setErrors(found);
       return;
