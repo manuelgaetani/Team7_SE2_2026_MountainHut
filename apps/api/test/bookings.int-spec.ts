@@ -8,6 +8,26 @@ import { createBooking, createHiker, createSlot, resetDatabase } from './integra
 const TIME_ZONE = 'Europe/Rome';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// createSlot numbers the tables 1, 2, 3...: this one takes the numbers explicitly.
+async function createSlotWithTables(
+  prisma: PrismaService,
+  date: string,
+  startTime: string,
+  endTime: string,
+  tables: { tableNumber: number; seats: number }[],
+): Promise<number> {
+  const slot = await prisma.slot.create({
+    data: {
+      date: new Date(`${date}T00:00:00.000Z`),
+      startTime: new Date(`1970-01-01T${startTime}:00.000Z`),
+      endTime: new Date(`1970-01-01T${endTime}:00.000Z`),
+      tables: { create: tables },
+    },
+    select: { id: true },
+  });
+  return slot.id;
+}
+
 describe('Bookings with PostgreSQL (integration)', () => {
   const prisma = new PrismaService();
   const repo = new BookingsRepository();
@@ -16,6 +36,20 @@ describe('Bookings with PostgreSQL (integration)', () => {
     sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
   } as unknown as NotificationService;
   const service = new BookingsService(prisma, repo, notifications);
+
+  // A and B overlap and share table 2. C overlaps both but has its own table 3.
+  const diningRoom = async () => ({
+    a: await createSlotWithTables(prisma, '2031-07-01', '12:00', '13:30', [
+      { tableNumber: 1, seats: 4 },
+      { tableNumber: 2, seats: 6 },
+    ]),
+    b: await createSlotWithTables(prisma, '2031-07-01', '12:30', '14:00', [
+      { tableNumber: 2, seats: 6 },
+    ]),
+    c: await createSlotWithTables(prisma, '2031-07-01', '12:30', '14:30', [
+      { tableNumber: 3, seats: 8 },
+    ]),
+  });
 
   beforeEach(async () => {
     await resetDatabase(prisma);
@@ -118,6 +152,30 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await Promise.all([first, second]);
 
       expect(events).toEqual(['first locked', 'first done', 'second locked']);
+    });
+
+    it('waits only for the overlapping slots that share a table', async () => {
+      const { a, b, c } = await diningRoom();
+      const events: string[] = [];
+      let aHasLock!: () => void;
+      const aLocked = new Promise<void>((resolve) => (aHasLock = resolve));
+      const lock = (slotId: number, event: string) =>
+        prisma.$transaction(async (tx) => {
+          await repo.lockSlotAndGetStart(tx, slotId, TIME_ZONE);
+          events.push(event);
+        });
+
+      const first = prisma.$transaction(async (tx) => {
+        await repo.lockSlotAndGetStart(tx, a, TIME_ZONE);
+        aHasLock();
+        await sleep(500);
+        events.push('A done');
+      });
+      await aLocked;
+      await Promise.all([first, lock(c, 'C locked'), lock(b, 'B locked')]);
+
+      // C has no table in common with A: it does not wait. B shares table 2: it waits.
+      expect(events).toEqual(['C locked', 'A done', 'B locked']);
     });
   });
 
@@ -355,6 +413,44 @@ describe('Bookings with PostgreSQL (integration)', () => {
         }
       }
     }, 30_000);
+
+    it('takes the seats of a shared table from the overlapping slots only', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const { a, b, c } = await diningRoom();
+
+      // 5 people do not fit table 1 (4 seats): they take table 2, which slot B shares.
+      await service.create(anna.userId, { slotId: a, partySize: 5 });
+
+      const now = new Date('2031-07-01T08:00:00Z');
+      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const freeSeats = (id: number) => slots.find((s) => s.id === id)?.freeSeats;
+      expect(freeSeats(a)).toBe(5);
+      expect(freeSeats(b)).toBe(1);
+      expect(freeSeats(c)).toBe(8);
+
+      await expect(
+        service.create(bruno.userId, { slotId: b, partySize: 2 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.create(bruno.userId, { slotId: c, partySize: 8 }),
+      ).resolves.toMatchObject({ slotId: c });
+    });
+
+    it('leaves the other slots alone when the booking is on a table only its slot has', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const { a, b, c } = await diningRoom();
+
+      // 3 people fit table 1, which only slot A has.
+      await service.create(anna.userId, { slotId: a, partySize: 3 });
+
+      const now = new Date('2031-07-01T08:00:00Z');
+      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const freeSeats = (id: number) => slots.find((s) => s.id === id)?.freeSeats;
+      expect(freeSeats(a)).toBe(7);
+      expect(freeSeats(b)).toBe(6);
+      expect(freeSeats(c)).toBe(8);
+    });
   });
 
   it('prevents overbooking across overlapping slots (12:00 and 12:30) in parallel', async () => {

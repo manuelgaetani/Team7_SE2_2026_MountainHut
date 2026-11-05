@@ -93,6 +93,16 @@ export class BookingsRepository {
         ON s_other.date = s_target.date
        AND s_other.start_time < s_target.end_time
        AND s_other.end_time > s_target.start_time
+       AND (
+         s_other.id = s_target.id
+         OR EXISTS (
+           SELECT 1
+           FROM slot_tables t_target
+           JOIN slot_tables t_other ON t_other.table_number = t_target.table_number
+           WHERE t_target.slot_id = s_target.id
+             AND t_other.slot_id = s_other.id
+         )
+       )
       WHERE s_target.id = ${slotId}
       ORDER BY s_other.id
       FOR UPDATE OF s_other`;
