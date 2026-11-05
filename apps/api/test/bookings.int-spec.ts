@@ -277,6 +277,84 @@ describe('Bookings with PostgreSQL (integration)', () => {
       const result = await service.create(bruno.userId, { slotId: lunch, partySize: 21 });
       expect(result.tables.reduce((sum, t) => sum + t.assignedSeats, 0)).toBe(21);
     });
+
+        it('shares the tables of overlapping slots', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const a = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
+      const b = await createSlot(prisma, '2031-07-01', '12:30', '14:00', [6, 6, 6, 6]);
+
+      await service.create(anna.userId, { slotId: a, partySize: 15 });
+
+      // 24 seats in all, 15 taken during the overlap: 9 are left in both slots.
+      const now = new Date('2031-07-01T08:00:00Z');
+      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      expect(slots.find((s) => s.id === a)?.freeSeats).toBe(9);
+      expect(slots.find((s) => s.id === b)?.freeSeats).toBe(9);
+
+      await expect(
+        service.create(bruno.userId, { slotId: b, partySize: 10 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.create(bruno.userId, { slotId: b, partySize: 9 }),
+      ).resolves.toMatchObject({ slotId: b });
+    });
+
+    it('does not share the tables of slots that only touch', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const lunch = await createSlot(prisma, '2031-07-01', '12:00', '13:00', [6, 6, 6, 6]);
+      const next = await createSlot(prisma, '2031-07-01', '13:00', '14:00', [6, 6, 6, 6]);
+
+      await service.create(anna.userId, { slotId: next, partySize: 4 });
+
+      const now = new Date('2031-07-01T08:00:00Z');
+      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      expect(slots.find((s) => s.id === lunch)?.freeSeats).toBe(24);
+      expect(slots.find((s) => s.id === next)?.freeSeats).toBe(20);
+
+      const result = await service.create(bruno.userId, { slotId: lunch, partySize: 21 });
+      expect(result.tables.reduce((sum, t) => sum + t.assignedSeats, 0)).toBe(21);
+    });
+
+    it('lets one of two parallel bookings on overlapping slots through and refuses the other', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const a = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
+      const b = await createSlot(prisma, '2031-07-01', '12:30', '14:00', [6, 6, 6, 6]);
+
+      const results = await Promise.allSettled([
+        service.create(anna.userId, { slotId: a, partySize: 15 }),
+        service.create(bruno.userId, { slotId: b, partySize: 15 }),
+      ]);
+
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      // A 409, not a deadlock or any other database error.
+      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+      const seats = await prisma.bookingTable.aggregate({ _sum: { assignedSeats: true } });
+      expect(seats._sum.assignedSeats).toBe(15);
+    });
+
+    it('never ends in a deadlock when overlapping slots are booked in parallel', async () => {
+      for (let round = 0; round < 10; round++) {
+        await resetDatabase(prisma);
+        const anna = await createHiker(prisma, 'anna@example.test');
+        const bruno = await createHiker(prisma, 'bruno@example.test');
+        const a = await createSlot(prisma, '2031-07-01', '12:00', '13:30', [6, 6, 6, 6]);
+        const b = await createSlot(prisma, '2031-07-01', '12:30', '14:00', [6, 6, 6, 6]);
+
+        const results = await Promise.allSettled([
+          service.create(anna.userId, { slotId: a, partySize: 15 }),
+          service.create(bruno.userId, { slotId: b, partySize: 15 }),
+        ]);
+
+        for (const r of results) {
+          if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(ConflictException);
+        }
+      }
+    }, 30_000);
   });
 
   it('prevents overbooking across overlapping slots (12:00 and 12:30) in parallel', async () => {
