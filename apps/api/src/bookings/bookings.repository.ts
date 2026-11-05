@@ -60,13 +60,18 @@ export class BookingsRepository {
                    SELECT SUM(bt.assigned_seats)
                    FROM booking_tables bt
                    JOIN bookings b ON b.id = bt.booking_id
-                   WHERE bt.slot_id = s.id AND b.status IN ('CONFIRMED', 'PENDING')
+                   JOIN slots s_other ON s_other.id = bt.slot_id
+                   WHERE s_other.date = s.date
+                     AND s_other.start_time < s.end_time
+                     AND s_other.end_time > s.start_time
+                     AND b.status IN ('CONFIRMED', 'PENDING')
                  ), 0),
                0
              )::int AS free_seats
       FROM slots s
       WHERE ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
       ORDER BY starts_at, s.id`;
+
     return rows.map((r) => ({
       id: r.id,
       date: r.date,
@@ -80,26 +85,37 @@ export class BookingsRepository {
   // Blocca la riga dello slot (le altre prenotazioni dello stesso slot aspettano)
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
   async lockSlotAndGetStart(tx: Tx, slotId: number, timeZone: string): Promise<Date | null> {
-    const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
-      SELECT ((date + start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
-      FROM slots
-      WHERE id = ${slotId}
-      FOR UPDATE`;
-    return rows[0]?.starts_at ?? null;
-  }
+  const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
+    SELECT ((s_target.date + s_target.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
+    FROM slots s_target
+    JOIN slots s_other ON s_other.date = s_target.date
+      AND s_other.start_time < s_target.end_time
+      AND s_other.end_time > s_target.start_time
+    WHERE s_target.id = ${slotId}
+    FOR UPDATE`;
+
+  return rows[0]?.starts_at ?? null;
+}
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
   async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
     const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
-             (st.seats - COALESCE(SUM(bt.assigned_seats) FILTER (WHERE b.status IN ('CONFIRMED', 'PENDING')), 0))::int
-               AS free_seats
-      FROM slot_tables st
-      LEFT JOIN booking_tables bt
-        ON bt.slot_id = st.slot_id AND bt.table_number = st.table_number
+             (st.seats - COALESCE(
+               SUM(bt.assigned_seats) FILTER (
+                 WHERE b.status IN ('CONFIRMED', 'PENDING')
+                   AND s_other.date = s_target.date
+                   AND s_other.start_time < s_target.end_time
+                   AND s_other.end_time > s_target.start_time
+               ), 0
+             ))::int AS free_seats
+      FROM slots s_target
+      JOIN slot_tables st ON st.slot_id = s_target.id
+      LEFT JOIN booking_tables bt ON bt.table_number = st.table_number
+      LEFT JOIN slots s_other ON s_other.id = bt.slot_id
       LEFT JOIN bookings b ON b.id = bt.booking_id
-      WHERE st.slot_id = ${slotId}
+      WHERE s_target.id = ${slotId}
       GROUP BY st.table_number, st.seats
       ORDER BY st.table_number`;
     return rows.map((r) => ({ tableNumber: r.table_number, freeSeats: r.free_seats }));
