@@ -7,6 +7,10 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+## [release-1] - 2026-11-06
+
+Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
+
 ### Added
 
 - Project skeleton: NestJS API, React web app, shared package, Playwright end-to-end tests, Docker setup.
@@ -35,16 +39,17 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Dedicated client routes `/unauthorized` and `/forbidden` in `apps/web/src/router.tsx` providing contextual guidance and actions depending on whether the visitor is unauthenticated, a hiker, or a staff member.
 - Catch-all route `*` for missing or invalid URLs with quick return links to home and table booking.
 - Unit tests with 100% test coverage for `NotFoundPage` and `UnauthorizedPage`.
+- A `release-<n>` tag publishes the Docker image of the release on GitHub Container Registry, with the same tag.
 
 ### Changed
 
 - The application no longer starts without `JWT_SECRET`.
-- Separati gli account (`User`) dal profilo escursionista (`Hiker`): la registrazione richiede ora nome completo e telefono, con note e contatto di emergenza facoltativi.
-- Le prenotazioni (`Booking`) fanno riferimento all'escursionista (`hikerId`) invece che all'account.
+- Accounts (`User`) are separated from the hiker profile (`Hiker`): registration now requires a full name and a phone number, with optional notes and emergency contact.
+- Bookings (`Booking`) refer to the hiker (`hikerId`) instead of the account.
 - All API messages are in English.
 - `docker compose` passes `BOOKING_TIMEZONE` to the application.
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
-- La migration `split_user_hiker` elimina colonne di `users` e `bookings`: chi ha dati locali deve ripartire con `docker compose down -v`.
+- The `split_user_hiker` migration drops columns of `users` and `bookings`: with local data, start again with `docker compose down -v`.
 - The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
 
 ### Fixed
@@ -56,7 +61,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Registration now rejects passwords without a letter and a digit, phone numbers that are not 7-15 digits, and full names without a letter. Existing accounts can still log in.
 - Swagger shows the request body of `POST /api/auth/register` and `POST /api/auth/login`, and marks `GET /api/auth/me` as protected by the session cookie.
 - The Docker image applies the pending database migrations on startup, so the system also works on a new, empty database.
+- Overlapping slots that use the same table number now share its seats, so the same seats cannot be booked twice.
 
 ### Removed
 
-- Rimosso il concetto di utente temporaneo (`isTemporary`): un escursionista senza account è un `Hiker` senza `User`.
+- The temporary user concept (`isTemporary`) is removed: a hiker without an account is a `Hiker` without a `User`.
