@@ -75,7 +75,7 @@ sections:
 
   We've learned that you need to make your work as parallel as possible to avoid stalling story development.
 
-- Which improvement goals set in the previous retrospective were you able to achieve? 
+- Which improvement goals set in the previous retrospective were you able to achieve?
 
 - Which ones you were not able to achieve? Why?
 
