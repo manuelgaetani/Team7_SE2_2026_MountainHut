@@ -17,6 +17,15 @@ export const createBookingSchema = z.object({
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
+// TODO(MH-06): stub without full validation rules. Add the rules tested in booking-change.spec.ts,
+// then remove describe.skip there.
+export const changeBookingSchema = z.object({
+  slotId: z.number().optional(),
+  partySize: z.number().optional(),
+  requirements: z.string().nullable().optional(),
+});
+export type ChangeBookingInput = z.infer<typeof changeBookingSchema>;
+
 export type SlotAvailability = 'AVAILABLE' | 'FULL' | 'TOO_LATE';
 
 export interface SlotSummary {
