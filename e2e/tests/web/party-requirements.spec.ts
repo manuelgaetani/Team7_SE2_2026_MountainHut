@@ -232,17 +232,17 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
 test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-05): Test keyboard navigation (Tab, Space, Enter) for dynamically adding and removing requirement rows
-  test.skip('allows full keyboard navigation for adding and removing dietary requirement items', async () => { });
+  test.skip('allows full keyboard navigation for adding and removing dietary requirement items', async () => {});
 
   // TODO(MH-05): Test screen reader announcement when an allergy requirement is flagged with special care
-  test.skip('ensures screen reader announces special care needed alert when allergy checkbox is toggled', async () => { });
+  test.skip('ensures screen reader announces special care needed alert when allergy checkbox is toggled', async () => {});
 
   // TODO(MH-05): Test character count warning when description approaches maximum length
-  test.skip('displays visual countdown when requirement description nears maximum length limit', async () => { });
+  test.skip('displays visual countdown when requirement description nears maximum length limit', async () => {});
 
   // TODO(MH-05): Test preserving entered requirements when hiker toggles between different party sizes or time slots
-  test.skip('preserves already entered dietary requirements when changing selected time slot on same day', async () => { });
+  test.skip('preserves already entered dietary requirements when changing selected time slot on same day', async () => {});
 
   // TODO(MH-05): Test warning dialog when hiker attempts to navigate away with unsaved party requirements
-  test.skip('prompts confirmation when navigating away from booking page with unsubmitted requirements', async () => { });
+  test.skip('prompts confirmation when navigating away from booking page with unsubmitted requirements', async () => {});
 });
