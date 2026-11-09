@@ -75,6 +75,10 @@ sections:
 
   We've learned that you need to make your work as parallel as possible to avoid stalling story development.
 
+- Which improvement goals set in the previous retrospective were you able to achieve? 
+
+- Which ones you were not able to achieve? Why?
+
 - Improvement goals for the next sprint and how to achieve them (technical tasks, team coordination, etc.)
 
 Better coordination on tasks that are directly connected to each other but it is still possible to continue in parallel.
