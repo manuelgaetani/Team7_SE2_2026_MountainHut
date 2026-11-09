@@ -67,4 +67,3 @@ describe.skip('isChangeAdmitted (Black-box 48-hour cutoff)', () => {
     expect(isChangeAdmitted(midnightSlot, invalidTime)).toBe(false);
   });
 });
-
