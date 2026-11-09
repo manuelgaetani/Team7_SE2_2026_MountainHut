@@ -171,14 +171,14 @@ test.describe('MH-04 Black-Box API: Check availability', () => {
 
 test.describe('MH-04 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-04): Test availability check on slot starting in less than 2 hours (too late rule)
-  test.skip('returns unavailable when requested slot starts in under 2 hours', async () => { });
+  test.skip('returns unavailable when requested slot starts in under 2 hours', async () => {});
 
   // TODO(MH-04): Test availability immediately reflects capacity reduction when a booking is created
-  test.skip('updates available table breakdown dynamically after another hiker books seats', async () => { });
+  test.skip('updates available table breakdown dynamically after another hiker books seats', async () => {});
 
   // TODO(MH-04): Test availability check for upper boundary party size equal to max database integer
-  test.skip('handles maximum integer boundary for party size gracefully without server error', async () => { });
+  test.skip('handles maximum integer boundary for party size gracefully without server error', async () => {});
 
   // TODO(MH-04): Test that availability endpoint headers do not set any authentication session cookies
-  test.skip('verifies public availability response sets no session or tracking cookies', async () => { });
+  test.skip('verifies public availability response sets no session or tracking cookies', async () => {});
 });

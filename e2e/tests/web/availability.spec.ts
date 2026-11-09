@@ -126,14 +126,14 @@ test.describe('MH-04 Black-Box Web UI: Check availability', () => {
 
 test.describe('MH-04 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-04): Test call-to-action button linking from available result to registration or booking
-  test.skip('provides direct link to registration or booking flow from positive availability result', async () => { });
+  test.skip('provides direct link to registration or booking flow from positive availability result', async () => {});
 
   // TODO(MH-04): Test form field validation feedback when submitting with missing date or time in UI
-  test.skip('shows validation error messages when submitting availability form with empty inputs', async () => { });
+  test.skip('shows validation error messages when submitting availability form with empty inputs', async () => {});
 
   // TODO(MH-04): Test sequential availability checks for different time slots without page reload
-  test.skip('allows user to check different time slots sequentially updating results smoothly', async () => { });
+  test.skip('allows user to check different time slots sequentially updating results smoothly', async () => {});
 
   // TODO(MH-04): Test accessibility and ARIA live attributes on the availability results container
-  test.skip('ensures availability feedback region has aria-live polite for screen readers', async () => { });
+  test.skip('ensures availability feedback region has aria-live polite for screen readers', async () => {});
 });
