@@ -1,0 +1,215 @@
+/* Staff floor plan of a slot. Builds on BookingPage.css, SlotsPage.css and styles.css. */
+
+.floor-page__back {
+  display: inline-block;
+  margin-bottom: 18px;
+}
+.floor-page__slot {
+  margin: 0 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.floor-page__meta {
+  margin: -8px 0 14px;
+}
+
+.floor-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+.floor-summary__card {
+  display: grid;
+  gap: 4px;
+}
+.floor-summary__value {
+  font: 400 24px/1.1 var(--font-serif);
+}
+.floor-summary__label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.group-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.floor-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.floor-table {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--tint);
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+.floor-table--selected {
+  border-color: var(--green);
+  background: var(--surface);
+}
+.floor-table__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.floor-table__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.floor-table__taken,
+.floor-table__capacity {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.floor-table__seats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.floor-seat {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.floor-seat--free {
+  background: #fff;
+}
+.floor-seat--taken {
+  cursor: pointer;
+  border-color: transparent;
+}
+.floor-seat--selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.floor-seat:focus-visible,
+.floor-group__row:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.floor-groups {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.floor-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.floor-group--selected {
+  border-color: var(--green);
+  background: var(--tint);
+}
+.floor-group__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.floor-group__info {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.floor-group__name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.floor-group__tables,
+.floor-group__time {
+  color: var(--muted);
+  font-size: 10px;
+}
+.floor-group__tags {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+.floor-group__tag {
+  padding: 2px 8px;
+  background: var(--tint);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.floor-group__tag--pending {
+  background: #f8e6e1;
+  color: #8a2f1d;
+}
+.floor-group__detail {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+}
+.floor-group__detail-title {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.floor-group__assignment {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.floor-group__assigned {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+.floor-group__assigned dt {
+  min-width: 2.5ch;
+  font-weight: 700;
+}
+.floor-group__assigned dd {
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .floor-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

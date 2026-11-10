@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
 import { seatsLabel, tablesLabel } from '../lib/slotTables.ts';
 
@@ -25,28 +26,47 @@ export function SlotSchedule({ slots, onDefineTables }: SlotScheduleProps) {
             </span>
           </div>
           {slot.tables.length > 0 ? (
-            <ul className="schedule__tables">
-              {slot.tables.map((t) => (
-                <li key={t.tableNumber} className="schedule__table">
-                  Table {t.tableNumber} · {seatsLabel(t.seats)}
-                </li>
-              ))}
-            </ul>
+            <div className="schedule__empty">
+              <ul className="schedule__tables">
+                {slot.tables.map((t) => (
+                  <li key={t.tableNumber} className="schedule__table">
+                    Table {t.tableNumber} · {seatsLabel(t.seats)}
+                  </li>
+                ))}
+              </ul>
+              <FloorPlanLink slot={slot} />
+            </div>
           ) : (
             <div className="schedule__empty">
               <p className="field__hint">No tables yet: hikers cannot book this slot.</p>
-              <button
-                type="button"
-                className="pill"
-                aria-label={`Define the tables of ${slot.startTime}–${slot.endTime}`}
-                onClick={() => onDefineTables(slot)}
-              >
-                Define tables
-              </button>
+              <div className="schedule__actions">
+                <FloorPlanLink slot={slot} />
+                <button
+                  type="button"
+                  className="pill"
+                  aria-label={`Define the tables of ${slot.startTime}–${slot.endTime}`}
+                  onClick={() => onDefineTables(slot)}
+                >
+                  Define tables
+                </button>
+              </div>
             </div>
           )}
         </li>
       ))}
     </ul>
+  );
+}
+
+function FloorPlanLink({ slot }: { slot: SlotDetails }) {
+  return (
+    <Link
+      to={`/staff/slots/${slot.id}/floor`}
+      state={{ date: slot.date }}
+      className="pill pill--primary schedule__floor"
+      aria-label={`Floor plan of ${slot.startTime}–${slot.endTime}`}
+    >
+      Floor plan
+    </Link>
   );
 }
