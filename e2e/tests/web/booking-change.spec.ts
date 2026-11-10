@@ -259,17 +259,17 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
 test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-06): Test cancel/discard changes reverts form fields without persisting
-  test.skip('reverts form fields to previous booking values when user cancels edit', async () => { });
+  test.skip('reverts form fields to previous booking values when user cancels edit', async () => {});
 
   // TODO(MH-06): Test keyboard accessibility on the booking change modal/form
-  test.skip('allows full keyboard navigation through all change booking form fields', async () => { });
+  test.skip('allows full keyboard navigation through all change booking form fields', async () => {});
 
   // TODO(MH-06): Test visual diff summary highlighting modified fields before submission
-  test.skip('displays clear before and after comparison before final modification confirmation', async () => { });
+  test.skip('displays clear before and after comparison before final modification confirmation', async () => {});
 
   // TODO(MH-06): Test screen reader announcement when 48h cutoff restriction is encountered
-  test.skip('announces 48h modification deadline warning politely for assistive devices', async () => { });
+  test.skip('announces 48h modification deadline warning politely for assistive devices', async () => {});
 
   // TODO(MH-06): Test real-time seat availability indicator dynamically updating as party size changes
-  test.skip('displays live available seat count indicator while hiker adjusts party size', async () => { });
+  test.skip('displays live available seat count indicator while hiker adjusts party size', async () => {});
 });
