@@ -7,11 +7,13 @@ import {
 import type {
   CreateSlotInput,
   DefineSlotTablesInput,
+  FloorPlan,
   SlotDetails,
   SlotTable,
 } from '@mountain-hut/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { buildFloorPlan } from './floor-plan.js';
 import { SlotsRepository } from './slots.repository.js';
 import type { SlotRow, TableRow } from './slots.repository.js';
 
@@ -80,6 +82,14 @@ export class SlotsService {
     const slot = await this.repo.findById(this.prisma, id);
     if (!slot) throw new NotFoundException('Slot not found');
     return toDetails(slot);
+  }
+
+  // Read only: the tables of a slot do not change once defined (MH-19 will change that).
+  // 404 if the slot does not exist.
+  async floorPlan(id: number): Promise<FloorPlan> {
+    const slot = await this.findOne(id);
+    const allocations = await this.repo.findFloorAllocations(this.prisma, id);
+    return buildFloorPlan(slot, allocations);
   }
 
   // Defines the tables of a slot that has none yet.
