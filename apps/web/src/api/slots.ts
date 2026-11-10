@@ -1,7 +1,12 @@
-import type { CreateSlotInput, DefineSlotTablesInput, SlotDetails } from '@mountain-hut/shared';
+import type {
+  CreateSlotInput,
+  DefineSlotTablesInput,
+  FloorPlan,
+  SlotDetails,
+} from '@mountain-hut/shared';
 import { apiGet, apiPost, apiPut } from './client.ts';
 
-export type { SlotDetails };
+export type { FloorPlan, SlotDetails };
 export type TablesSource = DefineSlotTablesInput;
 export type NewSlot = CreateSlotInput;
 
@@ -18,4 +23,9 @@ export async function createSlot(input: NewSlot): Promise<SlotDetails> {
 // Only for a slot without tables: changing an existing table set is MH-19.
 export async function defineSlotTables(id: number, source: TablesSource): Promise<SlotDetails> {
   return apiPut<SlotDetails>(`/slots/${id}/tables`, source);
+}
+
+// Where the groups of a slot are seated, for the staff.
+export async function fetchFloorPlan(id: number): Promise<FloorPlan> {
+  return apiGet<FloorPlan>(`/slots/${id}/floor`);
 }

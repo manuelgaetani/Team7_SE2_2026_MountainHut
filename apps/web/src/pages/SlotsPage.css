@@ -1,12 +1,19 @@
-/* Staff page for the time slots (MH-02). Builds on the classes of BookingPage.css and styles.css. */
-
 .schedule {
   display: grid;
-  gap: 12px;
+  gap: 18px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+
+/* Bigger slot cards; the double class wins over the generic .summary padding. */
+.summary.schedule__slot {
+  padding: 24px 28px;
+}
+.schedule__slot .summary__title {
+  font-size: 1.2rem;
+}
+
 .schedule__head {
   display: flex;
   justify-content: space-between;
@@ -14,27 +21,46 @@
   gap: 12px;
 }
 .schedule__head .summary__title {
-  margin: 0 0 10px;
+  margin: 0 0 16px;
 }
+.schedule__head .field__meta {
+  font-size: 13px;
+}
+
 .schedule__tables {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .schedule__table {
-  padding: 4px 10px;
+  padding: 8px 16px;
   background: var(--tint);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
 }
+
 .schedule__empty {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
+}
+.schedule__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Green "Floor plan" button: one line, never squeezed by the table chips. */
+.schedule__floor {
+  flex-shrink: 0;
+  padding: 12px 24px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .slot-form {
@@ -107,4 +133,10 @@
   .layout--staff .layout__side {
     order: 0;
   }
+}
+
+.schedule__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
