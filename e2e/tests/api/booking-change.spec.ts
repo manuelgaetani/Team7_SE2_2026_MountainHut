@@ -527,17 +527,17 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
 
 test.describe('MH-06 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-06): Test concurrent change requests competing for the same last remaining table
-  test.skip('handles concurrent modification requests atomically without overselling seats', async () => { });
+  test.skip('handles concurrent modification requests atomically without overselling seats', async () => {});
 
   // TODO(MH-06): Test rejecting change requests on cancelled or rejected bookings
-  test.skip('rejects change request on a booking that was already cancelled or rejected', async () => { });
+  test.skip('rejects change request on a booking that was already cancelled or rejected', async () => {});
 
   // TODO(MH-06): Test rejection when target slot date falls during hut seasonal closure
-  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async () => { });
+  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async () => {});
 
   // TODO(MH-06): Test audit log recording old and new reservation details on modification
-  test.skip('records audit log entry tracking previous and new booking state on change', async () => { });
+  test.skip('records audit log entry tracking previous and new booking state on change', async () => {});
 
   // TODO(MH-06): Test rate limiting when repeated change requests are sent in rapid succession
-  test.skip('throttles excessive rapid change requests to protect database and email queue', async () => { });
+  test.skip('throttles excessive rapid change requests to protect database and email queue', async () => {});
 });
