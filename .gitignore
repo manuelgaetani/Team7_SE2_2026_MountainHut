@@ -31,3 +31,5 @@ npm-debug.log*
 
 # Prisma generated client
 apps/api/src/generated/
+
+guides/
