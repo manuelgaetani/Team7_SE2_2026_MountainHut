@@ -2,7 +2,7 @@
 
 |                |                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------- |
-| **Status**     | Unit test suite defined (black-box with stubs); implementation pending                          |
+| **Status**     | Unit and E2E test suites defined (black-box); implementation pending                            |
 | **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation), MH-05 (party requirements) |
 
 ## User story
@@ -119,6 +119,8 @@ Response `200 OK`:
 | `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain unit tests: BVA on 48h boundary                          |
 | `apps/api/src/bookings/change-seat-allocation.ts`      | Domain stub: party size change availability (`canAccommodatePartyChange`) |
 | `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box domain unit tests: availability & multi-table allocation        |
+| `e2e/tests/api/booking-change.spec.ts`                 | E2E black-box API tests for booking change REST endpoint                  |
+| `e2e/tests/web/booking-change.spec.ts`                 | E2E black-box Web UI tests for hiker booking modification workflow        |
 
 ## Testing
 
@@ -131,13 +133,24 @@ npm run test -w @mountain-hut/shared -- src/booking-change.spec.ts
 # API domain cutoff and seat allocation tests
 npm run test -w @mountain-hut/api -- apps/api/src/bookings/booking-change-cutoff.spec.ts
 npm run test -w @mountain-hut/api -- apps/api/src/bookings/change-seat-allocation.spec.ts
+
+# E2E API tests for MH-06
+npm run e2e:api -w @mountain-hut/e2e -- e2e/tests/api/booking-change.spec.ts
+
+# E2E Web UI tests for MH-06
+npm run e2e:web -w @mountain-hut/e2e -- e2e/tests/web/booking-change.spec.ts
+
+# Run entire E2E suite
+npm run test:e2e
 ```
 
-| Spec                                                   | Covers                                                                                             |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check |
-| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons    |
-| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability |
+| Spec                                                   | Covers                                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check                                                |
+| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons                                                   |
+| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability                                                |
+| `e2e/tests/api/booking-change.spec.ts`                 | Black-box API: date/time change, party size, requirements, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email |
+| `e2e/tests/web/booking-change.spec.ts`                 | Black-box Web: UI booking edit, slot picker, 48h cutoff disabled/warning, capacity conflict notice, login redirection                             |
 
 ### Test Coverage Roadmap & Pending Tests
 
@@ -153,8 +166,8 @@ npm run test -w @mountain-hut/api -- apps/api/src/bookings/change-seat-allocatio
 - **TODO(MH-06-integration):**
   - PostgreSQL integration tests (`test/booking-change.int-spec.ts`) verifying concurrent modification requests and row-level locking on real DB.
 - **TODO(MH-06-e2e):**
-  - Playwright API E2E tests (`e2e/tests/api/booking-change.spec.ts`) testing complete HTTP flows.
-  - Playwright Web E2E tests (`e2e/tests/web/booking-change.spec.ts`) testing hiker UI interactions on the web client.
+  - Planned future scenarios documented in `e2e/tests/api/booking-change.spec.ts` (concurrent modification race conditions, cancelled/rejected status, seasonal closure rejection, audit trail).
+  - Planned future scenarios documented in `e2e/tests/web/booking-change.spec.ts` (cancel/discard changes, keyboard accessibility, visual diff comparison, screen reader 48h deadline announcement).
 
 ### Try it manually
 
