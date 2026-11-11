@@ -46,7 +46,7 @@ jobs:
         run: npm ci
 
       - name: Format docs
-        run: npx prettier --write README.md Retrospective-Template-v4.md
+        run: npx prettier --write README.md docs
 
       - name: Format check
         run: npm run format:check
