@@ -101,14 +101,14 @@ model Booking {
   hikerId      Int           @map("hiker_id")
   slotId       Int           @map("slot_id")
   partySize    Int           @map("party_size")
-  // Party needs typed by the hiker (e.g. allergies).
-  requirements String?
+
   status       BookingStatus @default(PENDING)
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   hiker         Hiker          @relation(fields: [hikerId], references: [id])
   slot          Slot           @relation(fields: [slotId], references: [id])
   tables        BookingTable[]
+  requirements  PartyRequirement[]
   notifications Notification[]
 
   // A partial unique index on (hikerId, slotId) ignores rejected bookings: see the
@@ -130,6 +130,19 @@ model BookingTable {
 
   @@id([bookingId, slotId, tableNumber])
   @@map("booking_tables")
+}
+
+// Needs of a subset of the party (e.g. "2 vegetarians"); a booking has zero or more.
+model PartyRequirement {
+  id          Int     @id @default(autoincrement())
+  bookingId   Int     @map("booking_id")
+  allergies   Boolean
+  description String
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("party_requirements")
 }
 
 enum NotificationType {
