@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createSlot, defineSlotTables, fetchSchedule } from './slots.ts';
+import { ApiError } from './client.ts';
+import { createSlot, defineSlotTables, fetchFloorPlan, fetchSchedule } from './slots.ts';
 
 describe('Slots API client', () => {
   afterEach(() => {
@@ -76,5 +77,27 @@ describe('Slots API client', () => {
         body: JSON.stringify(input),
       }),
     );
+  });
+  it('fetches the floor plan of a slot', async () => {
+    const plan = {
+      slot: { id: 5, date: '2026-11-04', startTime: '12:00', endTime: '13:00' },
+      tables: [],
+      groups: [],
+      totals: { capacity: 0, occupiedSeats: 0, freeSeats: 0, confirmedGroups: 0, splitGroups: 0 },
+    };
+    const fetchMock = answer(new Response(JSON.stringify(plan)));
+    const result = await fetchFloorPlan(5);
+    expect(result).toEqual(plan);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/slots/5/floor',
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    );
+  });
+
+  it('rejects with the status of the API when the slot of the floor plan does not exist', async () => {
+    answer(new Response(JSON.stringify({ message: 'Slot not found' }), { status: 404 }));
+    const failure = await fetchFloorPlan(99).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure).toMatchObject({ status: 404, message: 'Slot not found' });
   });
 });

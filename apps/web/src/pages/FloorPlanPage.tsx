@@ -7,19 +7,11 @@ import { FloorSummary } from '../components/FloorSummary.tsx';
 import { FloorTables } from '../components/FloorTables.tsx';
 import { dateShort, fromIsoDate, isIsoDate } from '../lib/dates.ts';
 import { floorErrorMessage, seatsTakenLabel } from '../lib/floorLabels.ts';
+import { parseSlotId } from '../lib/slotId.ts';
 import { tablesLabel } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
 import './FloorPlanPage.css';
-
-const MAX_DB_ID = 2_147_483_647;
-
-// A slot id from the URL: a positive integer the database can hold, otherwise null.
-export function parseSlotId(raw: string | undefined): number | null {
-  if (!raw || !/^[1-9]\d*$/.test(raw)) return null;
-  const id = Number(raw);
-  return id <= MAX_DB_ID ? id : null;
-}
 
 // Back to the schedule of the day the staff came from (sent by the "Floor plan" link).
 // Without it, for instance when the URL is typed, the schedule opens on today.
