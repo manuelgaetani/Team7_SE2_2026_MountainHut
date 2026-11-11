@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBookingSchema } from './bookings.js';
+import { MAX_REQUIREMENTS_COUNT, createBookingSchema } from './bookings.js';
 
 const MAX_DB_INT = 2_147_483_647;
 const validBooking = { slotId: 1, partySize: 2 };
@@ -32,17 +32,49 @@ describe('createBookingSchema', () => {
     expect(createBookingSchema.safeParse(validBooking).success).toBe(true);
   });
 
-  it('trims the requirements', () => {
-    const parsed = createBookingSchema.parse({ ...validBooking, requirements: '  no nuts ' });
-    expect(parsed.requirements).toBe('no nuts');
+  it('accepts a booking with an empty list of requirements', () => {
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements: [] }).success).toBe(true);
   });
 
-  it('accepts requirements up to the maximum length', () => {
-    const requirements = 'a'.repeat(500);
+  it('trims the description of a requirement', () => {
+    const parsed = createBookingSchema.parse({
+      ...validBooking,
+      requirements: [{ allergies: true, description: '  no nuts ' }],
+    });
+    expect(parsed.requirements).toEqual([{ allergies: true, description: 'no nuts' }]);
+  });
+
+  it('accepts a description up to the maximum length', () => {
+    const requirements = [{ allergies: false, description: 'a'.repeat(500) }];
     expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(true);
   });
 
-  it.each(['a'.repeat(501), 'no\u0000nuts', 5, null])('rejects the requirements %j', (value) => {
+  it.each(['a'.repeat(501), 'no\u0000nuts', '', '   ', 5, null])(
+    'rejects the description %j',
+    (description) => {
+      const requirements = [{ allergies: false, description }];
+      expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(false);
+    },
+  );
+
+  it.each(['yes', 1, null, undefined])('rejects the allergies flag %j', (allergies) => {
+    const requirements = [{ allergies, description: 'no nuts' }];
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(false);
+  });
+
+  it('accepts requirements up to the maximum count', () => {
+    const requirements = Array.from({ length: MAX_REQUIREMENTS_COUNT }, () => ({
+      allergies: false,
+      description: 'vegetarian',
+    }));
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(true);
+    const tooMany = [...requirements, requirements[0]];
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements: tooMany }).success).toBe(
+      false,
+    );
+  });
+
+  it.each(['no nuts', 5, null])('rejects requirements that are not a list: %j', (value) => {
     const parsed = createBookingSchema.safeParse({ ...validBooking, requirements: value });
     expect(parsed.success).toBe(false);
   });
