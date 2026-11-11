@@ -66,6 +66,15 @@ export type DefineSlotTablesInput = z.infer<typeof defineSlotTablesSchema>;
 export const listSlotsQuerySchema = z.object({ date });
 export type ListSlotsQuery = z.infer<typeof listSlotsQuerySchema>;
 
+// TODO(MH-09): stub without full validation rules. Add the rules tested in repeat-weekly-schedule.spec.ts,
+// then remove describe.skip there.
+export const repeatWeeklyScheduleSchema = z.object({
+  sourceStartDate: z.string().optional(),
+  repeatWeeks: z.number().optional(),
+  conflictStrategy: z.enum(['SKIP', 'FAIL']).optional(),
+});
+export type RepeatWeeklyScheduleInput = z.infer<typeof repeatWeeklyScheduleSchema>;
+
 export interface SlotTable {
   tableNumber: number;
   seats: number;

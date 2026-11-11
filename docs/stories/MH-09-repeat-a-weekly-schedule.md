@@ -2,7 +2,7 @@
 
 |                |                                                                                  |
 | -------------- | -------------------------------------------------------------------------------- |
-| **Status**     | E2E test suite defined (black-box); implementation pending                       |
+| **Status**     | Unit and E2E test suites defined (black-box with stubs); implementation pending  |
 | **Depends on** | MH-02 (define slot capacity and tables), MH-58 (authentication and `RolesGuard`) |
 
 ## User story
@@ -136,13 +136,30 @@ Response `201 Created`:
 
 ## Code map
 
-| Path                                             | Content                                                           |
-| ------------------------------------------------ | ----------------------------------------------------------------- |
-| `docs/stories/MH-09-repeat-a-weekly-schedule.md` | Living User Story documentation                                   |
-| `e2e/tests/api/repeat-weekly-schedule.spec.ts`   | Black-box API E2E tests: RBAC, multi-week replication, conflicts  |
-| `e2e/tests/web/repeat-weekly-schedule.spec.ts`   | Black-box Web E2E tests: employee workflow, modal, validation, UI |
+| Path                                                    | Content                                                           |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| `docs/stories/MH-09-repeat-a-weekly-schedule.md`        | Living User Story documentation                                   |
+| `packages/shared/src/slots.ts`                          | Stub `repeatWeeklyScheduleSchema` and `RepeatWeeklyScheduleInput` |
+| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema unit tests: BVA, EP for dates and repeatWeeks    |
+| `apps/api/src/slots/repeat-schedule-calculator.ts`      | Domain stub: schedule projection calculation                      |
+| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box domain unit tests: date math, month/year transitions    |
+| `apps/api/src/slots/repeat-schedule-conflicts.ts`       | Domain stub: conflict resolution logic (`SKIP`/`FAIL`)            |
+| `apps/api/src/slots/repeat-schedule-conflicts.spec.ts`  | Black-box domain unit tests: overlap detection and filtering      |
+| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API E2E tests: RBAC, multi-week replication, conflicts  |
+| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web E2E tests: employee workflow, modal, validation, UI |
 
 ## Testing
+
+Run unit tests:
+
+```bash
+# Shared package schema tests
+npm run test -w @mountain-hut/shared -- src/repeat-weekly-schedule.spec.ts
+
+# API domain calculator and conflict resolution tests
+npm run test -w @mountain-hut/api -- apps/api/src/slots/repeat-schedule-calculator.spec.ts
+npm run test -w @mountain-hut/api -- apps/api/src/slots/repeat-schedule-conflicts.spec.ts
+```
 
 Run E2E tests:
 
@@ -160,14 +177,26 @@ npm run e2e:web -w @mountain-hut/e2e -- e2e/tests/web/repeat-weekly-schedule.spe
 npm run test:e2e
 ```
 
-| Spec                                           | Covers                                                                                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `e2e/tests/api/repeat-weekly-schedule.spec.ts` | Black-box API: RBAC (401, 403, 201), multi-day replication, exact table layouts, conflict handling (`SKIP`/`FAIL`), empty source week (422), input validation (400) |
-| `e2e/tests/web/repeat-weekly-schedule.spec.ts` | Black-box Web: staff login, modal interaction, day navigation, schedule replication verification, validation feedback                                               |
+| Spec                                                    | Covers                                                                                                                                                              |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema tests: BVA for repeatWeeks (1..12), sourceStartDate format & calendar validity, conflictStrategy enum                                              |
+| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box projection tests: multi-day/multi-week date mapping ($D + 7k$), table layout preservation, month/year/leap day boundary transitions                       |
+| `apps/api/src/slots/repeat-schedule-conflicts.spec.ts`  | Black-box conflict resolution tests: `SKIP` filtering, `FAIL` error trigger, exact key matching (date, startTime, endTime)                                          |
+| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API: RBAC (401, 403, 201), multi-day replication, exact table layouts, conflict handling (`SKIP`/`FAIL`), empty source week (422), input validation (400) |
+| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web: staff login, modal interaction, day navigation, schedule replication verification, validation feedback                                               |
 
 ### Test Coverage Roadmap & Pending Tests
 
-- **TODO(MH-09):**
+- **TODO(MH-09-whitebox):**
+  - White-box unit tests for `repeat-schedule-calculator.ts`: decision condition coverage, MC/DC branch coverage.
+  - White-box unit tests for `repeat-schedule-conflicts.ts`: condition branch coverage, hash map lookup collisions.
+  - White-box unit tests for `slots.service.ts`: transaction rollback on intermediate database insertion failure.
+- **TODO(MH-09-graybox):**
+  - Gray-box unit tests verifying database row locking during batch slot insertions.
+  - Gray-box unit tests verifying unique constraint collision mapping (`slots_date_start_time_end_time_key`).
+- **TODO(MH-09-integration):**
+  - PostgreSQL integration tests (`test/repeat-schedule.int-spec.ts`) verifying concurrent schedule repetition and transaction isolation.
+- **TODO(MH-09-e2e):**
   - Planned API future scenarios:
     - Handle daylight saving time (CET to CEST) shifts across weekly repeats.
     - Selective day-of-week repetition (e.g. repeat only weekend schedules).
