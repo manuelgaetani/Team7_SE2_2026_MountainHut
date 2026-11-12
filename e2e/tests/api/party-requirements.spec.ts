@@ -539,4 +539,7 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
     const body = (await patchRes.json()) as BookingResponse;
     expect(body.requirements).toEqual(updatedRequirements);
   });
+
+  // TODO(MH-04): When merged with story MH-04 (Check availability), verify capacity reduction after booking with party requirements
+  test.skip('When merged with MH-04: Availability check reflects capacity reduction after booking with party requirements', async () => {});
 });
