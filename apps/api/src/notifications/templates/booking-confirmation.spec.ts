@@ -86,6 +86,36 @@ describe('bookingConfirmationEmail', () => {
     );
   });
 
+  // The three requirements of the example in the MH-05 clarifications, in their order.
+  it('marks every requirement with allergies, keeping the order of the hiker', () => {
+    const { text, html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
+    });
+    expect(text).toContain(
+      'Requirements: Allergies (special care needed): 1 vegan, peanut allergy\n' +
+        'Allergies (special care needed): 1 shellfish allergy\n2 vegetarians',
+    );
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): 1 vegan, peanut allergy<br>' +
+        'Allergies (special care needed): 1 shellfish allergy<br>2 vegetarians</td>',
+    );
+  });
+
+  it('escapes the description of a requirement with allergies in the HTML version', () => {
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: true, description: '<i>nuts</i> & "milk"' }],
+    });
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): &lt;i&gt;nuts&lt;/i&gt; &amp; &quot;milk&quot;</td>',
+    );
+  });
+
   it('escapes the requirements and keeps their line breaks in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,

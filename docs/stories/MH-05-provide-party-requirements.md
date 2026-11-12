@@ -156,22 +156,23 @@ No new environment variables required.
 
 ## Code map
 
-| Path                                                                | Content                                                        |
-| ------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `docs/stories/MH-05-provide-party-requirements.md`                  | Official living story documentation                            |
-| `e2e/tests/api/party-requirements.spec.ts`                          | E2E black-box API tests for party requirements and allergies   |
-| `e2e/tests/web/party-requirements.spec.ts`                          | E2E black-box Web UI tests for party requirements booking flow |
-| `packages/shared/src/bookings.ts`                                   | Party requirement Zod schema and types                         |
-| `packages/shared/src/bookings.spec.ts`                              | Unit tests for party requirement schema validation             |
-| `apps/api/prisma/schema.prisma`                                     | PartyRequirement entity and relation to Booking                |
-| `apps/api/src/bookings/bookings.repository.ts`                      | Database persistence for party requirements                    |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository unit tests for party requirements persistence       |
-| `apps/api/src/bookings/bookings.service.ts`                         | Booking service logic handling party requirements              |
-| `apps/api/src/bookings/bookings.service.spec.ts`                    | Service unit tests for party requirements orchestration        |
-| `apps/api/src/notifications/templates/booking-confirmation.ts`      | Email template listing party requirements with allergy alerts  |
-| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template unit tests verifying allergy warnings & HTML    |
-| `apps/api/test/integration/confirmation.int-spec.ts`                | Integration tests for DB persistence & email notifications     |
-| `apps/web/src/pages/BookingPage.tsx`                                | _(Pending)_ Web booking form party requirements section        |
+| Path                                                                | Content                                                                                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/stories/MH-05-provide-party-requirements.md`                  | Official living story documentation                                                                                                               |
+| `e2e/tests/api/party-requirements.spec.ts`                          | E2E black-box API tests for party requirements and allergies                                                                                      |
+| `e2e/tests/web/party-requirements.spec.ts`                          | E2E black-box Web UI tests for party requirements booking flow                                                                                    |
+| `packages/shared/src/bookings.ts`                                   | Party requirement Zod schema and types                                                                                                            |
+| `packages/shared/src/bookings.spec.ts`                              | Unit tests for party requirement schema validation                                                                                                |
+| `apps/api/prisma/schema.prisma`                                     | PartyRequirement entity and relation to Booking                                                                                                   |
+| `apps/api/src/bookings/bookings.repository.ts`                      | Database persistence for party requirements                                                                                                       |
+| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository unit tests for party requirements persistence                                                                                          |
+| `apps/api/src/bookings/bookings.service.ts`                         | Booking service logic handling party requirements                                                                                                 |
+| `apps/api/src/bookings/bookings.controller.spec.ts`                 | `POST /api/bookings`: `400` without calling the service for invalid requirements; valid ones reach the service trimmed and without unknown fields |
+| `apps/api/src/bookings/bookings.service.spec.ts`                    | Service unit tests for party requirements orchestration                                                                                           |
+| `apps/api/src/notifications/templates/booking-confirmation.ts`      | Email template listing party requirements with allergy alerts                                                                                     |
+| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template unit tests verifying allergy warnings & HTML                                                                                       |
+| `apps/api/test/integration/confirmation.int-spec.ts`                | Integration tests for DB persistence & email notifications                                                                                        |
+| `apps/web/src/pages/BookingPage.tsx`                                | _(Pending)_ Web booking form party requirements section                                                                                           |
 
 ## Testing
 
@@ -204,10 +205,10 @@ npm run test:e2e
 
 | Spec                                                                | Covers                                                                                                                                                                          |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`                              | Schema validation: allergies flag, description trimming, NUL byte rejection, max length 500, max count 20                                                                       |
+| `packages/shared/src/bookings.spec.ts`                              | Schema validation: allergies flag, description trimming, NUL byte rejection, max length 500, max count 20, missing fields, unknown fields removed, order kept                   |
 | `apps/api/src/bookings/bookings.service.spec.ts`                    | Service orchestration: stores party requirements, returns requirements array                                                                                                    |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository persistence: creates party requirements in DB, finds confirmation with requirements                                                                                  |
-| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template: allergy special care warnings, HTML escaping, empty requirements omission                                                                                       |
+| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository persistence: creates party requirements in DB, finds confirmation with requirements in insert order, empty list when there are none                                  |
+| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template: allergy special care warnings (also on every line, as in the story example), HTML escaping, empty requirements omission                                         |
 | `apps/api/test/integration/confirmation.int-spec.ts`                | Integration: DB persistence of party_requirements, confirmation email dispatch                                                                                                  |
 | `e2e/tests/api/party-requirements.spec.ts`                          | Black-box API: multiple requirements, allergy flag, empty/omitted requirements, length/count boundaries, whitespace trimming, NUL bytes, HTML escaping in emails, RBAC and auth |
 | `e2e/tests/web/party-requirements.spec.ts`                          | Black-box Web: dynamic UI rows, allergy checkbox, add/remove, confirmation dialog, validation alerts, unauthenticated redirect                                                  |

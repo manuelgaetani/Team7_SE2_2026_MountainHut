@@ -219,6 +219,30 @@ describe('BookingsRepository', () => {
       });
     });
 
+    // The email lists the requirements in the order the hiker entered them (ids follow the
+    // insert order), and only the fields it shows.
+    it('reads the requirements in insert order, with their flag and description only', async () => {
+      client.booking.findUnique.mockResolvedValue(row);
+      await repository.findBookingConfirmation(tx, 9);
+      expect(client.booking.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 9 },
+          select: expect.objectContaining({
+            requirements: {
+              select: { allergies: true, description: true },
+              orderBy: { id: 'asc' },
+            },
+          }) as unknown,
+        }),
+      );
+    });
+
+    it('maps a booking without requirements to an empty list', async () => {
+      client.booking.findUnique.mockResolvedValue({ ...row, requirements: [] });
+      const found = await repository.findBookingConfirmation(tx, 9);
+      expect(found?.booking.requirements).toEqual([]);
+    });
+
     it('has no email for a hiker without an account', async () => {
       client.booking.findUnique.mockResolvedValue({
         ...row,

@@ -79,6 +79,42 @@ describe('createBookingSchema', () => {
     expect(parsed.success).toBe(false);
   });
 
+  it.each(['description', 'allergies'])('rejects a requirement without %s', (field) => {
+    const requirement: Record<string, unknown> = { allergies: true, description: 'no nuts' };
+    delete requirement[field];
+    const parsed = createBookingSchema.safeParse({ ...validBooking, requirements: [requirement] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rejects the whole list when one requirement is not valid', () => {
+    const requirements = [
+      { allergies: true, description: 'no nuts' },
+      { allergies: false, description: '' },
+    ];
+    expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(false);
+  });
+
+  // The parsed requirements go as they are into the insert of the booking: a field such as
+  // bookingId must never reach the database from the request.
+  it('removes the fields of a requirement it does not know', () => {
+    const parsed = createBookingSchema.parse({
+      ...validBooking,
+      requirements: [{ id: 7, bookingId: 99, allergies: true, description: 'no nuts' }],
+    });
+    expect(parsed.requirements).toEqual([{ allergies: true, description: 'no nuts' }]);
+  });
+
+  it('keeps the requirements in the order the hiker entered them', () => {
+    const requirements = [
+      { allergies: true, description: '1 vegan, peanut allergy' },
+      { allergies: true, description: '1 shellfish allergy' },
+      { allergies: false, description: '2 vegetarians' },
+    ];
+    expect(createBookingSchema.parse({ ...validBooking, requirements }).requirements).toEqual(
+      requirements,
+    );
+  });
+
   it.each([1, 100, 101, MAX_DB_INT])('accepts the partySize %d', (partySize) => {
     expect(createBookingSchema.safeParse({ ...validBooking, partySize }).success).toBe(true);
   });
