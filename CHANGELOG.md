@@ -42,7 +42,6 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 - A `release-<n>` tag publishes the Docker image of the release on GitHub Container Registry, with the same tag.
 - Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 
-
 ### Changed
 
 - The application no longer starts without `JWT_SECRET`.

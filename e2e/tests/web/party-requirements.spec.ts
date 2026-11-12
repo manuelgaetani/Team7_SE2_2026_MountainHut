@@ -138,6 +138,32 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog.getByText(/Allerg|Special care/i)).toBeVisible();
   });
 
+  test('R5: Requirement without allergies does not display allergy warning badge in confirmation dialog', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    // Add requirement without checking allergies
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+    await row.getByLabel(/Details|Description|Requirement/i).fill('2 vegetarians');
+
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Booking request sent');
+    await expect(dialog).toContainText('2 vegetarians');
+    // Allergy warning badge should not be present
+    await expect(dialog.getByText(/Special care/i)).toHaveCount(0);
+  });
+
   test('R4: Hiker can remove a requirement row before submitting booking', async ({
     page,
     registeredUser,
@@ -221,6 +247,32 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(feedback.first()).toBeVisible();
   });
 
+  test('R7: Entering requirement description exceeding 500 characters displays validation error', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    // Add requirement with description > 500 characters
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+    await row.getByLabel(/Details|Description|Requirement/i).fill('A'.repeat(501));
+
+    // Try to book
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    // Validation prevents submission or displays error feedback
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const feedback = page.locator('.field__error, [role="alert"], :invalid');
+    await expect(feedback.first()).toBeVisible();
+  });
+
   test('Authentication: Asks a signed-out visitor to sign in before booking', async ({ page }) => {
     await page.goto('/book');
     await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
@@ -232,17 +284,149 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
 test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-05): Test keyboard navigation (Tab, Space, Enter) for dynamically adding and removing requirement rows
-  test.skip('allows full keyboard navigation for adding and removing dietary requirement items', async () => {});
+  test.skip('allows full keyboard navigation for adding and removing dietary requirement items', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    // Focus on "Add requirement" button and activate via keyboard Enter
+    const addButton = page.getByRole('button', { name: /Add.*requirement|Add dietary/i });
+    await addButton.focus();
+    await page.keyboard.press('Enter');
+
+    const firstRow = page
+      .locator('.party-requirement-item, [data-testid="requirement-row"]')
+      .first();
+    await expect(firstRow).toBeVisible();
+
+    // Tab into checkbox and toggle with Space
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Space');
+    await expect(firstRow.getByLabel(/Allerg/i)).toBeChecked();
+
+    // Tab into description input and type details
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('1 peanut allergy');
+    await expect(firstRow.getByLabel(/Details|Description|Requirement/i)).toHaveValue(
+      '1 peanut allergy',
+    );
+
+    // Tab into remove button and press Enter to remove
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.locator('.party-requirement-item, [data-testid="requirement-row"]'),
+    ).toHaveCount(0);
+  });
 
   // TODO(MH-05): Test screen reader announcement when an allergy requirement is flagged with special care
-  test.skip('ensures screen reader announces special care needed alert when allergy checkbox is toggled', async () => {});
+  test.skip('ensures screen reader announces special care needed alert when allergy checkbox is toggled', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+
+    // Toggle allergy checkbox
+    await row.getByLabel(/Allerg/i).check();
+
+    // Verify accessible live region communicates safety notification for screen readers
+    const liveRegion = page.locator('[aria-live="polite"], [role="status"]');
+    await expect(liveRegion.filter({ hasText: /special care|allergy/i })).toBeVisible();
+  });
 
   // TODO(MH-05): Test character count warning when description approaches maximum length
-  test.skip('displays visual countdown when requirement description nears maximum length limit', async () => {});
+  test.skip('displays visual countdown when requirement description nears maximum length limit', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+    const input = row.getByLabel(/Details|Description|Requirement/i);
+
+    // Fill 480 characters (nearing 500 characters maximum boundary)
+    await input.fill('A'.repeat(480));
+
+    // Visual countdown badge should display remaining allowed characters
+    const counter = row.locator('.char-counter, [data-testid="char-counter"]');
+    await expect(counter).toBeVisible();
+    await expect(counter).toContainText(/20/);
+  });
 
   // TODO(MH-05): Test preserving entered requirements when hiker toggles between different party sizes or time slots
-  test.skip('preserves already entered dietary requirements when changing selected time slot on same day', async () => {});
+  test.skip('preserves already entered dietary requirements when changing selected time slot on same day', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4, 4]);
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    // Add requirement details
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+    await row.getByLabel(/Allerg/i).check();
+    await row.getByLabel(/Details|Description|Requirement/i).fill('1 vegan, peanut allergy');
+
+    // Change party size
+    await page.getByRole('button', { name: 'More guests' }).click();
+
+    // The previously entered requirement must remain intact
+    await expect(row.getByLabel(/Allerg/i)).toBeChecked();
+    await expect(row.getByLabel(/Details|Description|Requirement/i)).toHaveValue(
+      '1 vegan, peanut allergy',
+    );
+  });
 
   // TODO(MH-05): Test warning dialog when hiker attempts to navigate away with unsaved party requirements
-  test.skip('prompts confirmation when navigating away from booking page with unsubmitted requirements', async () => {});
+  test.skip('prompts confirmation when navigating away from booking page with unsubmitted requirements', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4]);
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+
+    // Fill in requirement
+    await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
+    const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
+    await row.getByLabel(/Details|Description|Requirement/i).fill('1 shellfish allergy');
+
+    // Setup beforeunload dialog listener
+    let dialogAppeared = false;
+    page.on('dialog', async (dialog) => {
+      dialogAppeared = true;
+      await dialog.dismiss();
+    });
+
+    // Attempt navigating away by clicking navbar logo/home link
+    await page.getByRole('link', { name: 'Mountain Hut' }).click();
+    expect(dialogAppeared).toBe(true);
+  });
 });
