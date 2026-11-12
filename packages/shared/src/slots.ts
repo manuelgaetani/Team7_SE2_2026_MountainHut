@@ -9,13 +9,19 @@ const isCalendarDate = (s: string): boolean => {
 };
 
 // Calendar date of the slot in the hut's local time, e.g. "2026-11-02".
-const date = z
+export const localDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD')
   .refine(isCalendarDate, 'Not a valid calendar date');
 
+const date = localDateSchema;
+
 // Time of day in the hut's local time, e.g. "12:30".
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected a time as HH:MM');
+export const localTimeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected a time as HH:MM');
+
+const time = localTimeSchema;
 
 const id = z.number().int().positive().max(MAX_DB_INT);
 
