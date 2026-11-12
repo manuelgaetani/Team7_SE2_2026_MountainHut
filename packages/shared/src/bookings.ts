@@ -17,13 +17,23 @@ export const createBookingSchema = z.object({
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
-// TODO(MH-06): stub without full validation rules. Add the rules tested in booking-change.spec.ts,
-// then remove describe.skip there.
-export const changeBookingSchema = z.object({
-  slotId: z.number().optional(),
-  partySize: z.number().optional(),
-  requirements: z.string().nullable().optional(),
-});
+// What a hiker can change in a booking: the slot (date and time), the party size and the
+// requirements, in any combination. `requirements: null` removes them.
+export const changeBookingSchema = z
+  .object({
+    slotId: z.number().int().positive().max(MAX_DB_INT).optional(),
+    partySize: z.number().int().positive().max(MAX_DB_INT).optional(),
+    requirements: z
+      .string()
+      .trim()
+      .max(MAX_REQUIREMENTS_LENGTH)
+      .refine(hasNoNulByte)
+      .nullable()
+      .optional(),
+  })
+  .refine((c) => Object.values(c).some((v) => v !== undefined), {
+    message: 'At least one field (slotId, partySize, requirements) must be provided',
+  });
 export type ChangeBookingInput = z.infer<typeof changeBookingSchema>;
 
 export type SlotAvailability = 'AVAILABLE' | 'FULL' | 'TOO_LATE';
@@ -44,4 +54,9 @@ export interface BookingResult {
   partySize: number;
   status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
   tables: { tableNumber: number; assignedSeats: number }[];
+}
+
+// A booking after a change: the requirements are returned too, since they can change.
+export interface ChangedBookingResult extends BookingResult {
+  requirements: string | null;
 }
