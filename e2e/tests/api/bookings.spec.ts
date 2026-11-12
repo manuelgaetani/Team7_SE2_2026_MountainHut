@@ -116,7 +116,11 @@ test('emails the hiker a confirmation with the details of the booking', async ({
 }) => {
   const slotId = slot([4]);
   const response = await loggedInRequest.post('/api/bookings', {
-    data: { slotId, partySize: 3, requirements: 'One nut allergy' },
+    data: {
+      slotId,
+      partySize: 3,
+      requirements: [{ allergies: false, description: 'One nut allergy' }],
+    },
   });
   expect(response.status()).toBe(201);
   const { id } = (await response.json()) as { id: number };
