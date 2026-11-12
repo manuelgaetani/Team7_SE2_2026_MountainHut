@@ -25,6 +25,7 @@ function uniqueDate(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// NOTE: When merged with story MH-04, unskip this test suite and add cross-story integration tests with MH-05 (party requirements).
 // TODO(MH-04): Black-box tests pending implementation of MH-04 availability endpoint
 test.describe.skip('MH-04 Black-Box API: Check availability', () => {
   test('R1 & R4: Public check without login returns availability and table breakdown for single table', async ({
@@ -182,4 +183,7 @@ test.describe('MH-04 Black-Box API: Planned Future Scenarios (TODOs)', () => {
 
   // TODO(MH-04): Test that availability endpoint headers do not set any authentication session cookies
   test.skip('verifies public availability response sets no session or tracking cookies', async () => {});
+
+  // TODO(MH-04): When merged with MH-04, add integration test: availability reflects seat reduction after booking with party requirements (MH-05)
+  test.skip('When merged with MH-04: availability calculation reflects seats occupied by bookings that include party requirements', async () => {});
 });

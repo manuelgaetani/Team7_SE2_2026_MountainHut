@@ -17,6 +17,7 @@ async function signIn(page: Page, user: TestUser): Promise<void> {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 }
 
+// NOTE: When merged with story MH-04, unskip this test suite and add cross-story E2E tests connecting to MH-05 (party requirements).
 // TODO(MH-04): Black-box tests pending implementation of MH-04 availability page
 test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
   test('R1 & R4: Anonymous visitor checks availability for a party fitting at a single table', async ({
@@ -137,4 +138,7 @@ test.describe('MH-04 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
   // TODO(MH-04): Test accessibility and ARIA live attributes on the availability results container
   test.skip('ensures availability feedback region has aria-live polite for screen readers', async () => {});
+
+  // TODO(MH-04): When merged with MH-04, add E2E user journey: visitor checks availability, follows CTA to book, and enters party requirements (MH-05)
+  test.skip('When merged with MH-04: hiker checks availability, follows CTA to booking flow, and specifies party dietary requirements', async () => {});
 });

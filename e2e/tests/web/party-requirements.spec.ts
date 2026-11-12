@@ -435,4 +435,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('link', { name: 'Mountain Hut' }).click();
     expect(dialogAppeared).toBe(true);
   });
+
+  // TODO(MH-04): When merged with story MH-04 (Check availability), add full E2E flow from availability check to booking with party requirements
+  test.skip('When merged with MH-04: Hiker checks availability first, then proceeds to booking and specifies party requirements and allergies', async () => {});
 });

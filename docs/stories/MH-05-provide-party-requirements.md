@@ -230,3 +230,4 @@ npm run test:e2e
 
 - Multiple requirements UI layout optimization for small mobile viewports.
 - Kitchen dashboard integration to summarize total allergen counts across all daily bookings.
+- **MH-04 Integration:** When merged with story MH-04 (Check availability), unskip availability test suites (`e2e/tests/api/availability.spec.ts`, `e2e/tests/web/availability.spec.ts`) and add end-to-end integration tests validating the user journey from `/availability` checks to booking with party requirements & allergies.
