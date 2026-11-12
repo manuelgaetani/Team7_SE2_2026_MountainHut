@@ -34,6 +34,20 @@ export interface StoredBooking {
   status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
 }
 
+export interface LockedBooking extends StoredBooking {
+  hikerId: number;
+  requirements: string | null;
+}
+
+export interface BookingChange {
+  slotId: number;
+  partySize: number;
+  requirements: string | null;
+}
+
+// Range of a Postgres INTEGER key: an id outside it cannot exist, and the query would fail on it.
+const isDbId = (id: number): boolean => Number.isInteger(id) && id >= 1 && id <= 2_147_483_647;
+
 // Riceve sempre "tx": la transazione aperta dal service.
 @Injectable()
 export class BookingsRepository {
@@ -112,7 +126,13 @@ export class BookingsRepository {
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
-  async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
+  // excludeBookingId: a booking being changed, whose own seats count as free. Ids start at 1,
+  // so the default 0 excludes no booking.
+  async findFreeSeatsByTable(
+    tx: Tx,
+    slotId: number,
+    excludeBookingId = 0,
+  ): Promise<TableFreeSeats[]> {
     const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
              (st.seats - COALESCE((
@@ -122,6 +142,7 @@ export class BookingsRepository {
                JOIN slots s_other ON s_other.id = bt.slot_id
                WHERE bt.table_number = st.table_number
                  AND b.status IN ('CONFIRMED', 'PENDING')
+                 AND b.id <> ${excludeBookingId}
                  AND s_other.date = s_target.date
                  AND s_other.start_time < s_target.end_time
                  AND s_other.end_time > s_target.start_time
@@ -193,6 +214,58 @@ export class BookingsRepository {
         partySize: row.partySize,
         requirements: row.requirements,
       },
+    };
+  }
+
+  // Locks the booking row until the end of the transaction, so two changes of the same booking
+  // run one after the other. null if the booking does not exist.
+  async lockBooking(tx: Tx, bookingId: number): Promise<LockedBooking | null> {
+    if (!isDbId(bookingId)) return null;
+    const rows = await tx.$queryRaw<
+      {
+        id: number;
+        hiker_id: number;
+        slot_id: number;
+        party_size: number;
+        requirements: string | null;
+        status: LockedBooking['status'];
+      }[]
+    >`
+      SELECT id, hiker_id, slot_id, party_size, requirements, status
+      FROM bookings
+      WHERE id = ${bookingId}
+      FOR UPDATE`;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      hikerId: row.hiker_id,
+      slotId: row.slot_id,
+      partySize: row.party_size,
+      requirements: row.requirements,
+      status: row.status,
+    };
+  }
+
+  async findBookingTables(tx: Tx, bookingId: number): Promise<SeatAllocation[]> {
+    return tx.bookingTable.findMany({
+      where: { bookingId },
+      select: { tableNumber: true, assignedSeats: true },
+      orderBy: { tableNumber: 'asc' },
+    });
+  }
+
+  async deleteBookingTables(tx: Tx, bookingId: number): Promise<void> {
+    await tx.bookingTable.deleteMany({ where: { bookingId } });
+  }
+
+  async updateBooking(tx: Tx, bookingId: number, change: BookingChange): Promise<StoredBooking> {
+    const booking = await tx.booking.update({ where: { id: bookingId }, data: change });
+    return {
+      id: booking.id,
+      slotId: booking.slotId,
+      partySize: booking.partySize,
+      status: booking.status,
     };
   }
 
