@@ -206,5 +206,4 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 
 - **48-hour cutoff:** to confirm with the PO that it is measured from the slot start (current reading) and not from 00:00 of the booked day.
 - **Party requirements format:** MH-05 turns `requirements` into a structured list. When it is merged, `changeBookingSchema`, the change email and this page must follow the new format.
-- **E2E email test:** `Notification: Dispatches updated confirmation email...` waits for the first email of the hiker and reads the booking confirmation, which arrives a few milliseconds before the change email. It should wait for the change email.
 - **Branch content:** this branch also carries the MH-04 and MH-05 story docs and E2E tests, which fail until those stories are implemented.

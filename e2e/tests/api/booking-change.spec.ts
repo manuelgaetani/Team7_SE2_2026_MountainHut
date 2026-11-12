@@ -129,13 +129,14 @@ async function waitForUpdatedBookingEmail(
       async () => {
         const res = await request.get(`${MAILPIT_URL}/api/v1/search?query=${query}`);
         if (!res.ok()) return 0;
-        const { messages } = (await res.json()) as { messages: { ID: string }[] };
-        id = messages[0]?.ID;
-        return messages.length;
+        const { messages } = (await res.json()) as { messages: { ID: string; Subject: string }[] };
+        const changeMsg = messages.find((m) => /changed/i.test(m.Subject));
+        id = changeMsg?.ID;
+        return changeMsg ? 1 : 0;
       },
       { message: `Waiting for updated confirmation email sent to ${to}`, timeout: 10_000 },
     )
-    .toBeGreaterThanOrEqual(1);
+    .toBe(1);
 
   const res = await request.get(`${MAILPIT_URL}/api/v1/message/${id}`);
   expect(res.status()).toBe(200);
