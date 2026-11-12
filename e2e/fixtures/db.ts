@@ -43,9 +43,13 @@ export function createSlot(seats: number[]): number {
 }
 
 // A slot that starts in about one hour, too soon to book.
+// The start is a whole minute, like the slots created through the API (HH:MM): the API looks a
+// slot up by its start time (MH-04), which would never match a start with seconds. Tests run in
+// parallel and slots are unique by date, start and end, so the end is random to the second.
 export function createImminentSlot(seats: number[]): number {
-  const start = `(now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(1800)} * interval '1 second')`;
-  return insertSlot(`${start}::date`, `${start}::time(0)`, `TIME '23:59'`, seats);
+  const start = `date_trunc('minute', now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(30)} * interval '1 minute')`;
+  const end = `TIME '23:59' + ${randomInt(60)} * interval '1 second'`;
+  return insertSlot(`${start}::date`, `${start}::time(0)`, end, seats);
 }
 
 // A slot that is already over.
