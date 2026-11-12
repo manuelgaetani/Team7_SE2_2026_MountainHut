@@ -165,14 +165,14 @@ npm run e2e:api -w @mountain-hut/e2e -- tests/api/booking-change.spec.ts
 npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 ```
 
-| Spec                                                   | Covers                                                                                                                                            |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check                                                |
-| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons                                                   |
-| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability                                                |
-| `apps/api/src/bookings/bookings.repository.spec.ts`    | Free seats of a slot without the booking being changed                                                                                            |
-| `e2e/tests/api/booking-change.spec.ts`                 | Black-box API: date/time change, party size, requirements, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email |
-| `e2e/tests/web/booking-change.spec.ts`                 | Black-box Web: UI booking edit, slot picker, 48h cutoff disabled/warning, capacity conflict notice, login redirection                             |
+| Spec                                                   | Covers                                                                                                                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check                                                                     |
+| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons                                                                        |
+| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability                                                                     |
+| `apps/api/src/bookings/bookings.repository.spec.ts`    | Free seats of a slot without the booking being changed                                                                                                                 |
+| `e2e/tests/api/booking-change.spec.ts`                 | Black-box API: date/time change, party size, requirements, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email                      |
+| `e2e/tests/web/booking-change.spec.ts`                 | Black-box Web: UI booking edit, slot picker, 48h cutoff warning, capacity conflict notice, login redirection (stubs with `test.skip` pending web frontend integration) |
 
 ### Test Coverage Roadmap & Pending Tests
 

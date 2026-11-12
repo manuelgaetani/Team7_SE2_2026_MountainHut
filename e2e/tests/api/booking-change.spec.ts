@@ -5,6 +5,14 @@ import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createImminentSlot, createSlot, deleteSlot } from '../../fixtures/db.js';
 
+// Spec MH-06: As a hiker, I want to change the date, time, party size, or requirements of my booking.
+// Changes are admitted within 48 hours from the date booked.
+// Changes to party size are subject to the automatic verification of availability.
+//
+// TODO(MH-06-whitebox): add white-box API unit tests for BookingsController.change and BookingsService.change decision branches
+// TODO(MH-06-graybox): add gray-box tests verifying DB transaction row locks (SELECT FOR UPDATE) and cascade deletes on booking_tables
+// TODO(MH-06-integration): add PostgreSQL integration tests (test/booking-change.int-spec.ts) for atomic concurrent seat allocation
+
 interface TableAllocation {
   tableNumber: number;
   assignedSeats: number;
@@ -526,18 +534,18 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
 });
 
 test.describe('MH-06 Black-Box API: Planned Future Scenarios (TODOs)', () => {
-  // TODO(MH-06): Test concurrent change requests competing for the same last remaining table
+  // TODO(MH-06-integration): Test concurrent change requests competing for the same last remaining table
   test.skip('handles concurrent modification requests atomically without overselling seats', async () => {});
 
-  // TODO(MH-06): Test rejecting change requests on cancelled or rejected bookings
+  // TODO(MH-06-whitebox): Test rejecting change requests on cancelled or rejected bookings
   test.skip('rejects change request on a booking that was already cancelled or rejected', async () => {});
 
-  // TODO(MH-06): Test rejection when target slot date falls during hut seasonal closure
+  // TODO(MH-06-graybox): Test rejection when target slot date falls during hut seasonal closure
   test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async () => {});
 
-  // TODO(MH-06): Test audit log recording old and new reservation details on modification
+  // TODO(MH-06-graybox): Test audit log recording old and new reservation details on modification
   test.skip('records audit log entry tracking previous and new booking state on change', async () => {});
 
-  // TODO(MH-06): Test rate limiting when repeated change requests are sent in rapid succession
+  // TODO(MH-06-e2e): Test rate limiting when repeated change requests are sent in rapid succession
   test.skip('throttles excessive rapid change requests to protect database and email queue', async () => {});
 });
