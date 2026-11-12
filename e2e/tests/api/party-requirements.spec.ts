@@ -13,7 +13,7 @@ interface BookingResponse {
   partySize: number;
   status: string;
   tables: { tableNumber: number; assignedSeats: number }[];
-  requirements?: PartyRequirementItem[] | unknown;
+  requirements: PartyRequirementItem[];
 }
 
 interface MailpitMessage {
@@ -88,18 +88,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     expect(body.slotId).toBe(slotId);
     expect(body.partySize).toBe(4);
     expect(body.status).toBe('PENDING');
-
-    // Requirements must be stored and reflected
-    if (body.requirements && Array.isArray(body.requirements)) {
-      expect(body.requirements).toHaveLength(3);
-      expect(body.requirements).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ allergies: true, description: '1 vegan, peanut allergy' }),
-          expect.objectContaining({ allergies: true, description: '1 shellfish allergy' }),
-          expect.objectContaining({ allergies: false, description: '2 vegetarians' }),
-        ]),
-      );
-    }
+    expect(body.requirements).toEqual(requirements);
   });
 
   test('R3: Single requirement with allergies flag checked notifies special care needed', async ({
@@ -122,13 +111,9 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     expect(res.status()).toBe(201);
     const body = (await res.json()) as BookingResponse;
     expect(body.partySize).toBe(2);
-
-    if (body.requirements && Array.isArray(body.requirements)) {
-      expect(body.requirements).toHaveLength(1);
-      const req = body.requirements[0] as PartyRequirementItem;
-      expect(req.allergies).toBe(true);
-      expect(req.description).toContain('gluten allergy');
-    }
+    expect(body.requirements).toEqual([
+      { allergies: true, description: 'Severe celiac disease (gluten allergy)' },
+    ]);
   });
 
   test('R5: Single requirement without allergies has allergies flag unset', async ({
@@ -151,30 +136,84 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     expect(res.status()).toBe(201);
     const body = (await res.json()) as BookingResponse;
     expect(body.partySize).toBe(2);
-
-    if (body.requirements && Array.isArray(body.requirements)) {
-      expect(body.requirements).toHaveLength(1);
-      const req = body.requirements[0] as PartyRequirementItem;
-      expect(req.allergies).toBe(false);
-      expect(req.description).toContain('Halal menu');
-    }
+    expect(body.requirements).toEqual([
+      { allergies: false, description: 'All guests prefer Halal menu options' },
+    ]);
   });
 
   test('R6: Party requirements are optional and booking succeeds when omitted or empty', async ({
     loggedInRequest,
   }) => {
-    const slotId = slot([4]);
+    const slotId1 = slot([4]);
 
     // Booking without requirements field
     const resWithout = await loggedInRequest.post('/api/bookings', {
       data: {
-        slotId,
+        slotId: slotId1,
         partySize: 2,
       },
     });
     expect(resWithout.status()).toBe(201);
     const bodyWithout = (await resWithout.json()) as BookingResponse;
     expect(bodyWithout.partySize).toBe(2);
+    expect(bodyWithout.requirements).toEqual([]);
+
+    // Booking with empty requirements array
+    const slotId2 = slot([4]);
+    const resEmpty = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId: slotId2,
+        partySize: 2,
+        requirements: [],
+      },
+    });
+    expect(resEmpty.status()).toBe(201);
+    const bodyEmpty = (await resEmpty.json()) as BookingResponse;
+    expect(bodyEmpty.partySize).toBe(2);
+    expect(bodyEmpty.requirements).toEqual([]);
+  });
+
+  test('R4 & R7: Accepts up to the maximum count of 20 requirement items', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([8]);
+    const requirements: PartyRequirementItem[] = Array.from({ length: 20 }, (_, i) => ({
+      allergies: i % 2 === 0,
+      description: `Requirement item ${i + 1}`,
+    }));
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 4,
+        requirements,
+      },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = (await res.json()) as BookingResponse;
+    expect(body.requirements).toHaveLength(20);
+    expect(body.requirements).toEqual(requirements);
+  });
+
+  test('R7: Trims leading and trailing whitespace from requirement descriptions', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ allergies: true, description: '   1 vegan, peanut allergy   ' }],
+      },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = (await res.json()) as BookingResponse;
+    expect(body.requirements).toEqual([
+      { allergies: true, description: '1 vegan, peanut allergy' },
+    ]);
   });
 
   test('R8: Confirmation email received via Mailpit includes party requirements and allergy warnings', async ({
@@ -196,16 +235,21 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     });
     expect(res.status()).toBe(201);
 
-    // Verify confirmation email contains requirement text and allergy mention
+    // Verify confirmation email contains requirement text and allergy special care mention
     const email = await waitForBookingEmail(request, registeredUser.email);
     expect(email.Subject).toMatch(/Booking n\. \d+ confirmed/);
-    const content = `${email.Text} ${email.HTML}`;
-    expect(content).toContain('peanut allergy');
-    expect(content).toContain('2 lacto-vegetarians');
+    expect(email.Text).toContain('Requirements:');
+    expect(email.Text).toContain('Allergies (special care needed): 1 peanut allergy');
+    expect(email.Text).toContain('2 lacto-vegetarians');
+    expect(email.HTML).toContain(
+      'Allergies (special care needed): 1 peanut allergy<br>2 lacto-vegetarians',
+    );
   });
 
-  test('R7: Rejects requirement with empty or whitespace-only description with 400 Bad Request', async ({
+  test('R8: Confirmation email omits Requirements section when requirements are empty or omitted', async ({
     loggedInRequest,
+    registeredUser,
+    request,
   }) => {
     const slotId = slot([4]);
 
@@ -213,11 +257,61 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
+        requirements: [],
+      },
+    });
+    expect(res.status()).toBe(201);
+
+    const email = await waitForBookingEmail(request, registeredUser.email);
+    expect(email.Subject).toMatch(/Booking n\. \d+ confirmed/);
+    expect(email.Text).not.toContain('Requirements');
+    expect(email.HTML).not.toContain('Requirements');
+  });
+
+  test('R8: Prevents HTML injection in confirmation email from party requirements', async ({
+    loggedInRequest,
+    registeredUser,
+    request,
+  }) => {
+    const slotId = slot([4]);
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ allergies: false, description: '<script>alert(1)</script> & "salt"' }],
+      },
+    });
+    expect(res.status()).toBe(201);
+
+    const email = await waitForBookingEmail(request, registeredUser.email);
+    expect(email.Text).toContain('<script>alert(1)</script> & "salt"');
+    expect(email.HTML).not.toContain('<script>');
+    expect(email.HTML).toContain('&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;salt&quot;');
+  });
+
+  test('R7: Rejects requirement with empty or whitespace-only description with 400 Bad Request', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+
+    const resEmpty = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ allergies: true, description: '' }],
+      },
+    });
+    expect(resEmpty.status()).toBe(400);
+
+    const resWhitespace = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
         requirements: [{ allergies: true, description: '   ' }],
       },
     });
-
-    expect(res.status()).toBe(400);
+    expect(resWhitespace.status()).toBe(400);
   });
 
   test('R7: Rejects requirement description exceeding maximum length limit (500 characters) with 400', async ({
@@ -234,6 +328,66 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     });
 
     expect(res.status()).toBe(400);
+  });
+
+  test('R7: Rejects requirement descriptions containing NUL characters with 400 Bad Request', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ allergies: false, description: 'no\u0000nuts' }],
+      },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('R7: Rejects excessive number of requirement items (> 20) with 400 Bad Request', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const requirements: PartyRequirementItem[] = Array.from({ length: 21 }, (_, i) => ({
+      allergies: false,
+      description: `Requirement item ${i + 1}`,
+    }));
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements,
+      },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('R7: Rejects requirement when provided as a string or non-array with 400 Bad Request', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+
+    const resString = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: '1 vegan, peanut allergy',
+      },
+    });
+    expect(resString.status()).toBe(400);
+
+    const resObject = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: { allergies: true, description: 'peanut allergy' },
+      },
+    });
+    expect(resObject.status()).toBe(400);
   });
 
   test('R7: Rejects requirement with invalid payload types with 400 Bad Request', async ({
@@ -260,6 +414,16 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       },
     });
     expect(resMissingDesc.status()).toBe(400);
+
+    // Missing allergies flag
+    const resMissingFlag = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ description: 'Gluten free' }],
+      },
+    });
+    expect(resMissingFlag.status()).toBe(400);
   });
 
   test('Authentication: Rejects booking with requirements when unauthenticated with 401', async ({
@@ -297,17 +461,82 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
 
 test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-05): Test booking retrieval endpoint GET /api/bookings/:id returns structured party requirements
-  test.skip('returns structured party requirements when fetching booking details by id', async () => {});
+  test.skip('returns structured party requirements when fetching booking details by id', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const requirements: PartyRequirementItem[] = [
+      { allergies: true, description: '1 severe celiac (gluten allergy)' },
+      { allergies: false, description: '1 vegetarian' },
+    ];
+
+    const createRes = await loggedInRequest.post('/api/bookings', {
+      data: { slotId, partySize: 2, requirements },
+    });
+    expect(createRes.status()).toBe(201);
+    const { id: bookingId } = (await createRes.json()) as BookingResponse;
+
+    const getRes = await loggedInRequest.get(`/api/bookings/${bookingId}`);
+    expect(getRes.status()).toBe(200);
+    const body = (await getRes.json()) as BookingResponse;
+    expect(body.id).toBe(bookingId);
+    expect(body.requirements).toEqual(requirements);
+  });
 
   // TODO(MH-05): Test staff endpoint GET /api/staff/slots/:id/bookings returns allergy indicators for kitchen prep
-  test.skip('provides kitchen summary endpoint grouping all party allergies for a given time slot', async () => {});
+  test.skip('provides kitchen summary endpoint grouping all party allergies for a given time slot', async ({
+    loggedInRequest,
+    employeeRequest,
+  }) => {
+    const slotId = slot([6]);
+    await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId,
+        partySize: 3,
+        requirements: [
+          { allergies: true, description: '1 peanut allergy' },
+          { allergies: false, description: '2 vegans' },
+        ],
+      },
+    });
 
-  // TODO(MH-05): Test boundary limit on maximum number of requirement items per booking
-  test.skip('rejects excessive number of requirement items per booking to prevent payload bloating', async () => {});
-
-  // TODO(MH-05): Test rejection of NUL bytes or malicious characters in requirement descriptions
-  test.skip('rejects requirement descriptions containing NUL characters with 400 Bad Request', async () => {});
+    const staffRes = await employeeRequest.get(`/api/staff/slots/${slotId}/bookings`);
+    expect(staffRes.status()).toBe(200);
+    const bookings = (await staffRes.json()) as BookingResponse[];
+    expect(bookings.length).toBeGreaterThanOrEqual(1);
+    const target = bookings.find((b) => b.slotId === slotId);
+    expect(target).toBeDefined();
+    expect(target?.requirements).toContainEqual({
+      allergies: true,
+      description: '1 peanut allergy',
+    });
+  });
 
   // TODO(MH-05): Test amending or updating party requirements on an existing PENDING booking
-  test.skip('allows hiker to update dietary requirements on their pending booking before confirmation', async () => {});
+  test.skip('allows hiker to update dietary requirements on their pending booking before confirmation', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const initialRequirements: PartyRequirementItem[] = [
+      { allergies: false, description: '2 vegetarians' },
+    ];
+
+    const createRes = await loggedInRequest.post('/api/bookings', {
+      data: { slotId, partySize: 2, requirements: initialRequirements },
+    });
+    expect(createRes.status()).toBe(201);
+    const { id: bookingId } = (await createRes.json()) as BookingResponse;
+
+    const updatedRequirements: PartyRequirementItem[] = [
+      { allergies: true, description: '1 vegan, peanut allergy' },
+      { allergies: false, description: '1 vegetarian' },
+    ];
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${bookingId}`, {
+      data: { requirements: updatedRequirements },
+    });
+    expect(patchRes.status()).toBe(200);
+    const body = (await patchRes.json()) as BookingResponse;
+    expect(body.requirements).toEqual(updatedRequirements);
+  });
 });
