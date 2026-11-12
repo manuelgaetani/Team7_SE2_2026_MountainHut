@@ -7,6 +7,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the requirements of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
+- Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+
 ## [release-1] - 2026-11-06
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).

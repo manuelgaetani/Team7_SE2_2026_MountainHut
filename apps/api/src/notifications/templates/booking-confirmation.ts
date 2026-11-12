@@ -114,15 +114,36 @@ ${rows}
 </html>`;
 }
 
+interface Wording {
+  // What happened to the booking, in the subject: "confirmed", "changed".
+  event: string;
+  intro: string;
+}
+
 export function bookingConfirmationEmail(booking: BookingConfirmationData): EmailContent {
+  return bookingEmail(booking, {
+    event: 'confirmed',
+    intro: 'your table at the hut is booked and confirmed.',
+  });
+}
+
+// Sent after a change of the booking (MH-06), with its new details.
+export function bookingChangeEmail(booking: BookingConfirmationData): EmailContent {
+  return bookingEmail(booking, {
+    event: 'changed',
+    intro: 'your booking at the hut has been changed. These are its new details.',
+  });
+}
+
+function bookingEmail(booking: BookingConfirmationData, wording: Wording): EmailContent {
   const day = dateFormat.format(booking.date);
   const time = `${timeFormat.format(booking.startTime)} - ${timeFormat.format(booking.endTime)}`;
   const people = booking.partySize === 1 ? '1 person' : `${booking.partySize} people`;
-  const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
+  const subject = `Booking n. ${booking.bookingId} ${wording.event} - ${day}`;
   const requirements = booking.requirements?.trim() || null;
 
   const greeting = `Hi ${booking.fullName},`;
-  const intro = 'your table at the hut is booked and confirmed.';
+  const intro = wording.intro;
   const closing = 'See you at the hut!';
   const signature = 'Mountain Hut';
   const rows: [label: string, value: string][] = [

@@ -1,9 +1,16 @@
+import { allocateSeats } from './seat-allocation.js';
 import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 
-// TODO(MH-06): stub. Implement the logic tested in change-seat-allocation.spec.ts, then remove describe.skip there.
+// Tables for a booking whose party size or slot changes. `tables` are the free seats of the
+// target slot without the seats of the booking itself.
+// While the party still fits at the tables it already has (`current`), it stays there; otherwise
+// it is treated as a new booking and seated with the MH-01 rules. Null if the seats are not enough.
 export function canAccommodatePartyChange(
-  _availableTables: TableFreeSeats[],
-  _partySize: number,
+  tables: TableFreeSeats[],
+  partySize: number,
+  current: SeatAllocation[] = [],
 ): SeatAllocation[] | null {
-  throw new Error('Not implemented');
+  const own = new Set(current.map((a) => a.tableNumber));
+  const kept = tables.filter((t) => own.has(t.tableNumber));
+  return allocateSeats(kept, partySize) ?? allocateSeats(tables, partySize);
 }

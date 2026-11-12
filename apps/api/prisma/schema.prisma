@@ -134,6 +134,7 @@ model BookingTable {
 
 enum NotificationType {
   BOOKING_CONFIRMATION
+  BOOKING_CHANGE
 
   @@map("notification_type")
 }

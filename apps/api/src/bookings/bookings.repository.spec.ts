@@ -114,7 +114,15 @@ describe('BookingsRepository', () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.findFreeSeatsByTable(tx, 3);
       expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
-      expect(queryValues()).toEqual([3]);
+      // No booking has id 0: every booking counts.
+      expect(queryValues()).toEqual([0, 3]);
+    });
+
+    it('leaves out the seats of a booking being changed', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFreeSeatsByTable(tx, 3, 9);
+      expect(queryText()).toContain('b.id <> ?');
+      expect(queryValues()).toEqual([9, 3]);
     });
   });
 
