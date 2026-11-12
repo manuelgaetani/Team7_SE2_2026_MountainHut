@@ -27,11 +27,7 @@ const expectValidAssignment = (
 // or reallocate entirely to minimize table fragmentation?
 // TODO(MH-06-whitebox): add white-box unit tests covering internal heuristic branches and tie-breaker sorting
 // TODO(MH-06-graybox): add gray-box tests verifying table assignment consistency with DB slot_tables
-// TODO(MH-06): tests skipped until the implementation exists. Before merging MH-06:
-//   1. implement canAccommodatePartyChange in change-seat-allocation.ts (it is a stub that throws "Not implemented");
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) questions below and update the tests if the answers differ.
-describe.skip('canAccommodatePartyChange (Black-box automatic availability verification)', () => {
+describe('canAccommodatePartyChange (Black-box automatic availability verification)', () => {
   describe('party fits at one table', () => {
     it('uses the single table when it fits the new party size exactly', () => {
       expect(canAccommodatePartyChange(tables(4), 4)).toEqual([

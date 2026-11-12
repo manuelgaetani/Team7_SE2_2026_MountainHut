@@ -5,11 +5,7 @@ const MAX_DB_INT = 2_147_483_647;
 
 // TODO(MH-06-whitebox): add white-box unit tests covering internal Zod validation pipelines and custom issue formatters
 // TODO(MH-06-graybox): add gray-box schema tests verifying database schema column type alignments and constraints
-// TODO(MH-06): tests skipped until the implementation exists. Before merging MH-06:
-//   1. add the validation rules to changeBookingSchema in bookings.ts (it is a stub without full rules);
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) questions below.
-describe.skip('changeBookingSchema (Black-box)', () => {
+describe('changeBookingSchema (Black-box)', () => {
   describe('Equivalence Partitioning: Valid Change Payloads', () => {
     it('accepts changing only slotId (moving to another date/time slot)', () => {
       const res = changeBookingSchema.safeParse({ slotId: 42 });
@@ -88,8 +84,8 @@ describe.skip('changeBookingSchema (Black-box)', () => {
       [MAX_DB_INT + 1, 'above PostgreSQL integer maximum'],
       ['42', 'string number'],
       [null, 'null'],
-    ])('rejects invalid slotId %s (%s)', (slotId, _label) => {
-      expect(changeBookingSchema.safeParse({ slotId }).success).toBe(false);
+    ])('rejects invalid slotId %s (%s)', (slotId, label) => {
+      expect(changeBookingSchema.safeParse({ slotId }).success, label).toBe(false);
     });
   });
 
@@ -104,8 +100,8 @@ describe.skip('changeBookingSchema (Black-box)', () => {
       [2.5, 'float'],
       ['4', 'string number'],
       [null, 'null'],
-    ])('rejects invalid partySize %s (%s)', (partySize, _label) => {
-      expect(changeBookingSchema.safeParse({ partySize }).success).toBe(false);
+    ])('rejects invalid partySize %s (%s)', (partySize, label) => {
+      expect(changeBookingSchema.safeParse({ partySize }).success, label).toBe(false);
     });
   });
 

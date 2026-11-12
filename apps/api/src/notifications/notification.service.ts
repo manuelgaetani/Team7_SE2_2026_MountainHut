@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import type { NotificationType } from '../generated/prisma/client.js';
 import { Mailer } from './mailer.js';
 import type { EmailContent } from './templates/booking-confirmation.js';
-import { bookingConfirmationEmail } from './templates/booking-confirmation.js';
+import { bookingChangeEmail, bookingConfirmationEmail } from './templates/booking-confirmation.js';
 import type { BookingConfirmationData } from './templates/booking-confirmation.js';
 
 export interface Recipient {
@@ -49,6 +49,18 @@ export class NotificationService {
       'BOOKING_CONFIRMATION',
       recipient,
       bookingConfirmationEmail(booking),
+      booking.bookingId,
+    );
+  }
+
+  sendBookingChange(
+    recipient: Recipient,
+    booking: BookingConfirmationData,
+  ): Promise<DeliveryStatus> {
+    return this.deliver(
+      'BOOKING_CHANGE',
+      recipient,
+      bookingChangeEmail(booking),
       booking.bookingId,
     );
   }

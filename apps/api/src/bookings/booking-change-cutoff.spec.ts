@@ -7,11 +7,7 @@ import { isChangeAdmitted } from './booking-change-cutoff.js';
 // "Within 48 hours from the date booked" is read as at least 48 hours before the booked date/time.
 // TODO(MH-06-whitebox): add white-box unit tests for branch coverage and condition coverage (decision predicates, MC/DC)
 // TODO(MH-06-graybox): add gray-box unit tests verifying Italian CET/CEST daylight saving transitions across the 48-hour boundary
-// TODO(MH-06): tests skipped until the implementation exists. Before merging MH-06:
-//   1. implement isChangeAdmitted in booking-change-cutoff.ts (it is a stub that throws "Not implemented");
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) questions below and update the tests if the answers differ.
-describe.skip('isChangeAdmitted (Black-box 48-hour cutoff)', () => {
+describe('isChangeAdmitted (Black-box 48-hour cutoff)', () => {
   const slotStart = new Date('2026-11-20T12:00:00Z');
   const before = (ms: number) => new Date(slotStart.getTime() - ms);
   const MINUTE = 60 * 1000;
