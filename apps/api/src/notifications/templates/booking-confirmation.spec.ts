@@ -11,7 +11,7 @@ const booking: BookingConfirmationData = {
   startTime: new Date('1970-01-01T12:30:00.000Z'),
   endTime: new Date('1970-01-01T13:30:00.000Z'),
   partySize: 4,
-  requirements: null,
+  requirements: [],
 };
 
 // The HTML version is full of inline styles: the tests look at its content.
@@ -61,25 +61,35 @@ describe('bookingConfirmationEmail', () => {
     expect(html).not.toContain('Requirements');
   });
 
-  it('omits requirements made only of spaces', () => {
-    expect(bookingConfirmationEmail({ ...booking, requirements: '   ' }).text).not.toContain(
-      'Requirements',
-    );
-  });
-
   it('shows the requirements of the party', () => {
     const { text, html } = bookingConfirmationEmail({
       ...booking,
-      requirements: 'One celiac, one allergy to nuts',
+      requirements: [{ allergies: false, description: '2 vegetarians' }],
     });
-    expect(text).toContain('Requirements: One celiac, one allergy to nuts');
-    expect(withoutStyles(html)).toContain('<td>One celiac, one allergy to nuts</td>');
+    expect(text).toContain('Requirements: 2 vegetarians');
+    expect(withoutStyles(html)).toContain('<td>2 vegetarians</td>');
+  });
+
+  it('shows one line per requirement and marks the ones with allergies', () => {
+    const { text, html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [
+        { allergies: true, description: '1 peanut allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
+    });
+    expect(text).toContain(
+      'Requirements: Allergies (special care needed): 1 peanut allergy\n2 vegetarians',
+    );
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): 1 peanut allergy<br>2 vegetarians</td>',
+    );
   });
 
   it('escapes the requirements and keeps their line breaks in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: 'Celiac\n<b>Nuts</b> & "lactose"',
+      requirements: [{ allergies: false, description: 'Celiac\n<b>Nuts</b> & "lactose"' }],
     });
     expect(withoutStyles(html)).toContain(
       '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
@@ -131,12 +141,18 @@ describe('bookingConfirmationEmail', () => {
   });
 
   it('keeps the line breaks of Windows-style requirements in the HTML version', () => {
-    const { html } = bookingConfirmationEmail({ ...booking, requirements: 'Celiac\r\nNuts' });
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: false, description: 'Celiac\r\nNuts' }],
+    });
     expect(withoutStyles(html)).toContain('<td>Celiac<br>Nuts</td>');
   });
 
   it('does not escape twice the requirements', () => {
-    const { html } = bookingConfirmationEmail({ ...booking, requirements: '&lt;' });
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: false, description: '&lt;' }],
+    });
     expect(withoutStyles(html)).toContain('<td>&amp;lt;</td>');
   });
 

@@ -17,7 +17,7 @@ describe('NotificationService', () => {
     startTime: new Date('1970-01-01T12:30:00.000Z'),
     endTime: new Date('1970-01-01T13:30:00.000Z'),
     partySize: 4,
-    requirements: null,
+    requirements: [],
   };
   const recipient = { userId: 7, email: 'anna@example.com' };
 
