@@ -54,6 +54,22 @@ export class SlotsRepository {
     return rows.length > 0;
   }
 
+  // Locks the day until the end of the transaction, so two requests cannot create overlapping
+  // slots on it at the same time. An advisory lock works even when the day has no slots yet.
+  async lockDay(tx: Tx, date: Date): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${date}::date::text, 0))`;
+  }
+
+  // A slot of the same day that overlaps the given times, if any. Slots that only touch
+  // (one ends when the other starts) do not overlap.
+  async findOverlapping(tx: Tx, slot: NewSlot): Promise<SlotRow | null> {
+    return tx.slot.findFirst({
+      where: { date: slot.date, startTime: { lt: slot.endTime }, endTime: { gt: slot.startTime } },
+      include: withTables,
+      orderBy: { startTime: 'asc' },
+    });
+  }
+
   async findTables(tx: Tx, slotId: number): Promise<TableRow[]> {
     return tx.slotTable.findMany({
       where: { slotId },

@@ -27,6 +27,9 @@ describe('SlotsService', () => {
     findById: vi.fn(),
     findByDate: vi.fn(),
     lock: vi.fn(),
+    // Used by create (MH-02, no overlapping slots): by default no overlapping slot exists.
+    lockDay: vi.fn(),
+    findOverlapping: vi.fn(),
     findTables: vi.fn(),
     create: vi.fn(),
     createTables: vi.fn(),

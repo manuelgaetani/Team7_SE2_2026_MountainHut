@@ -45,18 +45,27 @@ export class SlotsService {
   ) {}
 
   // Creates a slot, optionally with its tables (a list, or a copy of another slot's tables).
-  // 404 if copyTablesFromSlotId does not exist, 409 if a slot with the same date, start and end exists.
+  // 404 if copyTablesFromSlotId does not exist; 409 if the slot overlaps another slot of the same
+  // day (issue #31: contiguous slots are allowed) or has the same date, start and end.
+  // Slots in the past are still accepted: the story does not say otherwise.
   async create(input: CreateSlotInput): Promise<SlotDetails> {
-    // TODO(MH-02): overlapping slots and slots in the past are accepted for now; the team is
-    // deciding whether to ask the product owner. Add the checks here if they must be refused.
+    const slot = {
+      date: toDbDate(input.date),
+      startTime: toDbTime(input.startTime),
+      endTime: toDbTime(input.endTime),
+    };
     try {
       const id = await this.prisma.$transaction(async (tx) => {
+        await this.repo.lockDay(tx, slot.date);
+        const clash = await this.repo.findOverlapping(tx, slot);
+        if (clash) {
+          const { startTime, endTime } = toDetails(clash);
+          throw new ConflictException(
+            `This slot overlaps the slot ${startTime}–${endTime} of the same day`,
+          );
+        }
         const tables = await this.resolveTables(tx, input);
-        const slotId = await this.repo.create(tx, {
-          date: toDbDate(input.date),
-          startTime: toDbTime(input.startTime),
-          endTime: toDbTime(input.endTime),
-        });
+        const slotId = await this.repo.create(tx, slot);
         if (tables) await this.repo.createTables(tx, slotId, tables);
         return slotId;
       });
