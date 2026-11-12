@@ -85,7 +85,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 3,
-        requirements: 'One nut allergy',
+        requirements: [{ allergies: true, description: 'One nut allergy' }],
       });
       expect(booking.status).toBe('PENDING');
       await untilConfirmed(booking.id);
@@ -99,7 +99,9 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       expect(message.text).toMatch(DATE_IN_EMAIL);
       expect(message.text).toContain('Time: 19:00 - 21:00');
       expect(message.text).toContain('People: 3 people');
-      expect(message.text).toContain('Requirements: One nut allergy');
+      expect(message.text).toContain(
+        'Requirements: Allergies (special care needed): One nut allergy',
+      );
     });
 
     it('records the sent email in the notifications', async () => {
@@ -231,21 +233,31 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 2,
-        requirements: 'Vegetarian',
+        requirements: [
+          { allergies: true, description: '1 shellfish allergy' },
+          { allergies: false, description: 'Vegetarian' },
+        ],
       });
 
-      const stored = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(stored.requirements).toBe('Vegetarian');
+      const stored = await prisma.partyRequirement.findMany({
+        where: { bookingId: booking.id },
+        orderBy: { id: 'asc' },
+        select: { allergies: true, description: true },
+      });
+      expect(stored).toEqual([
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: 'Vegetarian' },
+      ]);
     });
 
-    it.each([undefined, ''])('are stored as null when they are %j', async (requirements) => {
+    it.each([undefined, []])('are not stored when they are %j', async (requirements) => {
       const anna = await hiker('anna@example.test', 'Anna Rossi');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
 
       const booking = await service.create(anna.userId, { slotId, partySize: 2, requirements });
 
-      const stored = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(stored.requirements).toBeNull();
+      expect(booking.requirements).toEqual([]);
+      expect(await prisma.partyRequirement.count({ where: { bookingId: booking.id } })).toBe(0);
     });
   });
 

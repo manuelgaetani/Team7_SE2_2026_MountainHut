@@ -214,7 +214,7 @@ describe('BookingsRepository', () => {
           bookingId: 9,
           fullName: 'Anna Rossi',
           partySize: 2,
-          requirements: [{ allergies: true, description: 'no nuts' }],    
+          requirements: [{ allergies: true, description: 'no nuts' }],
         },
       });
     });
