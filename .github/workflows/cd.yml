@@ -34,7 +34,7 @@ jobs:
 
       # No npm ci here, so pin prettier to the repo's major version
       - name: Format docs
-        run: npx --yes prettier@^3.9.10 --write README.md Retrospective-Template-v4.md
+        run: npx --yes prettier@^3.9.10 --write README.md docs
 
       # GHCR image names must be lowercase
       - name: Set image name
