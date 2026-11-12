@@ -71,16 +71,17 @@ export class BookingsService {
         throw new ConflictException('Insufficient seats available for this slot');
       }
 
-      // 4. Save booking and table assignments.
+      // 4. Save booking, party requirements and table assignments.
+      const requirements = input.requirements ?? [];
       const booking = await this.repo.createBooking(tx, {
         hikerId,
         slotId: input.slotId,
         partySize: input.partySize,
-        requirements: input.requirements || null,
+        requirements,
       });
       await this.repo.createBookingTables(tx, booking.id, input.slotId, decision.allocation);
 
-      return { ...booking, tables: decision.allocation };
+      return { ...booking, tables: decision.allocation, requirements };
     });
 
     // After the commit and not awaited: a slow SMTP server must not delay the answer.

@@ -75,6 +75,7 @@ describe('BookingsService', () => {
       await expect(service.create(1, input)).resolves.toEqual({
         ...storedBooking,
         tables: [{ tableNumber: 1, assignedSeats: 2 }],
+        requirements: [],
       });
     });
 
@@ -85,23 +86,28 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
-        requirements: null,
+        requirements: [],
       });
     });
 
-    it('stores the requirements of the party', async () => {
-      await service.create(1, { ...input, requirements: 'no nuts' });
+    it('stores the requirements of the party and returns them', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      const result = await service.create(1, { ...input, requirements });
       expect(repo.createBooking).toHaveBeenCalledWith(
         tx,
-        expect.objectContaining({ requirements: 'no nuts' }),
+        expect.objectContaining({ requirements }),
       );
+      expect(result.requirements).toEqual(requirements);
     });
 
-    it('stores empty requirements as none', async () => {
-      await service.create(1, { ...input, requirements: '' });
+    it('stores an empty list of requirements as none', async () => {
+      await service.create(1, { ...input, requirements: [] });
       expect(repo.createBooking).toHaveBeenCalledWith(
         tx,
-        expect.objectContaining({ requirements: null }),
+        expect.objectContaining({ requirements: [] }),
       );
     });
 
