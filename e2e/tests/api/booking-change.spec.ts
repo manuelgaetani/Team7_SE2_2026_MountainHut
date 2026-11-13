@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
-import { createImminentSlot, createSlot, deleteSlot } from '../../fixtures/db.js';
+import { bookingStatus, createImminentSlot, createSlot, deleteSlot } from '../../fixtures/db.js';
 
 // Spec MH-06: As a hiker, I want to change the date, time, party size, or requirements of my booking.
 // Changes are admitted within 48 hours from the date booked.
@@ -29,6 +29,7 @@ interface BookingResponse {
 
 interface SlotSummary {
   id: number;
+  date: string;
   freeSeats: number;
   availability: string;
 }
@@ -531,6 +532,209 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     expect(email.Subject).toMatch(/Booking n\. \d+/i);
     const content = `${email.Text} ${email.HTML}`;
     expect(content).toContain('peanut allergy');
+  });
+});
+
+// A slot starting between `hours` and `hours` + 30 minutes from now, in the hut time zone.
+// Slots near now all fall on the same few days, and overlapping slots share the seats of the
+// tables with the same number (MH-01): one-minute slots with random table numbers keep the
+// seats of each test apart from the slots of the tests running in parallel.
+function slotStartingIn(hours: number, seats: number[]): number {
+  const at = `(now() AT TIME ZONE 'Europe/Rome' + ${hours} * interval '1 hour' + ${randomInt(1800)} * interval '1 second')`;
+  const day = `${at}::date`;
+  const start = `${at}::time(0)`;
+  // The end must follow the start (slots_time_range_check), also in the last minute of the day.
+  const end = `CASE WHEN ${start} >= TIME '23:58:59' THEN TIME '23:59:59' ELSE (${start} + interval '1 minute')::time(0) END`;
+  const slotId = sql(
+    `INSERT INTO slots (date, start_time, end_time) VALUES (${day}, ${start}, ${end}) RETURNING id;`,
+  );
+  const firstTable = randomInt(100, 1_000_000);
+  const values = seats.map((s, i) => `(${slotId}, ${firstTable + i}, ${s})`).join(', ');
+  sql(`INSERT INTO slot_tables (slot_id, table_number, seats) VALUES ${values};`);
+  const id = Number(slotId);
+  slotIds.push(id);
+  return id;
+}
+
+// The day as the change email writes it, e.g. "Tuesday, 10 November 2093".
+function emailDay(date: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
+test.describe('MH-06 Black-Box API: 48-hour rule', () => {
+  test('R5: Admits a change when the booked slot starts just over 48 hours from now', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slotStartingIn(49, [6]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+
+    expect(patchRes.status()).toBe(200);
+    expect(((await patchRes.json()) as BookingResponse).partySize).toBe(3);
+  });
+
+  test('R5: Refuses a change when the booked slot starts just under 48 hours from now, leaving the booking as it was', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slotStartingIn(47, [6]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+
+    expect(patchRes.status()).toBe(422);
+    expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({ freeSeats: 4 });
+  });
+
+  test('R5: The 48-hour rule also applies when only the requirements change', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slotStartingIn(24, [4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2, '1 vegetarian');
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { requirements: '1 vegan' },
+    });
+
+    expect(patchRes.status()).toBe(422);
+  });
+
+  test('R5: Refuses moving a booking that starts within 48 hours, even to a far slot', async ({
+    loggedInRequest,
+  }) => {
+    const sourceSlotId = slotStartingIn(24, [4]);
+    const targetSlotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, sourceSlotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: targetSlotId },
+    });
+
+    expect(patchRes.status()).toBe(422);
+    // The booking did not move: its seats are still taken in the source slot only.
+    expect(await listedSlot(loggedInRequest, sourceSlotId)).toMatchObject({ freeSeats: 2 });
+    expect(await listedSlot(loggedInRequest, targetSlotId)).toMatchObject({ freeSeats: 4 });
+  });
+});
+
+test.describe('MH-06 Black-Box API: Availability check on change', () => {
+  test('R7: Counts the booking own seats as free, so the party can grow to all the seats of the slot', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 3);
+
+    // Only 1 seat is free for others, but the booking already holds 3 of the 4 needed.
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 4 },
+    });
+
+    expect(patchRes.status()).toBe(200);
+    expect(((await patchRes.json()) as BookingResponse).tables).toEqual([
+      { tableNumber: 1, assignedSeats: 4 },
+    ]);
+    expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({
+      freeSeats: 0,
+      availability: 'FULL',
+    });
+  });
+
+  test('R7: Keeps the party at the table it already has while it still fits there', async ({
+    loggedInRequest,
+  }) => {
+    // Tables of 4 and 6: a party of 5 sits at table 2.
+    const slotId = slot([4, 6]);
+    const booking = await createBooking(loggedInRequest, slotId, 5);
+    expect(booking.tables).toEqual([{ tableNumber: 2, assignedSeats: 5 }]);
+
+    // Down to 3: table 1 would be the best fit for a new booking, but the party is not moved.
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+
+    expect(patchRes.status()).toBe(200);
+    expect(((await patchRes.json()) as BookingResponse).tables).toEqual([
+      { tableNumber: 2, assignedSeats: 3 },
+    ]);
+  });
+
+  test('R7: Refuses moving to a slot without enough free seats, leaving the booking in its slot', async ({
+    loggedInRequest,
+  }) => {
+    const sourceSlotId = slot([6]);
+    const targetSlotId = slot([2]);
+    const booking = await createBooking(loggedInRequest, sourceSlotId, 4);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: targetSlotId },
+    });
+
+    expect(patchRes.status()).toBe(409);
+    expect(JSON.stringify(await patchRes.json())).toMatch(/Insufficient seats/i);
+    expect(await listedSlot(loggedInRequest, sourceSlotId)).toMatchObject({ freeSeats: 2 });
+    expect(await listedSlot(loggedInRequest, targetSlotId)).toMatchObject({ freeSeats: 2 });
+  });
+
+  test('R3: Refuses moving to a slot where the hiker already has a booking', async ({
+    loggedInRequest,
+  }) => {
+    const firstSlotId = slot([4]);
+    const secondSlotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, firstSlotId, 2);
+    await createBooking(loggedInRequest, secondSlotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: secondSlotId },
+    });
+
+    expect(patchRes.status()).toBe(409);
+    expect(await listedSlot(loggedInRequest, firstSlotId)).toMatchObject({ freeSeats: 2 });
+  });
+});
+
+test.describe('MH-06 Black-Box API: State and notification after a change', () => {
+  test('A change keeps a confirmed booking confirmed', async ({ loggedInRequest }) => {
+    const booking = await createBooking(loggedInRequest, slot([6]), 2);
+    // The confirmation email turns the booking from PENDING to CONFIRMED (MH-03).
+    await expect.poll(() => bookingStatus(booking.id)).toBe('CONFIRMED');
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 4 },
+    });
+
+    expect(patchRes.status()).toBe(200);
+    expect(((await patchRes.json()) as BookingResponse).status).toBe('CONFIRMED');
+    expect(bookingStatus(booking.id)).toBe('CONFIRMED');
+  });
+
+  test('Notification: The change email of a moved booking shows the new date and party size', async ({
+    loggedInRequest,
+    registeredUser,
+    request,
+  }) => {
+    const sourceSlotId = slot([4]);
+    const targetSlotId = slot([6]);
+    const booking = await createBooking(loggedInRequest, sourceSlotId, 2);
+    const target = await listedSlot(loggedInRequest, targetSlotId);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: targetSlotId, partySize: 5 },
+    });
+    expect(patchRes.status()).toBe(200);
+
+    const email = await waitForUpdatedBookingEmail(request, registeredUser.email);
+    expect(email.Subject).toBe(`Booking n. ${booking.id} changed - ${emailDay(target.date)}`);
+    expect(email.Text).toContain('People: 5 people');
   });
 });
 
