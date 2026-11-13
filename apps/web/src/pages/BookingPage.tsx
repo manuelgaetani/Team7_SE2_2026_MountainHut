@@ -10,6 +10,8 @@ import { DayPicker } from '../components/DayPicker.tsx';
 import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
+import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
+import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
@@ -38,6 +40,7 @@ function BookingFlow() {
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [requestedGuests, setRequestedGuests] = useState(2);
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
+  const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sentSummary, setSentSummary] = useState<string | null>(null);
 
@@ -75,7 +78,20 @@ function BookingFlow() {
   function handleSubmit() {
     if (!slot) return;
     setError(null);
-    const parsed = createBookingSchema.safeParse({ slotId: slot.id, partySize: guests });
+    if (requirements.some((r) => r.description.trim() === '')) {
+      setError('Describe each requirement or remove it.');
+      return;
+    }
+    const parsed = createBookingSchema.safeParse({
+      slotId: slot.id,
+      partySize: guests,
+      ...(requirements.length > 0 && {
+        requirements: requirements.map(({ allergies, description }) => ({
+          allergies,
+          description,
+        })),
+      }),
+    });
     if (!parsed.success) {
       setError('Choose a date, time, and number of people.');
       return;
@@ -110,6 +126,7 @@ function BookingFlow() {
           value={slot?.id ?? null}
           onChange={handle(setChosenSlotId)}
         />
+        <RequirementsEditor value={requirements} onChange={handle(setRequirements)} />
 
         {slot && (
           <p className="recap">
@@ -143,6 +160,9 @@ function BookingFlow() {
           time={slot?.startTime ?? null}
           guests={guests}
           tables={book.isSuccess ? book.data.tables : null}
+          requirements={requirements
+            .filter((r) => r.description.trim() !== '')
+            .map(({ allergies, description }) => ({ allergies, description: description.trim() }))}
         />
         <aside className="experience">
           <h3>An Alpine Experience</h3>
@@ -156,6 +176,7 @@ function BookingFlow() {
           onClose={() => {
             setSentSummary(null);
             setChosenSlotId(null);
+            setRequirements([]);
           }}
         />
       )}

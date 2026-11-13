@@ -256,4 +256,89 @@ describe('BookingPage', () => {
     expect(await screen.findByRole('radio', { name: '12:00' })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: '19:00' })).not.toBeInTheDocument();
   });
+
+  it('shows no requirements by default and sends none', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    submit();
+    await screen.findByRole('dialog');
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bookings') as unknown as [
+      string,
+      { body: string },
+    ];
+    expect(JSON.parse(call[1].body)).toEqual({ slotId: 1, partySize: 3 });
+  });
+
+  it('sends every requirement with its allergies flag', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
+      target: { value: '  1 vegan, peanut allergy ' },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Allergies, requirement 1' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add another requirement' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 2' }), {
+      target: { value: '2 vegetarians' },
+    });
+
+    submit();
+    await screen.findByRole('dialog');
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bookings') as unknown as [
+      string,
+      { body: string },
+    ];
+    expect(JSON.parse(call[1].body)).toEqual({
+      slotId: 1,
+      partySize: 3,
+      requirements: [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
+    });
+  });
+
+  it('summarises the requirements in the side panel', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
+      target: { value: '1 shellfish allergy' },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Allergies, requirement 1' }));
+    expect(screen.getByText('1 requirement · 1 with allergies')).toBeInTheDocument();
+    expect(screen.getByText('Allergies · 1 shellfish allergy')).toBeInTheDocument();
+  });
+
+  it('does not send the booking when a requirement is empty', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    submit();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Describe each requirement or remove it.',
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
+  });
+
+  it('clears the requirements after the confirmation dialog is closed', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
+      target: { value: 'vegan' },
+    });
+    submit();
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
 });
