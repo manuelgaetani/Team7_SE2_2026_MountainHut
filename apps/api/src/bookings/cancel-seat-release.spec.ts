@@ -9,11 +9,7 @@ import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 // TODO(MH-08-graybox): add gray-box unit tests verifying database row locking on slot tables during cancellation transaction
 // TODO(MH-08-integration): add PostgreSQL integration tests for table capacity verification after booking cancellation
 // TODO(MH-08-e2e): add Playwright E2E tests for table capacity updates after hiker cancels booking
-// TODO(MH-08): tests skipped until the implementation exists. Before merging MH-08:
-//   1. implement releaseCancelledSeats in cancel-seat-release.ts (it is a stub that throws "Not implemented");
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) domain clarifications.
-describe.skip('releaseCancelledSeats (Black-box seat release)', () => {
+describe('releaseCancelledSeats (Black-box seat release)', () => {
   const createTables = (...freeSeats: number[]): TableFreeSeats[] =>
     freeSeats.map((seats, idx) => ({ tableNumber: idx + 1, freeSeats: seats }));
 
@@ -170,4 +166,3 @@ describe.skip('releaseCancelledSeats (Black-box seat release)', () => {
     });
   });
 });
-
