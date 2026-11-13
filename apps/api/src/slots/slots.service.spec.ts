@@ -33,6 +33,7 @@ describe('SlotsService', () => {
     findTables: vi.fn(),
     create: vi.fn(),
     createTables: vi.fn(),
+    findFloorAllocations: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -127,6 +128,49 @@ describe('SlotsService', () => {
       const failure = new Error('database unreachable');
       repo.create.mockRejectedValue(failure);
       await expect(service.create(input)).rejects.toBe(failure);
+    });
+  });
+
+  describe('floorPlan', () => {
+    const allocation = {
+      bookingId: 9,
+      fullName: 'Anna Rossi',
+      partySize: 3,
+      status: 'CONFIRMED' as const,
+      startTime: '12:00',
+      endTime: '13:00',
+      tableNumber: 1,
+      assignedSeats: 3,
+    };
+
+    it('throws NotFound, reading no seats, when the slot does not exist', async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(service.floorPlan(99)).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.findFloorAllocations).not.toHaveBeenCalled();
+    });
+
+    it('builds the plan from the tables of the slot and the seats taken on them', async () => {
+      repo.findById.mockResolvedValue(slotRow({ id: 5 }));
+      repo.findFloorAllocations.mockResolvedValue([allocation]);
+      const plan = await service.floorPlan(5);
+      expect(repo.findFloorAllocations).toHaveBeenCalledWith(prisma, 5);
+      expect(plan.slot).toEqual({
+        id: 5,
+        date: '2026-11-02',
+        startTime: '12:00',
+        endTime: '13:00',
+      });
+      expect(plan.tables[0]).toMatchObject({ tableNumber: 1, occupiedSeats: 3, freeSeats: 1 });
+      expect(plan.groups).toMatchObject([{ label: 'A', fullName: 'Anna Rossi' }]);
+      expect(plan.totals).toMatchObject({ capacity: 10, occupiedSeats: 3, freeSeats: 7 });
+    });
+
+    it('shows every seat free when nobody has booked', async () => {
+      repo.findById.mockResolvedValue(slotRow());
+      repo.findFloorAllocations.mockResolvedValue([]);
+      const plan = await service.floorPlan(1);
+      expect(plan.groups).toEqual([]);
+      expect(plan.totals.freeSeats).toBe(10);
     });
   });
 
