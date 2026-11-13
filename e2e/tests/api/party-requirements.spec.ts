@@ -1,6 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
-import { createSlot, deleteSlot } from '../../fixtures/db.js';
+import {
+  countPartyRequirements,
+  createImminentSlot,
+  createSlot,
+  deleteSlot,
+  partyRequirements,
+} from '../../fixtures/db.js';
 
 interface PartyRequirementItem {
   allergies: boolean;
@@ -456,6 +463,125 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     });
 
     expect(res.status()).toBe(403);
+  });
+});
+
+// The story example: three requirements for subsets of a party of 4.
+const STORY_EXAMPLE: PartyRequirementItem[] = [
+  { allergies: true, description: '1 vegan, peanut allergy' },
+  { allergies: true, description: '1 shellfish allergy' },
+  { allergies: false, description: '2 vegetarians' },
+];
+
+test.describe('MH-05 Black-Box API: Story example and boundaries', () => {
+  test('R3, R4 & R8: Confirmation email lists the story example in order, flagging only the allergies', async ({
+    loggedInRequest,
+    registeredUser,
+    request,
+  }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([4]), partySize: 4, requirements: STORY_EXAMPLE },
+    });
+    expect(res.status()).toBe(201);
+
+    // The email is built from the stored booking, not from the request: one line per requirement.
+    const email = await waitForBookingEmail(request, registeredUser.email);
+    // SMTP delivers the text with CRLF line endings.
+    const text = email.Text.replaceAll('\r\n', '\n');
+    expect(text).toContain(
+      [
+        'Requirements: Allergies (special care needed): 1 vegan, peanut allergy',
+        'Allergies (special care needed): 1 shellfish allergy',
+        '2 vegetarians',
+      ].join('\n'),
+    );
+    expect(text).not.toContain('Allergies (special care needed): 2 vegetarians');
+  });
+
+  test('R7: Accepts a description of exactly 500 characters and stores it whole', async ({
+    loggedInRequest,
+  }) => {
+    const description = 'A'.repeat(500);
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([4]), partySize: 2, requirements: [{ allergies: false, description }] },
+    });
+
+    expect(res.status()).toBe(201);
+    const { id } = (await res.json()) as BookingResponse;
+    expect(partyRequirements(id)).toEqual([{ allergies: false, description }]);
+  });
+});
+
+test.describe('MH-05 Gray-Box API: Stored party requirements', () => {
+  test('R2, R4 & R8: Stores the story example in the database, in order and with each allergies flag', async ({
+    loggedInRequest,
+  }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([4]), partySize: 4, requirements: STORY_EXAMPLE },
+    });
+    expect(res.status()).toBe(201);
+    const { id } = (await res.json()) as BookingResponse;
+
+    // The response only echoes the request: the database shows what the hut will read.
+    expect(partyRequirements(id)).toEqual(STORY_EXAMPLE);
+  });
+
+  test('R6: Stores no requirements for a booking made without them', async ({
+    loggedInRequest,
+  }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([4]), partySize: 2 },
+    });
+    expect(res.status()).toBe(201);
+    const { id } = (await res.json()) as BookingResponse;
+
+    expect(partyRequirements(id)).toEqual([]);
+  });
+
+  test('R8: Stores the trimmed description, not the text as typed', async ({ loggedInRequest }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId: slot([4]),
+        partySize: 2,
+        requirements: [{ allergies: true, description: '  1 shellfish allergy  ' }],
+      },
+    });
+    expect(res.status()).toBe(201);
+    const { id } = (await res.json()) as BookingResponse;
+
+    expect(partyRequirements(id)).toEqual([
+      { allergies: true, description: '1 shellfish allergy' },
+    ]);
+  });
+
+  test('R8: A booking refused for missing seats (409) leaves no requirements behind', async ({
+    loggedInRequest,
+  }) => {
+    // A unique description finds the rows of this test only, as no booking id is returned.
+    const description = `peanut allergy ${randomUUID()}`;
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([2]), partySize: 4, requirements: [{ allergies: true, description }] },
+    });
+
+    expect(res.status()).toBe(409);
+    expect(countPartyRequirements(description)).toBe(0);
+  });
+
+  test('R8: A booking refused because the slot starts too soon (422) leaves no requirements behind', async ({
+    loggedInRequest,
+  }) => {
+    const description = `shellfish allergy ${randomUUID()}`;
+    const slotId = createImminentSlot([4]);
+    slotIds.push(slotId);
+
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId, partySize: 2, requirements: [{ allergies: true, description }] },
+    });
+
+    expect(res.status()).toBe(422);
+    expect(countPartyRequirements(description)).toBe(0);
   });
 });
 
