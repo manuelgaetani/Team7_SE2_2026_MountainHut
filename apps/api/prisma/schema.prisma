@@ -19,16 +19,19 @@ enum Role {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String // hash bcrypt
-  role      Role     @default(HIKER)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  password           String // hash bcrypt
+  role               Role     @default(HIKER)
+  // True when an employee created the account: the hiker must set a new password at the next login.
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  hiker         Hiker?
-  refreshTokens RefreshToken[]
-  notifications Notification[]
+  hiker               Hiker?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  notifications       Notification[]
 
   @@map("users")
 }
@@ -37,7 +40,8 @@ model Hiker {
   id               Int      @id @default(autoincrement())
   userId           Int?     @unique @map("user_id")
   fullName         String   @map("full_name")
-  phone            String
+  // Optional only for temporary hikers: a CHECK constraint requires it when user_id is set.
+  phone            String?
   notes            String?
   emergencyContact String?  @map("emergency_contact")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -61,6 +65,23 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// One row per password reset link sent by email. Only the hash of the code is stored.
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  // At most 24 hours after the creation.
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  // Set when the link is used since a code is valid only once.
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 enum BookingStatus {
