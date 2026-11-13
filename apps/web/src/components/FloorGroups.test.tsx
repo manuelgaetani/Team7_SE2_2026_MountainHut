@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FloorGroup } from '@mountain-hut/shared';
 import { FloorGroups } from './FloorGroups.tsx';
 
-const slot = { id: 5, date: '2026-11-14', startTime: '12:30', endTime: '13:30' };
-
 const group = (overrides: Partial<FloorGroup> = {}): FloorGroup => ({
   label: 'A',
   bookingId: 1,
@@ -29,16 +27,14 @@ const split = group({
 });
 
 describe('FloorGroups', () => {
-  it('says every seat is free when there are no groups', () => {
-    render(<FloorGroups groups={[]} slot={slot} selected={null} onSelect={() => {}} />);
-    expect(screen.getByText('No bookings yet: every seat is free.')).toBeInTheDocument();
+  it('says nobody has booked the slot when there are no groups', () => {
+    render(<FloorGroups groups={[]} selected={null} onSelect={() => {}} />);
+    expect(screen.getByText('Nobody has booked this slot yet.')).toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
   it('lists the letter, the name, the people and the tables of each group', () => {
-    render(
-      <FloorGroups groups={[group(), split]} slot={slot} selected={null} onSelect={() => {}} />,
-    );
+    render(<FloorGroups groups={[group(), split]} selected={null} onSelect={() => {}} />);
     const rossi = screen.getByRole('button', { name: 'Group A, Rossi' });
     expect(rossi).toHaveTextContent('Rossi · 4 people');
     expect(rossi).toHaveTextContent('T1 · 4');
@@ -50,14 +46,7 @@ describe('FloorGroups', () => {
   });
 
   it('uses the singular for a party of one', () => {
-    render(
-      <FloorGroups
-        groups={[group({ partySize: 1 })]}
-        slot={slot}
-        selected={null}
-        onSelect={() => {}}
-      />,
-    );
+    render(<FloorGroups groups={[group({ partySize: 1 })]} selected={null} onSelect={() => {}} />);
     expect(screen.getByRole('button', { name: 'Group A, Rossi' })).toHaveTextContent('1 person');
   });
 
@@ -68,7 +57,6 @@ describe('FloorGroups', () => {
           group(),
           group({ label: 'B', bookingId: 2, fullName: 'Bianchi', status: 'PENDING' }),
         ]}
-        slot={slot}
         selected={null}
         onSelect={() => {}}
       />,
@@ -77,32 +65,8 @@ describe('FloorGroups', () => {
     expect(screen.getByRole('button', { name: 'Group A, Rossi' })).not.toHaveTextContent('pending');
   });
 
-  it('shows the time of the booked slot only when it is not the slot shown', () => {
-    render(
-      <FloorGroups
-        groups={[
-          group(),
-          group({
-            label: 'B',
-            bookingId: 2,
-            fullName: 'Bianchi',
-            startTime: '12:00',
-            endTime: '13:00',
-          }),
-        ]}
-        slot={slot}
-        selected={null}
-        onSelect={() => {}}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Group B, Bianchi' })).toHaveTextContent(
-      'Slot 12:00–13:00',
-    );
-    expect(screen.getByRole('button', { name: 'Group A, Rossi' })).not.toHaveTextContent('Slot ');
-  });
-
   it('marks the selected row as pressed and shows where its people sit', () => {
-    render(<FloorGroups groups={[group(), split]} slot={slot} selected="B" onSelect={() => {}} />);
+    render(<FloorGroups groups={[group(), split]} selected="B" onSelect={() => {}} />);
     expect(screen.getByRole('button', { name: 'Group B, Ferrari' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -120,27 +84,25 @@ describe('FloorGroups', () => {
   });
 
   it('does not explain the split for a group on one table', () => {
-    render(<FloorGroups groups={[group()]} slot={slot} selected="A" onSelect={() => {}} />);
+    render(<FloorGroups groups={[group()]} selected="A" onSelect={() => {}} />);
     expect(screen.getByText('Group assignment')).toBeInTheDocument();
     expect(screen.queryByText(/one group seated on different tables/)).not.toBeInTheDocument();
   });
 
   it('shows the assignment of the selected group only', () => {
-    render(
-      <FloorGroups groups={[group(), split]} slot={slot} selected={null} onSelect={() => {}} />,
-    );
+    render(<FloorGroups groups={[group(), split]} selected={null} onSelect={() => {}} />);
     expect(screen.queryByText('Group assignment')).not.toBeInTheDocument();
   });
 
   it('selects a group when its row is clicked, and clears it when clicked again', () => {
     const onSelect = vi.fn();
     const { rerender } = render(
-      <FloorGroups groups={[group()]} slot={slot} selected={null} onSelect={onSelect} />,
+      <FloorGroups groups={[group()]} selected={null} onSelect={onSelect} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Group A, Rossi' }));
     expect(onSelect).toHaveBeenLastCalledWith('A');
 
-    rerender(<FloorGroups groups={[group()]} slot={slot} selected="A" onSelect={onSelect} />);
+    rerender(<FloorGroups groups={[group()]} selected="A" onSelect={onSelect} />);
     fireEvent.click(screen.getByRole('button', { name: 'Group A, Rossi' }));
     expect(onSelect).toHaveBeenLastCalledWith(null);
   });

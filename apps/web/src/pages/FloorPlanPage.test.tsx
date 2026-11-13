@@ -14,8 +14,10 @@ const TEXT = {
   staffOnly: 'This page is for the hut staff.',
   logInHint: /with a staff account to see the floor plan/,
   noTables: 'No tables yet: hikers cannot book this slot.',
-  noBookings: 'No bookings yet: every seat is free.',
+  noBookings: 'Nobody has booked this slot yet.',
   assignment: 'Group assignment',
+  showAll: 'Show all groups',
+  hideAll: 'Hide all groups',
 } as const;
 
 const employeeUser = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
@@ -24,8 +26,8 @@ const hikerUser = { id: 1, email: 'hiker@example.test', role: 'HIKER' };
 
 const slot = { id: 5, date: '2026-11-14', startTime: '12:30', endTime: '13:30' };
 
-// A confirmed, a confirmed group split over two tables, and a pending one that booked
-// the overlapping slot 12:00–13:00.
+// Three groups of the slot (one split over two tables, one pending) and Verdi, who booked
+// the overlapping slot 12:00–13:00 and shares table 5 until 13:00.
 const fullPlan: FloorPlan = {
   slot,
   tables: [
@@ -53,9 +55,12 @@ const fullPlan: FloorPlan = {
     {
       tableNumber: 5,
       capacity: 6,
-      occupiedSeats: 2,
-      freeSeats: 4,
-      groups: [{ label: 'B', seats: 2 }],
+      occupiedSeats: 4,
+      freeSeats: 2,
+      groups: [
+        { label: 'B', seats: 2 },
+        { label: 'D', seats: 2 },
+      ],
     },
   ],
   groups: [
@@ -88,12 +93,22 @@ const fullPlan: FloorPlan = {
       fullName: 'Bianchi',
       partySize: 2,
       status: 'PENDING',
-      startTime: '12:00',
-      endTime: '13:00',
+      startTime: '12:30',
+      endTime: '13:30',
       tables: [{ tableNumber: 2, seats: 2 }],
     },
+    {
+      label: 'D',
+      bookingId: 4,
+      fullName: 'Verdi',
+      partySize: 2,
+      status: 'CONFIRMED',
+      startTime: '12:00',
+      endTime: '13:00',
+      tables: [{ tableNumber: 5, seats: 2 }],
+    },
   ],
-  totals: { capacity: 20, occupiedSeats: 14, freeSeats: 6, confirmedGroups: 2, splitGroups: 1 },
+  totals: { capacity: 20, occupiedSeats: 16, freeSeats: 4, confirmedGroups: 3, splitGroups: 1 },
 };
 
 const emptyPlan: FloorPlan = {
@@ -141,8 +156,7 @@ function renderFloorPage(
 const floorRequests = (fetchMock: ReturnType<typeof stubApi>) =>
   fetchMock.mock.calls.filter(([url]) => String(url).includes('/floor'));
 
-// The card of the summary with this label.
-const card = (label: string) => within(screen.getByText(label).closest('li') as HTMLElement);
+const moment = (time: RegExp) => screen.getByRole('button', { name: time });
 const tableCard = (n: number) => screen.getByText(`Table ${n}`).closest('li') as HTMLElement;
 
 describe('FloorPlanPage', () => {
@@ -240,14 +254,25 @@ describe('FloorPlanPage', () => {
       expect(screen.queryByLabelText('Tables of the slot')).not.toBeInTheDocument();
     });
 
+    it('does not call the seats free when only an overlapping slot has bookings', async () => {
+      const othersOnly = { ...fullPlan, groups: fullPlan.groups.filter((g) => g.label === 'D') };
+      stubApi({ floor: () => json(othersOnly) });
+      renderFloorPage();
+
+      expect(await screen.findByText(TEXT.noBookings)).toBeInTheDocument();
+      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(2);
+      expect(screen.getByLabelText('Legend')).not.toHaveTextContent('Booked in this slot');
+      expect(screen.getByLabelText('Legend')).toHaveTextContent('Taken by the slot 12:00–13:00');
+    });
+
     it('shows every seat free when nobody has booked', async () => {
       stubApi({ floor: () => json(emptyPlan) });
       renderFloorPage();
 
       expect(await screen.findByText(TEXT.noBookings)).toBeInTheDocument();
-      expect(card('seats taken').getByText('0 / 8')).toBeInTheDocument();
-      expect(card('free seats').getByText('8')).toBeInTheDocument();
+      expect(screen.getByText('2 tables · 0 / 8 seats taken')).toBeInTheDocument();
       expect(screen.queryAllByRole('button', { name: /^Group / })).toHaveLength(0);
+      expect(screen.queryByRole('button', { name: TEXT.showAll })).not.toBeInTheDocument();
     });
   });
 
@@ -256,18 +281,17 @@ describe('FloorPlanPage', () => {
       stubApi();
       renderFloorPage();
 
-      expect(await screen.findByText(/14 Nov · 12:30–13:30/)).toBeInTheDocument();
+      expect(await screen.findByText('Saturday 14 November')).toBeInTheDocument();
+      expect(screen.getByText('12:30–13:30')).toBeInTheDocument();
     });
 
-    it('shows the four cards with the numbers of the slot', async () => {
+    it('shows no summary cards, only the plan', async () => {
       stubApi();
       renderFloorPage();
       await screen.findByLabelText('Tables of the slot');
 
-      expect(card('seats taken').getByText('14 / 20')).toBeInTheDocument();
-      expect(card('free seats').getByText('6')).toBeInTheDocument();
-      expect(card('confirmed groups').getByText('2')).toBeInTheDocument();
-      expect(card('groups on more than one table').getByText('1')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Summary of the slot')).not.toBeInTheDocument();
+      expect(screen.queryByText('confirmed groups')).not.toBeInTheDocument();
     });
 
     it('lists the tables by number with their seats', async () => {
@@ -284,13 +308,13 @@ describe('FloorPlanPage', () => {
       ]);
       expect(within(tableCard(1)).getByText('full')).toBeInTheDocument();
       expect(within(tableCard(2)).getByText('2 / 4 taken')).toBeInTheDocument();
-      expect(within(tableCard(5)).getByText('2 / 6 taken')).toBeInTheDocument();
+      expect(within(tableCard(5)).getByText('4 / 6 taken')).toBeInTheDocument();
     });
 
     it('shows a group on two tables with the same letter on both', async () => {
       stubApi();
       renderFloorPage();
-      await screen.findByLabelText('Tables of the slot');
+      fireEvent.click(await screen.findByRole('button', { name: 'Group B, Ferrari' }));
 
       const atTable4 = within(tableCard(4)).getAllByRole('button', {
         name: 'Group B, table 4, 6 seats',
@@ -301,10 +325,10 @@ describe('FloorPlanPage', () => {
       expect(atTable4).toHaveLength(6);
       expect(atTable5).toHaveLength(2);
       for (const seat of [...atTable4, ...atTable5]) expect(seat).toHaveTextContent('B');
-      expect(within(tableCard(5)).getByText(/6 seats in total, 4 free/)).toBeInTheDocument();
+      expect(within(tableCard(5)).getByText('6 seats in total, 2 free')).toBeInTheDocument();
     });
 
-    it('lists the groups with their people, tables and the time of another slot', async () => {
+    it('lists only the groups of the slot, with their people and tables', async () => {
       stubApi();
       renderFloorPage();
       await screen.findByLabelText('Groups of the slot');
@@ -313,14 +337,11 @@ describe('FloorPlanPage', () => {
       expect(ferrari).toHaveTextContent('Ferrari · 8 people');
       expect(ferrari).toHaveTextContent('T4 · 6 + T5 · 2');
       expect(ferrari).toHaveTextContent('on 2 tables');
-
-      const rossi = screen.getByRole('button', { name: 'Group A, Rossi' });
-      expect(rossi).toHaveTextContent('Rossi · 4 people');
-      expect(rossi).not.toHaveTextContent(/Slot /);
-
-      expect(screen.getByRole('button', { name: 'Group C, Bianchi' })).toHaveTextContent(
-        'Slot 12:00–13:00',
+      expect(screen.getByRole('button', { name: 'Group A, Rossi' })).toHaveTextContent(
+        'Rossi · 4 people',
       );
+      expect(screen.queryByRole('button', { name: /Verdi/ })).not.toBeInTheDocument();
+      expect(screen.getByText('3 groups · 14 guests')).toBeInTheDocument();
     });
 
     it('marks a pending group, which holds seats but is not a confirmed group', async () => {
@@ -333,7 +354,90 @@ describe('FloorPlanPage', () => {
         'pending',
       );
       expect(within(tableCard(2)).getAllByRole('button', { name: /^Group C/ })).toHaveLength(2);
-      expect(card('confirmed groups').getByText('2')).toBeInTheDocument();
+    });
+  });
+
+  describe('overlapping slots', () => {
+    it('splits the slot into moments, each with its own seats taken', async () => {
+      stubApi();
+      renderFloorPage();
+      await screen.findByLabelText('Tables of the slot');
+
+      const first = moment(/^12:30–13:00/);
+      const second = moment(/^13:00–13:30/);
+      expect(first).toHaveTextContent('12:30–13:00 · 16 / 20 seats taken');
+      expect(first).toHaveTextContent('Shared with the slot 12:00–13:00');
+      expect(second).toHaveTextContent('13:00–13:30 · 14 / 20 seats taken');
+      expect(second).toHaveTextContent('Not shared with other slots');
+      expect(first).toHaveAttribute('aria-pressed', 'true');
+      expect(second).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('hatches the seats of the overlapping slot, apart from the groups of the slot', async () => {
+      stubApi();
+      renderFloorPage();
+      await screen.findByLabelText('Tables of the slot');
+
+      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(2);
+      expect(within(tableCard(5)).getByText('2 seats for the slot 12:00–13:00')).toBeVisible();
+      expect(screen.getByLabelText('Legend')).toHaveTextContent('Taken by the slot 12:00–13:00');
+    });
+
+    it('frees the seats of the overlapping slot once it is over', async () => {
+      stubApi();
+      renderFloorPage();
+      await screen.findByLabelText('Tables of the slot');
+
+      fireEvent.click(moment(/^13:00–13:30/));
+
+      expect(moment(/^13:00–13:30/)).toHaveAttribute('aria-pressed', 'true');
+      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(0);
+      expect(within(tableCard(5)).getByText('6 seats in total, 4 free')).toBeVisible();
+      expect(screen.getByLabelText('Legend')).not.toHaveTextContent('Taken by');
+    });
+
+    it('shows no moments when no other slot overlaps', async () => {
+      const ownOnly = { ...fullPlan, groups: fullPlan.groups.filter((g) => g.label !== 'D') };
+      stubApi({ floor: () => json(ownOnly) });
+      renderFloorPage();
+      await screen.findByLabelText('Tables of the slot');
+
+      expect(screen.queryByRole('group', { name: 'Moments of the slot' })).not.toBeInTheDocument();
+      expect(screen.getByText('4 tables · 14 / 20 seats taken')).toBeInTheDocument();
+    });
+  });
+
+  describe('showing all the groups', () => {
+    it('colours every group of the slot, and hides them again', async () => {
+      stubApi();
+      renderFloorPage();
+      const toggle = await screen.findByRole('button', { name: TEXT.showAll });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      expect(document.querySelectorAll('.floor-seat--taken')).toHaveLength(0);
+
+      fireEvent.click(toggle);
+
+      expect(screen.getByRole('button', { name: TEXT.hideAll })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      expect(document.querySelectorAll('.floor-seat--taken')).toHaveLength(14);
+
+      fireEvent.click(screen.getByRole('button', { name: TEXT.hideAll }));
+      expect(document.querySelectorAll('.floor-seat--taken')).toHaveLength(0);
+    });
+
+    it('stops showing all the groups when one is selected', async () => {
+      stubApi();
+      renderFloorPage();
+      fireEvent.click(await screen.findByRole('button', { name: TEXT.showAll }));
+      fireEvent.click(screen.getByRole('button', { name: 'Group A, Rossi' }));
+
+      expect(screen.getByRole('button', { name: TEXT.showAll })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      expect(document.querySelectorAll('.floor-seat--taken')).toHaveLength(4);
     });
   });
 

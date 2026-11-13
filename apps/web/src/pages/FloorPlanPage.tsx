@@ -1,69 +1,124 @@
+import type { FloorPlan } from '@mountain-hut/shared';
 import { useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useFloorPlan } from '../api/useSlots.ts';
 import { FloorGroups } from '../components/FloorGroups.tsx';
-import { FloorSummary } from '../components/FloorSummary.tsx';
+import { FloorHeader } from '../components/FloorHeader.tsx';
+import { FloorMomentPicker } from '../components/FloorMomentPicker.tsx';
 import { FloorTables } from '../components/FloorTables.tsx';
-import { dateShort, fromIsoDate, isIsoDate } from '../lib/dates.ts';
-import { floorErrorMessage, seatsTakenLabel } from '../lib/floorLabels.ts';
+import { floorErrorMessage, otherSlotsLabel, seatsTakenLabel } from '../lib/floorLabels.ts';
+import { floorMoments, isSlotGroup } from '../lib/floorMoments.ts';
 import { parseSlotId } from '../lib/slotId.ts';
 import { tablesLabel } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
 import './FloorPlanPage.css';
 
-// Back to the schedule of the day the staff came from (sent by the "Floor plan" link).
-// Without it, for instance when the URL is typed, the schedule opens on today.
-function BackLink() {
-  const { state } = useLocation() as { state: { date?: unknown } | null };
-  const date = state?.date;
-  const to = isIsoDate(date) ? `/staff/slots?date=${date}` : '/staff/slots';
-  return (
-    <Link to={to} className="pill floor-page__back">
-      Back to the time slots
-    </Link>
-  );
-}
-
 function FloorPlanView({ id }: { id: number }) {
-  const [selected, setSelected] = useState<string | null>(null);
   const plan = useFloorPlan(id);
 
-  if (plan.isPending) return <p role="status">Loading the floor plan…</p>;
-  if (plan.isError) {
-    return (
+  let body;
+  if (plan.isPending) body = <p role="status">Loading the floor plan…</p>;
+  else if (plan.isError) {
+    body = (
       <p role="alert" className="notice notice--error">
         {floorErrorMessage(plan.error)}
       </p>
     );
-  }
+  } else body = <FloorPlanContent plan={plan.data} />;
 
-  const { slot, tables, groups, totals } = plan.data;
+  return (
+    <>
+      <FloorHeader slot={plan.data?.slot} />
+      {body}
+    </>
+  );
+}
+
+function FloorPlanContent({ plan }: { plan: FloorPlan }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [current, setCurrent] = useState(0);
+
+  const { slot, tables } = plan;
   if (tables.length === 0) {
     return <p className="notice notice--ok">No tables yet: hikers cannot book this slot.</p>;
   }
 
+  const moments = floorMoments(plan);
+  const index = Math.min(current, moments.length - 1);
+  const moment = moments[index]!;
+  const shared = moments.some((m) => m.otherSlots.length > 0);
+  const groups = plan.groups.filter((g) => isSlotGroup(g, slot));
+  const guests = groups.reduce((sum, g) => sum + g.partySize, 0);
+
+  function select(label: string | null) {
+    setSelected(label);
+    setShowAll(false);
+  }
+
   return (
-    <>
-      <p className="floor-page__slot">
-        {dateShort(fromIsoDate(slot.date))} · {slot.startTime}–{slot.endTime}
-      </p>
-      <FloorSummary totals={totals} />
-      <div className="layout layout--staff">
-        <section className="summary layout__form" aria-label="Tables">
-          <h3 className="summary__title">Tables</h3>
+    <div className="layout layout--staff">
+      <section className="summary layout__form" aria-label="Tables">
+        <h3 className="summary__title">Tables</h3>
+        {shared ? (
+          <FloorMomentPicker moments={moments} current={index} onPick={setCurrent} />
+        ) : (
           <p className="field__hint floor-page__meta">
-            {tablesLabel(tables.length)} · {seatsTakenLabel(totals.occupiedSeats, totals.capacity)}
+            {tablesLabel(tables.length)} · {seatsTakenLabel(moment.occupiedSeats, moment.capacity)}
           </p>
-          <FloorTables tables={tables} selected={selected} onSelect={setSelected} />
-        </section>
-        <section className="summary layout__side" aria-label="Groups">
-          <h3 className="summary__title">Groups</h3>
-          <FloorGroups groups={groups} slot={slot} selected={selected} onSelect={setSelected} />
-        </section>
-      </div>
-    </>
+        )}
+        <FloorTables
+          tables={moment.tables}
+          otherSlots={moment.otherSlots}
+          selected={selected}
+          showAll={showAll}
+          onSelect={select}
+        />
+        <ul className="floor-legend" aria-label="Legend">
+          <li>
+            <span className="floor-seat floor-seat--free" aria-hidden="true" />
+            Free
+          </li>
+          {groups.length > 0 && (
+            <li>
+              <span className="floor-seat floor-seat--booked" aria-hidden="true" />
+              Booked in this slot
+            </li>
+          )}
+          {moment.otherSlots.length > 0 && (
+            <li>
+              <span className="floor-seat floor-seat--other" aria-hidden="true" />
+              Taken by {otherSlotsLabel(moment.otherSlots)}
+            </li>
+          )}
+        </ul>
+      </section>
+      <section className="summary layout__side" aria-label="Groups">
+        <h3 className="summary__title">Groups</h3>
+        {groups.length > 0 && (
+          <p className="field__hint floor-page__meta">
+            {groups.length === 1 ? '1 group' : `${groups.length} groups`} ·{' '}
+            {guests === 1 ? '1 guest' : `${guests} guests`}
+          </p>
+        )}
+        <FloorGroups groups={groups} selected={selected} onSelect={select} />
+        {groups.length > 0 && (
+          <button
+            type="button"
+            className="pill floor-page__all"
+            aria-pressed={showAll}
+            onClick={() => {
+              setShowAll(!showAll);
+              setSelected(null);
+            }}
+          >
+            {showAll ? 'Hide all groups' : 'Show all groups'}
+          </button>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -75,6 +130,7 @@ export function FloorPlanPage() {
   const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let content = null;
+  let showsPlan = false;
   if (!isPending) {
     if (!user) {
       content = (
@@ -92,17 +148,14 @@ export function FloorPlanPage() {
       );
     } else {
       content = <FloorPlanView id={id} />;
+      showsPlan = true;
     }
   }
 
   return (
     <div className="page">
       <div className="page__body">
-        <BackLink />
-        <h2 className="page__title">Floor plan</h2>
-        <p className="page__subtitle">
-          Every seat belongs to a group: see at a glance who sits where and how many seats are free.
-        </p>
+        {!showsPlan && <FloorHeader />}
         {content}
       </div>
     </div>

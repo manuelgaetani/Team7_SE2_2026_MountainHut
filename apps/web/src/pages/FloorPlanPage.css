@@ -1,36 +1,45 @@
 /* Staff floor plan of a slot. Builds on BookingPage.css, SlotsPage.css and styles.css. */
 
-.floor-page__back {
-  display: inline-block;
-  margin-bottom: 18px;
+.floor-header {
+  margin-bottom: 24px;
 }
-.floor-page__slot {
-  margin: 0 0 16px;
-  font-size: 12px;
+.floor-header__card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.floor-header__eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.floor-header__date {
+  margin: 4px 0 0;
+  font: 400 26px/1.2 var(--font-serif);
+}
+.floor-header__time {
+  margin: 2px 0 0;
+  font-size: 14px;
   font-weight: 600;
+}
+.floor-header__back {
+  flex: none;
+}
+.floor-header__hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 .floor-page__meta {
   margin: -8px 0 14px;
-}
-
-.floor-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0 0 24px;
-  padding: 0;
-  list-style: none;
-}
-.floor-summary__card {
-  display: grid;
-  gap: 4px;
-}
-.floor-summary__value {
-  font: 400 24px/1.1 var(--font-serif);
-}
-.floor-summary__label {
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .group-badge {
@@ -101,10 +110,21 @@
 }
 .floor-seat--free {
   background: #fff;
+  border-style: dashed;
 }
 .floor-seat--taken {
   cursor: pointer;
   border-color: transparent;
+}
+/* A seat of the slot whose group is not selected. */
+.floor-seat--booked {
+  background: var(--surface);
+  border-color: var(--muted);
+  cursor: pointer;
+}
+/* A seat taken by an overlapping slot: hatched, so it never looks like a group of the slot. */
+.floor-seat--other {
+  background: repeating-linear-gradient(45deg, #fff 0 3px, var(--line) 3px 6px);
 }
 .floor-seat--selected {
   outline: 2px solid var(--ink);
@@ -208,8 +228,62 @@
   margin: 0;
 }
 
-@media (max-width: 820px) {
-  .floor-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.floor-moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+.floor-moment {
+  display: grid;
+  gap: 2px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.floor-moment--current {
+  border-color: var(--green);
+  background: var(--tint);
+}
+.floor-moment:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.floor-moment__time {
+  font-size: 12px;
+  font-weight: 600;
+}
+.floor-moment__with {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.floor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.floor-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.floor-legend .floor-seat {
+  width: 16px;
+  height: 16px;
+  cursor: default;
+}
+
+.floor-page__all {
+  margin-top: 12px;
 }

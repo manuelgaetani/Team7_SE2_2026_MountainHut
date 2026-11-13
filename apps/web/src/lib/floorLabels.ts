@@ -1,12 +1,14 @@
-import type { FloorGroup, FloorPlan, FloorTable } from '@mountain-hut/shared';
+import type { FloorGroup } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
+import type { MomentTable } from './floorMoments.ts';
 import { seatsLabel } from './slotTables.ts';
 
 export const peopleLabel = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
 // "4 / 6 taken", or "full" when no seat is left.
-export function tableTakenLabel(table: FloorTable): string {
-  return table.freeSeats === 0 ? 'full' : `${table.occupiedSeats} / ${table.capacity} taken`;
+export function tableTakenLabel(table: MomentTable): string {
+  const taken = table.capacity - table.freeSeats;
+  return table.freeSeats === 0 ? 'full' : `${taken} / ${table.capacity} taken`;
 }
 
 // "5 / 8 seats taken"
@@ -19,10 +21,10 @@ export const groupTablesLabel = (group: FloorGroup): string =>
 
 export const onTablesLabel = (n: number): string => (n === 1 ? 'on 1 table' : `on ${n} tables`);
 
-// The time of the slot a group booked, only when it is not the slot shown.
-export function otherSlotTime(group: FloorGroup, slot: FloorPlan['slot']): string | null {
-  if (group.startTime === slot.startTime && group.endTime === slot.endTime) return null;
-  return `${group.startTime}–${group.endTime}`;
+// "the slot 12:00–13:00", or "the slots 11:30–12:30 and 13:00–14:00".
+export function otherSlotsLabel(slots: string[]): string {
+  if (slots.length === 1) return `the slot ${slots[0]}`;
+  return `the slots ${slots.slice(0, -1).join(', ')} and ${slots[slots.length - 1]}`;
 }
 
 // aria-label of a taken seat button, e.g. "Group A, table 4, 6 seats".
