@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useSchedule } from '../api/useSlots.ts';
@@ -7,13 +7,18 @@ import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
 import { FormField } from '../components/FormField.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
-import { toIsoDate } from '../lib/dates.ts';
+import { isIsoDate, toIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
 
 function SlotsManager() {
-  const [date, setDate] = useState(() => toIsoDate(new Date()));
+  // The day comes from ?date= when the staff return from a floor plan; otherwise it is today.
+  const [searchParams] = useSearchParams();
+  const [date, setDate] = useState(() => {
+    const fromUrl = searchParams.get('date');
+    return isIsoDate(fromUrl) ? fromUrl : toIsoDate(new Date());
+  });
   const [defining, setDefining] = useState<SlotDetails | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const schedule = useSchedule(date);

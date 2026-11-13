@@ -138,4 +138,65 @@ describe('SlotsRepository', () => {
       });
     });
   });
+
+  describe('findFloorAllocations', () => {
+    it('maps the rows', async () => {
+      client.$queryRaw.mockResolvedValue([
+        {
+          booking_id: 9,
+          full_name: 'Anna Rossi',
+          party_size: 8,
+          status: 'CONFIRMED',
+          start_time: '12:00',
+          end_time: '13:00',
+          table_number: 4,
+          assigned_seats: 6,
+        },
+      ]);
+      await expect(repository.findFloorAllocations(tx, 3)).resolves.toEqual([
+        {
+          bookingId: 9,
+          fullName: 'Anna Rossi',
+          partySize: 8,
+          status: 'CONFIRMED',
+          startTime: '12:00',
+          endTime: '13:00',
+          tableNumber: 4,
+          assignedSeats: 6,
+        },
+      ]);
+    });
+
+    it('returns an empty list when nobody is seated', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.findFloorAllocations(tx, 3)).resolves.toEqual([]);
+    });
+
+    it('counts the confirmed and pending bookings, like the free seats of a booking', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(tx, 3);
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
+    });
+
+    it('includes the bookings of the slots that overlap in time', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(tx, 3);
+      expect(queryText()).toContain('s_other.start_time < s_target.end_time');
+      expect(queryText()).toContain('s_other.end_time > s_target.start_time');
+    });
+
+    it('binds the id instead of concatenating it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(tx, 3);
+      expect(queryValues()).toEqual([3]);
+    });
+
+    it.each([0, -1, 1.5, MAX_DB_INT + 1, Number.NaN])(
+      'returns an empty list without querying for the id %s',
+      async (id) => {
+        await expect(repository.findFloorAllocations(tx, id)).resolves.toEqual([]);
+        expect(client.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+  });
 });
