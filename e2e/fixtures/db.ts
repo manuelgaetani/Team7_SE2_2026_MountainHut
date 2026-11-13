@@ -58,6 +58,24 @@ export function bookingStatus(bookingId: number): string {
   return sql(`SELECT status FROM bookings WHERE id = ${Number(bookingId)};`);
 }
 
+// The party requirements stored for a booking, in the order the hiker entered them (MH-05).
+export function partyRequirements(
+  bookingId: number,
+): { allergies: boolean; description: string }[] {
+  const json = sql(
+    `SELECT COALESCE(json_agg(json_build_object('allergies', allergies, 'description', description)
+       ORDER BY id), '[]')
+     FROM party_requirements WHERE booking_id = ${Number(bookingId)};`,
+  );
+  return JSON.parse(json) as { allergies: boolean; description: string }[];
+}
+
+// How many stored party requirements have exactly this description, in any booking (MH-05).
+export function countPartyRequirements(description: string): number {
+  const quoted = description.replaceAll("'", "''");
+  return Number(sql(`SELECT count(*) FROM party_requirements WHERE description = '${quoted}';`));
+}
+
 // Turns a registered user into an account without a hiker profile, like a staff account.
 export function removeHikerProfile(email: string): void {
   const quoted = email.replaceAll("'", "''");
