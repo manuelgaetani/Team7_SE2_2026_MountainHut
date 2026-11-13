@@ -1,4 +1,9 @@
-import { ConflictException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { Test } from '@nestjs/testing';
@@ -22,7 +27,7 @@ const result = {
 
 describe('BookingsController', () => {
   let app: INestApplication<App>;
-  const bookings = { create: vi.fn() };
+  const bookings = { create: vi.fn(), change: vi.fn() };
   // Role of the fake authenticated user: each test can change it.
   let role: Role;
 
@@ -108,6 +113,75 @@ describe('BookingsController', () => {
       role = 'EMPLOYEE';
       await post({ slotId: 3, partySize: 0 }).expect(403);
       expect(bookings.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // MH-06: PATCH /bookings/:id changes a booking.
+  describe('change', () => {
+    const changed = { ...result, partySize: 4, requirements: '2 vegans' };
+    const patch = (id: string, body: object) =>
+      request(app.getHttpServer()).patch(`/bookings/${id}`).send(body);
+
+    it('allows only hikers to change a booking', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.change)).toEqual([
+        'HIKER',
+      ]);
+    });
+
+    it('answers 200 with the changed booking', async () => {
+      bookings.change.mockResolvedValue(changed);
+      const response = await patch('9', { partySize: 4 }).expect(200);
+      expect(response.body).toEqual(changed);
+    });
+
+    it('changes for the authenticated user, with the id of the path as a number', async () => {
+      bookings.change.mockResolvedValue(changed);
+      await patch('9', { slotId: 5, partySize: 4, requirements: '  2 vegans  ' });
+      expect(bookings.change).toHaveBeenCalledWith(1, 9, {
+        slotId: 5,
+        partySize: 4,
+        requirements: '2 vegans',
+      });
+    });
+
+    it('ignores a hiker or user id sent in the body', async () => {
+      bookings.change.mockResolvedValue(changed);
+      await patch('9', { partySize: 4, hikerId: 99, userId: 99 });
+      expect(bookings.change).toHaveBeenCalledWith(1, 9, { partySize: 4 });
+    });
+
+    it.each([
+      ['an empty change', {}],
+      ['a party of 0', { partySize: 0 }],
+      ['a slot id of 0', { slotId: 0 }],
+      ['requirements longer than 500 characters', { requirements: 'A'.repeat(501) }],
+    ])('answers 400 without calling the service for %s', async (_name, body) => {
+      await patch('9', body).expect(400);
+      expect(bookings.change).not.toHaveBeenCalled();
+    });
+
+    it('answers 400 without calling the service when the id is not a number', async () => {
+      await patch('abc', { partySize: 4 }).expect(400);
+      expect(bookings.change).not.toHaveBeenCalled();
+    });
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 for a %s without calling the service',
+      async (staffRole) => {
+        role = staffRole;
+        await patch('9', { partySize: 4 }).expect(403);
+        expect(bookings.change).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [new ConflictException('Insufficient seats available for the updated booking'), 409],
+      [new UnprocessableEntityException('Changes are only admitted up to 48 hours'), 422],
+      [new NotFoundException('Booking not found'), 404],
+      [new ForbiddenException('You can only change your own bookings'), 403],
+    ])('propagates %s from the service', async (error, status) => {
+      bookings.change.mockRejectedValue(error);
+      await patch('9', { partySize: 4 }).expect(status);
     });
   });
 });

@@ -92,4 +92,76 @@ describe('canAccommodatePartyChange (Black-box automatic availability verificati
     canAccommodatePartyChange(available, 8);
     expect(available).toEqual(copy);
   });
+
+  // MH-06 clarification: while the party still fits at the tables it already has, it stays
+  // there; when it no longer fits, it is seated again as a new booking with the MH-01 rules.
+  // `tables` are the free seats of the slot without the seats of the booking itself.
+  describe('with the tables the booking already has', () => {
+    it('keeps a larger party at its table while it still fits there', () => {
+      // Table 2 (6 free seats) is the booking's own; table 1 would be the best fit for 5.
+      const result = canAccommodatePartyChange(tables(5, 6), 5, [
+        { tableNumber: 2, assignedSeats: 3 },
+      ]);
+      expect(result).toEqual([{ tableNumber: 2, assignedSeats: 5 }]);
+    });
+
+    it('keeps a smaller party at its table instead of moving it to a better fitting one', () => {
+      const result = canAccommodatePartyChange(tables(4, 6), 3, [
+        { tableNumber: 2, assignedSeats: 5 },
+      ]);
+      expect(result).toEqual([{ tableNumber: 2, assignedSeats: 3 }]);
+    });
+
+    it('keeps a smaller party on fewer of its own tables', () => {
+      const result = canAccommodatePartyChange(tables(4, 4, 8), 4, [
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 2 },
+      ]);
+      expect(result).toEqual([{ tableNumber: 1, assignedSeats: 4 }]);
+    });
+
+    it('spreads a larger party over its own tables while they are enough', () => {
+      const result = canAccommodatePartyChange(tables(4, 4, 8), 8, [
+        { tableNumber: 1, assignedSeats: 3 },
+        { tableNumber: 2, assignedSeats: 3 },
+      ]);
+      expect(result).toEqual([
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 4 },
+      ]);
+    });
+
+    it('seats the party again with the MH-01 rules when it no longer fits at its tables', () => {
+      // Issue #38: table 1 is shared with another party and has only the booking's 4 seats free;
+      // the party grows to 6 and table 3 has 6 free seats.
+      const result = canAccommodatePartyChange(tables(4, 2, 6), 6, [
+        { tableNumber: 1, assignedSeats: 4 },
+      ]);
+      expect(result).toEqual([{ tableNumber: 3, assignedSeats: 6 }]);
+    });
+
+    it('may reuse its old table when it is seated again', () => {
+      // Table 1 alone is not enough for 7, but MH-01 fills the largest tables first.
+      const result = canAccommodatePartyChange(tables(5, 2, 3), 7, [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+      expect(result).toEqual([
+        { tableNumber: 1, assignedSeats: 5 },
+        { tableNumber: 2, assignedSeats: 2 },
+      ]);
+    });
+
+    it('refuses the change when the whole slot has not enough free seats', () => {
+      expect(
+        canAccommodatePartyChange(tables(3, 3), 7, [{ tableNumber: 1, assignedSeats: 3 }]),
+      ).toBeNull();
+    });
+
+    it('ignores own tables that the slot no longer has', () => {
+      const result = canAccommodatePartyChange(tables(4), 3, [
+        { tableNumber: 9, assignedSeats: 2 },
+      ]);
+      expect(result).toEqual([{ tableNumber: 1, assignedSeats: 3 }]);
+    });
+  });
 });

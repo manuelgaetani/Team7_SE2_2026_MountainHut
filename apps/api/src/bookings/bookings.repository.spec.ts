@@ -7,8 +7,14 @@ describe('BookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
-    bookingTable: { createMany: vi.fn() },
+    booking: {
+      create: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      update: vi.fn(),
+    },
+    bookingTable: { createMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
   };
   const tx = client as unknown as Prisma.TransactionClient;
 
@@ -236,6 +242,106 @@ describe('BookingsRepository', () => {
           { bookingId: 9, slotId: 3, tableNumber: 1, assignedSeats: 4 },
           { bookingId: 9, slotId: 3, tableNumber: 2, assignedSeats: 2 },
         ],
+      });
+    });
+  });
+
+  // MH-06: change a booking.
+  describe('lockBooking', () => {
+    const row = {
+      id: 9,
+      hiker_id: 7,
+      slot_id: 3,
+      party_size: 2,
+      requirements: 'vegan',
+      status: 'CONFIRMED',
+    };
+
+    it('maps the locked booking', async () => {
+      client.$queryRaw.mockResolvedValue([row]);
+      await expect(repository.lockBooking(tx, 9)).resolves.toEqual({
+        id: 9,
+        hikerId: 7,
+        slotId: 3,
+        partySize: 2,
+        requirements: 'vegan',
+        status: 'CONFIRMED',
+      });
+    });
+
+    it('returns null when the booking does not exist', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.lockBooking(tx, 9)).resolves.toBeNull();
+    });
+
+    it('locks the row and binds the id instead of concatenating it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(tx, 9);
+      expect(queryText()).toContain('FOR UPDATE');
+      expect(queryValues()).toEqual([9]);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, 2_147_483_648])(
+      'returns null for the id %s without querying the database',
+      async (bookingId) => {
+        await expect(repository.lockBooking(tx, bookingId)).resolves.toBeNull();
+        expect(client.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it('queries the largest id Postgres can store', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(tx, 2_147_483_647);
+      expect(queryValues()).toEqual([2_147_483_647]);
+    });
+  });
+
+  describe('findBookingTables', () => {
+    it('reads the tables of the booking in table order', async () => {
+      const tables = [{ tableNumber: 1, assignedSeats: 2 }];
+      client.bookingTable.findMany.mockResolvedValue(tables);
+      await expect(repository.findBookingTables(tx, 9)).resolves.toBe(tables);
+      expect(client.bookingTable.findMany).toHaveBeenCalledWith({
+        where: { bookingId: 9 },
+        select: { tableNumber: true, assignedSeats: true },
+        orderBy: { tableNumber: 'asc' },
+      });
+    });
+  });
+
+  describe('deleteBookingTables', () => {
+    it('deletes only the table assignments of the booking', async () => {
+      await repository.deleteBookingTables(tx, 9);
+      expect(client.bookingTable.deleteMany).toHaveBeenCalledWith({ where: { bookingId: 9 } });
+    });
+  });
+
+  describe('updateBooking', () => {
+    const change = { slotId: 4, partySize: 5, requirements: null };
+
+    it('stores the new slot, party size and requirements', async () => {
+      client.booking.update.mockResolvedValue({
+        id: 9,
+        hikerId: 7,
+        status: 'CONFIRMED',
+        ...change,
+      });
+      await repository.updateBooking(tx, 9, change);
+      expect(client.booking.update).toHaveBeenCalledWith({ where: { id: 9 }, data: change });
+    });
+
+    it('returns the changed booking without the hiker id, keeping its status', async () => {
+      client.booking.update.mockResolvedValue({
+        id: 9,
+        hikerId: 7,
+        status: 'CONFIRMED',
+        ...change,
+      });
+      await expect(repository.updateBooking(tx, 9, change)).resolves.toEqual({
+        id: 9,
+        slotId: 4,
+        partySize: 5,
+        status: 'CONFIRMED',
       });
     });
   });

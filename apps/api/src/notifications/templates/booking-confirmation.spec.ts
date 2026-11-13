@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { bookingConfirmationEmail } from './booking-confirmation.js';
+import { bookingChangeEmail, bookingConfirmationEmail } from './booking-confirmation.js';
 import type { BookingConfirmationData } from './booking-confirmation.js';
 
 // Same shape Prisma returns for `@db.Date` and `@db.Time` columns: UTC-based dates.
@@ -142,5 +142,48 @@ describe('bookingConfirmationEmail', () => {
 
   it('shows the name of the hiker in the greeting of the subject-less text', () => {
     expect(bookingConfirmationEmail(booking).text.startsWith('Hi Anna Rossi,')).toBe(true);
+  });
+});
+
+// MH-06: the email sent after a change carries the new details of the booking.
+describe('bookingChangeEmail', () => {
+  it('says in the subject that the booking was changed, with its new date', () => {
+    expect(bookingChangeEmail(booking).subject).toBe(
+      'Booking n. 42 changed - Saturday, 14 November 2026',
+    );
+  });
+
+  it('tells the hiker that these are the new details', () => {
+    const { text, html } = bookingChangeEmail(booking);
+    expect(text).toContain('your booking at the hut has been changed. These are its new details.');
+    expect(html).toContain('your booking at the hut has been changed.');
+    expect(text).not.toContain('booked and confirmed');
+  });
+
+  it('shows the new date, time, party size and requirements', () => {
+    const { text } = bookingChangeEmail({
+      ...booking,
+      date: new Date('2026-12-05T00:00:00.000Z'),
+      startTime: new Date('1970-01-01T19:00:00.000Z'),
+      endTime: new Date('1970-01-01T21:00:00.000Z'),
+      partySize: 6,
+      requirements: '2 vegans',
+    });
+    expect(text).toContain('Saturday, 5 December 2026');
+    expect(text).toContain('19:00 - 21:00');
+    expect(text).toContain('6 people');
+    expect(text).toContain('Requirements: 2 vegans');
+  });
+
+  it('omits the requirements when the change removed them', () => {
+    expect(bookingChangeEmail({ ...booking, requirements: null }).text).not.toContain(
+      'Requirements',
+    );
+  });
+
+  it('escapes the new requirements in the HTML version', () => {
+    const { html } = bookingChangeEmail({ ...booking, requirements: '<b>nuts</b>' });
+    expect(html).toContain('&lt;b&gt;nuts&lt;/b&gt;');
+    expect(html).not.toContain('<b>nuts</b>');
   });
 });
