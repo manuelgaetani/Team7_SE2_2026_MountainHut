@@ -6,12 +6,13 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
+import type { BookingResult, CreateBookingInput, SlotSummary, CancelledBooking} from '@mountain-hut/shared';
 import { bookingTimeZone } from '../common/booking-config.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { decideBooking, slotAvailability } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
+import { decideCancellation } from './booking-cancellation-policy.js';
 
 // Waits before each new attempt to send a failed confirmation email: 1 send + 3 retries.
 // The retries live in this process only, so they are lost if the API restarts.
@@ -86,6 +87,31 @@ export class BookingsService {
     // After the commit and not awaited: a slow SMTP server must not delay the answer.
     void this.sendConfirmation(result.id);
     return result;
+  }
+
+  // Cancels a booking of the hiker, at any time. The seat queries ignore cancelled bookings,
+  // so the seats are free for other guests as soon as the transaction commits.
+  async cancel(userId: number, bookingId: number): Promise<CancelledBooking> {
+    return this.prisma.$transaction(async (tx) => {
+      const hikerId = await this.repo.findHikerIdByUserId(tx, userId);
+      if (!hikerId) throw new ForbiddenException('A hiker profile is required to cancel a booking');
+
+      const booking = await this.repo.lockBooking(tx, bookingId);
+      // Someone else's booking looks like a missing one: its id must not be revealed.
+      if (!booking || booking.hikerId !== hikerId) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      const decision = decideCancellation({ status: booking.status });
+      if (!decision.ok) {
+        throw new ConflictException(
+          decision.reason === 'ALREADY_CANCELLED'
+            ? 'This booking is already cancelled'
+            : 'A rejected booking cannot be cancelled',
+        );
+      }
+      return this.repo.cancelBooking(tx, bookingId);
+    });
   }
 
   // Sends the confirmation email and, once it is sent, confirms the booking.

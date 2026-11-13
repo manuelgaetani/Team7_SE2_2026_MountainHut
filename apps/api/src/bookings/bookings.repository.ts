@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client.js';
+import type { CancelledBooking } from '@mountain-hut/shared';
+import type { BookingStatus, Prisma } from '../generated/prisma/client.js';
 import type { Recipient } from '../notifications/notification.service.js';
 import type { BookingConfirmationData } from '../notifications/templates/booking-confirmation.js';
 import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
@@ -32,6 +33,14 @@ export interface StoredBooking {
   slotId: number;
   partySize: number;
   status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
+}
+
+// Maximum value of a Postgres INTEGER: larger ids would fail in the database.
+const MAX_DB_INT = 2_147_483_647;
+
+export interface BookingToCancel {
+  hikerId: number;
+  status: BookingStatus;
 }
 
 // Riceve sempre "tx": la transazione aperta dal service.
@@ -138,10 +147,10 @@ export class BookingsRepository {
     return hiker?.id ?? null;
   }
 
-  // A rejected booking does not stop the hiker from trying again.
+  // A rejected or cancelled booking does not stop the hiker from trying again.
   async hasActiveBooking(tx: Tx, hikerId: number, slotId: number): Promise<boolean> {
     const count = await tx.booking.count({
-      where: { hikerId, slotId, status: { not: 'REJECTED' } },
+      where: { hikerId, slotId, status: { notIn: ['REJECTED', 'CANCELLED'] } },
     });
     return count > 0;
   }
@@ -152,7 +161,7 @@ export class BookingsRepository {
       id: booking.id,
       slotId: booking.slotId,
       partySize: booking.partySize,
-      status: booking.status,
+      status: 'PENDING',
     };
   }
 
@@ -210,5 +219,29 @@ export class BookingsRepository {
         assignedSeats: a.assignedSeats,
       })),
     });
+  }
+
+  // Locks the booking row: a concurrent cancellation of the same booking waits.
+  // null if the booking does not exist.
+  async lockBooking(tx: Tx, bookingId: number): Promise<BookingToCancel | null> {
+    if (!Number.isInteger(bookingId) || bookingId <= 0 || bookingId > MAX_DB_INT) return null;
+    const rows = await tx.$queryRaw<{ hiker_id: number; status: BookingStatus }[]>`
+      SELECT hiker_id, status::text AS status FROM bookings WHERE id = ${bookingId} FOR UPDATE`;
+    const row = rows[0];
+    return row ? { hikerId: row.hiker_id, status: row.status } : null;
+  }
+
+  // The booking_tables rows stay as history: only CONFIRMED and PENDING bookings occupy seats.
+  async cancelBooking(tx: Tx, bookingId: number): Promise<CancelledBooking> {
+    const booking = await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: 'CANCELLED' },
+    });
+    return {
+      id: booking.id,
+      slotId: booking.slotId,
+      partySize: booking.partySize,
+      status: 'CANCELLED',
+    };
   }
 }

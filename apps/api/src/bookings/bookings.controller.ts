@@ -1,7 +1,16 @@
-import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import type { BookingResult, CreateBookingInput } from '@mountain-hut/shared';
+import type { BookingResult, CancelledBooking, CreateBookingInput } from '@mountain-hut/shared';
 import { createBookingSchema } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
@@ -26,5 +35,15 @@ export class BookingsController {
     @Body(new ZodValidationPipe(createBookingSchema)) body: CreateBookingInput,
   ): Promise<BookingResult> {
     return this.bookings.create(req.user.id, body);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @Roles('HIKER')
+  cancel(
+    @Req() req: Request & { user: { id: number } },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CancelledBooking> {
+    return this.bookings.cancel(req.user.id, id);
   }
 }

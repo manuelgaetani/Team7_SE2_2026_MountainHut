@@ -44,3 +44,11 @@ export interface BookingResult {
   status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
   tables: { tableNumber: number; assignedSeats: number }[];
 }
+
+// Result of cancelling a booking. Its seats are free again.
+export interface CancelledBooking {
+  id: number;
+  slotId: number;
+  partySize: number;
+  status: 'CANCELLED';
+}
