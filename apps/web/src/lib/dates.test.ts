@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromIsoDate, isIsoDate, toIsoDate } from './dates.ts';
+import { dateLong, fromIsoDate, isIsoDate, toIsoDate } from './dates.ts';
 
 describe('isIsoDate', () => {
   it('accepts a real calendar date', () => {
@@ -22,5 +22,12 @@ describe('isIsoDate', () => {
 describe('fromIsoDate and toIsoDate', () => {
   it('are the inverse of each other', () => {
     expect(toIsoDate(fromIsoDate('2026-11-04'))).toBe('2026-11-04');
+  });
+});
+
+describe('dateLong', () => {
+  it('writes the weekday and the month in full', () => {
+    expect(dateLong(fromIsoDate('2026-11-15'))).toBe('Sunday 15 November');
+    expect(dateLong(fromIsoDate('2026-01-01'))).toBe('Thursday 1 January');
   });
 });

@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import type { FloorGroup, FloorTable } from '@mountain-hut/shared';
+import type { FloorGroup } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
+import type { MomentTable } from './floorMoments.ts';
 import {
   floorErrorMessage,
   groupTablesLabel,
   onTablesLabel,
-  otherSlotTime,
+  otherSlotsLabel,
   peopleLabel,
   seatAriaLabel,
   seatsTakenLabel,
   tableTakenLabel,
 } from './floorLabels.ts';
 
-const table = (occupiedSeats: number, capacity = 4): FloorTable => ({
+const table = (taken: number, capacity = 4): MomentTable => ({
   tableNumber: 1,
   capacity,
-  occupiedSeats,
-  freeSeats: capacity - occupiedSeats,
   groups: [],
+  otherSeats: 0,
+  freeSeats: capacity - taken,
 });
 
 const group: FloorGroup = {
@@ -33,7 +34,6 @@ const group: FloorGroup = {
     { tableNumber: 5, seats: 2 },
   ],
 };
-const slot = { id: 5, date: '2026-11-14', startTime: '12:30', endTime: '13:30' };
 
 describe('floor labels', () => {
   it('uses the singular only for one person', () => {
@@ -57,10 +57,13 @@ describe('floor labels', () => {
     expect(onTablesLabel(2)).toBe('on 2 tables');
   });
 
-  it('shows the time of the booked slot only when it differs from the one shown', () => {
-    expect(otherSlotTime(group, slot)).toBeNull();
-    expect(otherSlotTime({ ...group, startTime: '12:00', endTime: '13:00' }, slot)).toBe(
-      '12:00–13:00',
+  it('names the overlapping slots', () => {
+    expect(otherSlotsLabel(['12:00–13:00'])).toBe('the slot 12:00–13:00');
+    expect(otherSlotsLabel(['11:30–12:30', '13:00–14:00'])).toBe(
+      'the slots 11:30–12:30 and 13:00–14:00',
+    );
+    expect(otherSlotsLabel(['11:00–12:30', '11:30–12:30', '12:00–13:00'])).toBe(
+      'the slots 11:00–12:30, 11:30–12:30 and 12:00–13:00',
     );
   });
 
