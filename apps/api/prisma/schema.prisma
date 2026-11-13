@@ -67,6 +67,7 @@ enum BookingStatus {
   CONFIRMED
   PENDING
   REJECTED
+  CANCELLED
 
   @@map("booking_status")
 }
@@ -111,8 +112,8 @@ model Booking {
   tables        BookingTable[]
   notifications Notification[]
 
-  // A partial unique index on (hikerId, slotId) ignores rejected bookings: see the
-  // one_booking_per_slot migration.
+  // A partial unique index on (hikerId, slotId) ignores rejected and cancelled bookings: see the
+  // one_booking_per_slot and one_booking_per_slot_ignores_cancelled migrations.
   @@unique([id, slotId])
   @@index([hikerId])
   @@index([slotId])
