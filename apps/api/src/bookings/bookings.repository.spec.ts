@@ -231,4 +231,36 @@ describe('BookingsRepository', () => {
       });
     });
   });
+
+  describe('findSlotStartingAt', () => {
+    const now = new Date('2026-11-01T10:00:00Z');
+
+    it('returns the id and the start of the slot', async () => {
+      const startsAt = new Date('2026-11-02T11:00:00Z');
+      client.$queryRaw.mockResolvedValue([{ id: 3, starts_at: startsAt }]);
+      await expect(
+        repository.findSlotStartingAt(tx, '2026-11-02', '12:00', 'Europe/Rome', now),
+      ).resolves.toEqual({ id: 3, startsAt });
+    });
+
+    it('returns null when no slot starts at that date and time', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(
+        repository.findSlotStartingAt(tx, '2026-11-02', '12:00', 'Europe/Rome', now),
+      ).resolves.toBeNull();
+    });
+
+    it('takes the oldest slot and ignores the slots that have already started', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotStartingAt(tx, '2026-11-02', '12:00', 'Europe/Rome', now);
+      expect(queryText()).toContain('ORDER BY s.id');
+      expect(queryText()).toContain('LIMIT 1');
+    });
+
+    it('binds the values instead of concatenating them', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotStartingAt(tx, '2026-11-02', '12:00', 'Europe/Rome', now);
+      expect(queryValues()).toEqual(['Europe/Rome', '2026-11-02', '12:00', 'Europe/Rome', now]);
+    });
+  });
 });
