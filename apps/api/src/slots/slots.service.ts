@@ -7,11 +7,14 @@ import {
 import type {
   CreateSlotInput,
   DefineSlotTablesInput,
+  RepeatWeeklyScheduleInput,
+  RepeatWeeklyScheduleResult,
   SlotDetails,
   SlotTable,
 } from '@mountain-hut/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { addDays, projectWeeklySchedule } from './repeat-schedule-calculator.js';
 import { SlotsRepository } from './slots.repository.js';
 import type { SlotRow, TableRow } from './slots.repository.js';
 
@@ -95,6 +98,77 @@ export class SlotsService {
       if (tables) await this.repo.createTables(tx, id, tables);
     });
     return this.findOne(id);
+  }
+
+  // MH-09: copies the slots of the 7 days starting at sourceStartDate, with their tables, into each
+  // of the next repeatWeeks weeks, on the same weekdays. A target week is replaced completely: its
+  // slots are deleted first. This is refused if a slot of a target week has reservations (course
+  // issue #45), and when the source week has no slots. All or nothing, in one transaction.
+  async repeatWeekly(input: RepeatWeeklyScheduleInput): Promise<RepeatWeeklyScheduleResult> {
+    const source = input.sourceStartDate;
+    const firstTarget = addDays(source, 7);
+    const lastTarget = addDays(source, 7 * input.repeatWeeks + 6);
+
+    return this.prisma.$transaction(async (tx) => {
+      // Always in date order, so two copies on overlapping weeks cannot deadlock.
+      for (let day = firstTarget; day <= lastTarget; day = addDays(day, 1)) {
+        await this.repo.lockDay(tx, toDbDate(day));
+      }
+
+      const sourceSlots = (
+        await this.repo.findBetween(tx, toDbDate(source), toDbDate(addDays(source, 6)))
+      ).map(toDetails);
+      if (sourceSlots.length === 0) {
+        throw new UnprocessableEntityException('Source week contains no time slots to repeat');
+      }
+
+      const from = toDbDate(firstTarget);
+      const to = toDbDate(lastTarget);
+      const [reserved] = await this.repo.findReservedDates(tx, from, to);
+      if (reserved) {
+        const daysAfterSource = (reserved.getTime() - toDbDate(source).getTime()) / 86_400_000;
+        const weekStart = addDays(source, 7 * Math.floor(daysAfterSource / 7));
+        throw new ConflictException(
+          `The week starting ${weekStart} has reservations: its schedule cannot be replaced`,
+        );
+      }
+
+      const replaced = await this.repo.findBetween(tx, from, to);
+      if (replaced.length > 0) {
+        await this.repo.deleteSlots(
+          tx,
+          replaced.map((s) => s.id),
+        );
+      }
+
+      const createdSlots: SlotDetails[] = [];
+      for (const slot of projectWeeklySchedule(sourceSlots, input.repeatWeeks)) {
+        const id = await this.repo.create(tx, {
+          date: toDbDate(slot.date),
+          startTime: toDbTime(slot.startTime),
+          endTime: toDbTime(slot.endTime),
+        });
+        if (slot.tables.length > 0) await this.repo.createTables(tx, id, slot.tables);
+        createdSlots.push({
+          id,
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          tables: slot.tables,
+          totalSeats: slot.tables.reduce((sum, t) => sum + t.seats, 0),
+        });
+      }
+      createdSlots.sort(
+        (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime),
+      );
+
+      return {
+        targetWeeks: input.repeatWeeks,
+        createdSlotsCount: createdSlots.length,
+        replacedSlotsCount: replaced.length,
+        createdSlots,
+      };
+    });
   }
 
   // The tables given in the request, or a copy of another slot's tables. Undefined if neither.
