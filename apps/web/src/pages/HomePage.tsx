@@ -45,13 +45,18 @@ export function HomePage() {
                   A simple place to rest, eat and set off again. Plan your stop with confidence.
                 </p>
                 {!isPending && (
-                  <Link
-                    to={user ? '/book' : '/register'}
-                    className="button-primary button-primary--inline"
-                  >
-                    <span>{user ? 'Book a table' : 'Register to book a table'}</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
+                  <div className="home-hero__actions">
+                    <Link
+                      to={user ? '/book' : '/register'}
+                      className="button-primary button-primary--inline"
+                    >
+                      <span>{user ? 'Book a table' : 'Register to book a table'}</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                    <Link to="/availability" className="home-hero__link">
+                      Check availability
+                    </Link>
+                  </div>
                 )}
               </>
             )}

@@ -299,6 +299,20 @@ a.button-primary {
   padding-bottom: 80px;
 }
 
+.home-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.home-hero__link {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-underline-offset: 4px;
+}
+
 .eyebrow {
   margin: 0 0 20px;
   color: #e9ddc4;
