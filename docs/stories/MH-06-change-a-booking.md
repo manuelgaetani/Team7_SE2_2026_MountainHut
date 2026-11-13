@@ -2,7 +2,7 @@
 
 |                |                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------- |
-| **Status**     | API complete; web app and integration tests pending                                             |
+| **Status**     | API complete, with one open defect (R6, course issue #43); web app pending                      |
 | **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation), MH-05 (party requirements) |
 
 ## User story
@@ -31,18 +31,18 @@ Team assumptions, not confirmed by the PO:
 
 ## Requirements
 
-| #   | Requirement                                                                                        | Status | Implemented in                                                                          |
-| --- | -------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------- |
-| R1  | Hiker role restriction: only authenticated hikers can modify their bookings (`HIKER` role, RBAC)   | Done   | `BookingsController.change` (`@Roles('HIKER')`)                                         |
-| R2  | Ownership check: hikers can only modify reservations belonging to their own hiker profile          | Done   | `BookingsService.change`                                                                |
-| R3  | Modifiable fields: supports modifying date/time (via target `slotId`), `partySize`, `requirements` | Done   | `changeBookingSchema`, `BookingsService.change`                                         |
-| R4  | Input validation: non-empty update, positive IDs within DB limits, party size >= 1, max 500 chars  | Done   | `changeBookingSchema`                                                                   |
-| R5  | 48-hour cutoff: changes requested less than 48 hours before the booked slot are rejected           | Done   | `isChangeAdmitted` (`booking-change-cutoff.ts`)                                         |
-| R6  | Target slot cutoff: target slot must be at least 2 hours in the future (422)                       | Done   | `BookingsService.change`, `isBookableInTime`                                            |
-| R7  | Automatic verification of availability: party size changes verify seat capacity against tables     | Done   | `canAccommodatePartyChange` (`change-seat-allocation.ts`)                               |
-| R8  | Atomic table reallocation: table assignments are recalculated and updated in a single transaction  | Done   | `BookingsService.change`, `BookingsRepository`                                          |
-| R9  | Not found handling: returns 404 if booking or target slot does not exist                           | Done   | `BookingsService.change`                                                                |
-| R10 | The hiker is notified of the change by email                                                       | Done   | `BookingsService.change`, `NotificationService.sendBookingChange`, `bookingChangeEmail` |
+| #   | Requirement                                                                                            | Status | Implemented in                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------------- |
+| R1  | Hiker role restriction: only authenticated hikers can modify their bookings (`HIKER` role, RBAC)       | Done   | `BookingsController.change` (`@Roles('HIKER')`)                                         |
+| R2  | Ownership check: hikers can only modify reservations belonging to their own hiker profile              | Done   | `BookingsService.change`                                                                |
+| R3  | Modifiable fields: supports modifying date/time (via target `slotId`), `partySize`, `requirements`     | Done   | `changeBookingSchema`, `BookingsService.change`                                         |
+| R4  | Input validation: non-empty update, positive IDs within DB limits, party size >= 1, max 500 chars      | Done   | `changeBookingSchema`                                                                   |
+| R5  | 48-hour cutoff: changes requested less than 48 hours before the booked slot are rejected               | Done   | `isChangeAdmitted` (`booking-change-cutoff.ts`)                                         |
+| R6  | Target slot cutoff: the new slot must start at least 48 hours after the change (422, course issue #43) | Defect | `BookingsService.change` checks only 2 hours (`isBookableInTime`)                       |
+| R7  | Automatic verification of availability: party size changes verify seat capacity against tables         | Done   | `canAccommodatePartyChange` (`change-seat-allocation.ts`)                               |
+| R8  | Atomic table reallocation: table assignments are recalculated and updated in a single transaction      | Done   | `BookingsService.change`, `BookingsRepository`                                          |
+| R9  | Not found handling: returns 404 if booking or target slot does not exist                               | Done   | `BookingsService.change`                                                                |
+| R10 | The hiker is notified of the change by email                                                           | Done   | `BookingsService.change`, `NotificationService.sendBookingChange`, `bookingChangeEmail` |
 
 ### Decisions
 
@@ -159,20 +159,25 @@ Migrations:
 npm run test -w @mountain-hut/shared -- src/booking-change.spec.ts
 npm run test -w @mountain-hut/api -- src/bookings/booking-change-cutoff.spec.ts src/bookings/change-seat-allocation.spec.ts
 
+# Integration tests against PostgreSQL
+docker compose up -d db
+npm run test:int -w @mountain-hut/api -- test/booking-change.int-spec.ts
+
 # E2E tests, against the running Docker stack
 docker compose up --build -d --wait
 npm run e2e:api -w @mountain-hut/e2e -- tests/api/booking-change.spec.ts
 npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 ```
 
-| Spec                                                   | Covers                                                                                                                                                                 |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check                                                                     |
-| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons                                                                        |
-| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability                                                                     |
-| `apps/api/src/bookings/bookings.repository.spec.ts`    | Free seats of a slot without the booking being changed                                                                                                                 |
-| `e2e/tests/api/booking-change.spec.ts`                 | Black-box API: date/time change, party size, requirements, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email                      |
-| `e2e/tests/web/booking-change.spec.ts`                 | Black-box Web: UI booking edit, slot picker, 48h cutoff warning, capacity conflict notice, login redirection (stubs with `test.skip` pending web frontend integration) |
+| Spec                                                   | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/booking-change.spec.ts`           | Black-box schema tests: BVA for slotId/partySize/requirements, equivalence partitions, empty check                                                                                                                                                                                                                                                                                                                                                      |
+| `apps/api/src/bookings/booking-change-cutoff.spec.ts`  | Black-box domain cutoff: BVA on 48h boundary (exact, +1ms, -1h, midnight), boundary comparisons                                                                                                                                                                                                                                                                                                                                                         |
+| `apps/api/src/bookings/change-seat-allocation.spec.ts` | Black-box availability: single-table fit, multi-table allocation, capacity rejection, immutability                                                                                                                                                                                                                                                                                                                                                      |
+| `apps/api/src/bookings/bookings.repository.spec.ts`    | Free seats of a slot without the booking being changed                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `apps/api/test/booking-change.int-spec.ts`             | On PostgreSQL: larger party kept at its table or seated again (issue #38), refused increase unchanged, freed seats, move to another slot, move + size, same-slot and missing-slot refusals, requirements, 48-hour boundary and refusals (issue #43), ownership, rejected booking, parallel changes and bookings without overbooking, no deadlock on swapped slots, change email `BOOKING_CHANGE` sent or failed (issue #41), rollback on a failed write |
+| `e2e/tests/api/booking-change.spec.ts`                 | Black-box API: date/time change, party size, requirements, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email                                                                                                                                                                                                                                                                                                       |
+| `e2e/tests/web/booking-change.spec.ts`                 | Black-box Web: UI booking edit, slot picker, 48h cutoff warning, capacity conflict notice, login redirection (stubs with `test.skip` pending web frontend integration)                                                                                                                                                                                                                                                                                  |
 
 ### Test Coverage Roadmap & Pending Tests
 
@@ -186,8 +191,7 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
   - Gray-box unit tests verifying Italian CET/CEST daylight saving transitions across the 48-hour boundary.
   - Gray-box unit tests verifying Prisma SQL row locking order (`SELECT ... FOR UPDATE OF s_other`) and foreign key cascade behavior.
   - Gray-box unit tests for HTTP response headers, CORS headers, and cookie serialization.
-- **TODO(MH-06-integration):**
-  - PostgreSQL integration tests (`test/booking-change.int-spec.ts`) verifying concurrent modification requests and row-level locking on real DB.
+- **Open defect found by the integration tests:** `refuses to move the booking to a slot that starts in less than 48 hours` fails. Course issue #43 applies the 48-hour rule to the new slot too, but `BookingsService.change` only checks that the new slot starts in 2 hours or more.
 - **TODO(MH-06-e2e):**
   - Planned future scenarios documented in `e2e/tests/api/booking-change.spec.ts` (concurrent modification race conditions, cancelled/rejected status, seasonal closure rejection, audit trail).
   - Planned future scenarios documented in `e2e/tests/web/booking-change.spec.ts` (cancel/discard changes, keyboard accessibility, visual diff comparison, screen reader 48h deadline announcement).
@@ -204,6 +208,6 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 
 ## Open points
 
-- **48-hour cutoff:** to confirm with the PO that it is measured from the slot start (current reading) and not from 00:00 of the booked day.
+- **48-hour cutoff:** confirmed by the PO in course issue #43: at least 48 hours before the meal starts, for the booked slot and for the new one. The new slot is still checked against 2 hours only (R6).
 - **Party requirements format:** MH-05 turns `requirements` into a structured list. When it is merged, `changeBookingSchema`, the change email and this page must follow the new format.
 - **Branch content:** this branch also carries the MH-04 and MH-05 story docs and E2E tests, which fail until those stories are implemented.
