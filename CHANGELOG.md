@@ -11,6 +11,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 - Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` is the start time of a slot. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
+- Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the table layout and the tables, or "Not available" with the reason.
 
 ### Changed
 
