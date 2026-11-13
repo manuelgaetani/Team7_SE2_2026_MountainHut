@@ -1,0 +1,63 @@
+/* Public availability check (MH-04). Builds on the classes of BookingPage.css and styles.css. */
+
+.availability {
+  display: grid;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.availability-form {
+  display: grid;
+  gap: 16px;
+}
+.availability-form .field {
+  margin-bottom: 0;
+}
+.availability-form__fields {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+}
+
+.availability-result {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.availability-result p {
+  margin: 0;
+}
+.availability-result__status {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.availability-result--ok .availability-result__status {
+  color: var(--green);
+}
+.availability-result--no {
+  border-color: #c9a9a2;
+}
+.availability-result__asked {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.availability-result__tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.availability-result__tables li {
+  padding: 4px 10px;
+  background: var(--tint);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+@media (max-width: 560px) {
+  .availability-form__fields {
+    grid-template-columns: 1fr;
+  }
+}

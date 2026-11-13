@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { App } from './App.tsx';
+import { AvailabilityPage } from './pages/AvailabilityPage.tsx';
 import { BookingPage } from './pages/BookingPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
@@ -15,6 +16,7 @@ export const routes = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'book', element: <BookingPage /> },
+      { path: 'availability', element: <AvailabilityPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'staff/slots', element: <SlotsPage /> },
