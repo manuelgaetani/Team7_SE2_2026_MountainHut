@@ -7,8 +7,14 @@ describe('BookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
-    bookingTable: { createMany: vi.fn() },
+    booking: {
+      create: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      update: vi.fn(),
+    },
+    bookingTable: { createMany: vi.fn(), deleteMany: vi.fn() },
   };
   const tx = client as unknown as Prisma.TransactionClient;
 
@@ -64,11 +70,12 @@ describe('BookingsRepository', () => {
       await expect(repository.hasActiveBooking(tx, 7, 3)).resolves.toBe(expected);
     });
 
-    it('ignores the rejected bookings', async () => {
+    // MH-08: a cancelled booking, like a rejected one, lets the hiker book the slot again.
+    it('ignores the rejected and the cancelled bookings', async () => {
       client.booking.count.mockResolvedValue(0);
       await repository.hasActiveBooking(tx, 7, 3);
       expect(client.booking.count).toHaveBeenCalledWith({
-        where: { hikerId: 7, slotId: 3, status: { not: 'REJECTED' } },
+        where: { hikerId: 7, slotId: 3, status: { notIn: ['REJECTED', 'CANCELLED'] } },
       });
     });
   });
@@ -228,6 +235,80 @@ describe('BookingsRepository', () => {
           { bookingId: 9, slotId: 3, tableNumber: 1, assignedSeats: 4 },
           { bookingId: 9, slotId: 3, tableNumber: 2, assignedSeats: 2 },
         ],
+      });
+    });
+  });
+
+  // MH-08: cancel a booking.
+  describe('lockBooking', () => {
+    it('returns the hiker and the status of the booking', async () => {
+      client.$queryRaw.mockResolvedValue([{ hiker_id: 7, status: 'CONFIRMED' }]);
+      await expect(repository.lockBooking(tx, 9)).resolves.toEqual({
+        hikerId: 7,
+        status: 'CONFIRMED',
+      });
+    });
+
+    it('returns null when the booking does not exist', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.lockBooking(tx, 9)).resolves.toBeNull();
+    });
+
+    it('locks the row and binds the id instead of concatenating it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(tx, 9);
+      expect(queryText()).toContain('FOR UPDATE');
+      expect(queryValues()).toEqual([9]);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, 2_147_483_648])(
+      'returns null for the id %s without querying the database',
+      async (bookingId) => {
+        await expect(repository.lockBooking(tx, bookingId)).resolves.toBeNull();
+        expect(client.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it('queries the database for the largest id Postgres can store', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(tx, 2_147_483_647);
+      expect(queryValues()).toEqual([2_147_483_647]);
+    });
+  });
+
+  describe('cancelBooking', () => {
+    const cancelled = {
+      id: 9,
+      hikerId: 7,
+      slotId: 3,
+      partySize: 2,
+      requirements: null,
+      status: 'CANCELLED',
+      createdAt: new Date('2026-11-01T10:00:00Z'),
+    };
+
+    it('marks the booking as cancelled', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await repository.cancelBooking(tx, 9);
+      expect(client.booking.update).toHaveBeenCalledWith({
+        where: { id: 9 },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    it('keeps the table assignments as history: the seat queries only count active bookings', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await repository.cancelBooking(tx, 9);
+      expect(client.bookingTable.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('returns the cancelled booking without the hiker id', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await expect(repository.cancelBooking(tx, 9)).resolves.toEqual({
+        id: 9,
+        slotId: 3,
+        partySize: 2,
+        status: 'CANCELLED',
       });
     });
   });

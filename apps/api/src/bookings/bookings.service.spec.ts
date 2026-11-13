@@ -32,6 +32,8 @@ describe('BookingsService', () => {
     createBookingTables: vi.fn(),
     findBookingConfirmation: vi.fn(),
     confirmBooking: vi.fn(),
+    lockBooking: vi.fn(),
+    cancelBooking: vi.fn(),
   };
   const notifications = { sendBookingConfirmation: vi.fn() };
   const confirmation = {
@@ -358,6 +360,97 @@ describe('BookingsService', () => {
       const failure = new Error('write failed');
       repo.createBookingTables.mockRejectedValue(failure);
       await expect(service.create(1, input)).rejects.toBe(failure);
+    });
+  });
+
+  // MH-08: a hiker cancels a booking, so that its seats are free for other guests.
+  describe('cancel', () => {
+    const cancelled = { id: 9, slotId: 3, partySize: 2, status: 'CANCELLED' as const };
+
+    beforeEach(() => {
+      repo.lockBooking.mockResolvedValue({ hikerId: 7, status: 'CONFIRMED' });
+      repo.cancelBooking.mockResolvedValue(cancelled);
+    });
+
+    describe('when the booking can be cancelled', () => {
+      it.each(['CONFIRMED', 'PENDING'] as const)(
+        'cancels a %s booking and returns it',
+        async (status) => {
+          repo.lockBooking.mockResolvedValue({ hikerId: 7, status });
+          await expect(service.cancel(1, 9)).resolves.toEqual(cancelled);
+          expect(repo.cancelBooking).toHaveBeenCalledWith(tx, 9);
+        },
+      );
+
+      it('looks for the hiker of the user, not for the user id', async () => {
+        await service.cancel(1, 9);
+        expect(repo.findHikerIdByUserId).toHaveBeenCalledWith(tx, 1);
+      });
+
+      it('runs every step in one transaction', async () => {
+        await service.cancel(1, 9);
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(repo.lockBooking).toHaveBeenCalledWith(tx, 9);
+      });
+
+      it('locks the booking before cancelling it', async () => {
+        await service.cancel(1, 9);
+        expect(repo.lockBooking.mock.invocationCallOrder[0]).toBeLessThan(
+          repo.cancelBooking.mock.invocationCallOrder[0]!,
+        );
+      });
+
+      it('sends no email', async () => {
+        await service.cancel(1, 9);
+        expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
+        expect(notifications.sendBookingConfirmation).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the user has no hiker profile', () => {
+      it('answers 403 before touching the booking', async () => {
+        repo.findHikerIdByUserId.mockResolvedValue(null);
+        await expect(service.cancel(1, 9)).rejects.toBeInstanceOf(ForbiddenException);
+        expect(repo.lockBooking).not.toHaveBeenCalled();
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the booking cannot be found by the hiker', () => {
+      it('answers 404 when the booking does not exist', async () => {
+        repo.lockBooking.mockResolvedValue(null);
+        await expect(service.cancel(1, 9)).rejects.toThrow(
+          new NotFoundException('Booking not found'),
+        );
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+
+      it('answers 404, as for a missing booking, when it belongs to another hiker', async () => {
+        repo.lockBooking.mockResolvedValue({ hikerId: 8, status: 'CONFIRMED' });
+        await expect(service.cancel(1, 9)).rejects.toThrow(
+          new NotFoundException('Booking not found'),
+        );
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the booking is no longer active', () => {
+      it.each([
+        ['CANCELLED', 'This booking is already cancelled'],
+        ['REJECTED', 'A rejected booking cannot be cancelled'],
+      ] as const)('answers 409 for a %s booking and writes nothing', async (status, message) => {
+        repo.lockBooking.mockResolvedValue({ hikerId: 7, status });
+        await expect(service.cancel(1, 9)).rejects.toThrow(new ConflictException(message));
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when a write fails', () => {
+      it('propagates the error so that the transaction rolls back', async () => {
+        const failure = new Error('write failed');
+        repo.cancelBooking.mockRejectedValue(failure);
+        await expect(service.cancel(1, 9)).rejects.toBe(failure);
+      });
     });
   });
 });

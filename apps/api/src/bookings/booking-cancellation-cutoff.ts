@@ -5,4 +5,3 @@ export const DEFAULT_CANCELLATION_CUTOFF_HOURS = 24;
 export const isCancellationAdmitted: (startsAt: Date, now: Date) => boolean = () => {
   throw new Error('Not implemented');
 };
-

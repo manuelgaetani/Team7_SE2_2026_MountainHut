@@ -1,8 +1,7 @@
 import type { BookingStatus } from '../generated/prisma/client.js';
 
 export type CancellationDecision =
-  | { ok: true }
-  | { ok: false; reason: 'ALREADY_CANCELLED' | 'ALREADY_REJECTED' };
+  { ok: true } | { ok: false; reason: 'ALREADY_CANCELLED' | 'ALREADY_REJECTED' };
 
 export interface BookingCancellationRequest {
   status: BookingStatus;

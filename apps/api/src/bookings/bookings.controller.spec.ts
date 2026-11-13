@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { Test } from '@nestjs/testing';
@@ -22,7 +22,7 @@ const result = {
 
 describe('BookingsController', () => {
   let app: INestApplication<App>;
-  const bookings = { create: vi.fn() };
+  const bookings = { create: vi.fn(), cancel: vi.fn() };
   // Role of the fake authenticated user: each test can change it.
   let role: Role;
 
@@ -108,6 +108,57 @@ describe('BookingsController', () => {
       role = 'EMPLOYEE';
       await post({ slotId: 3, partySize: 0 }).expect(403);
       expect(bookings.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // MH-08: POST /bookings/:id/cancel.
+  describe('cancel', () => {
+    const cancelled = { id: 9, slotId: 3, partySize: 2, status: 'CANCELLED' };
+    const cancel = (id: string) =>
+      request(app.getHttpServer()).post(`/bookings/${id}/cancel`).send();
+
+    it('allows only hikers to cancel', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.cancel)).toEqual([
+        'HIKER',
+      ]);
+    });
+
+    it('answers 200 with the cancelled booking', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      const response = await cancel('9').expect(200);
+      expect(response.body).toEqual(cancelled);
+    });
+
+    it('cancels for the authenticated user, with the id of the path as a number', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      await cancel('9');
+      expect(bookings.cancel).toHaveBeenCalledWith(1, 9);
+    });
+
+    it.each(['abc', '1.5'])(
+      'answers 400 without calling the service for the id "%s"',
+      async (id) => {
+        await cancel(id).expect(400);
+        expect(bookings.cancel).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 for a %s without calling the service',
+      async (staffRole) => {
+        role = staffRole;
+        await cancel('9').expect(403);
+        expect(bookings.cancel).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [new NotFoundException('Booking not found'), 404],
+      [new ConflictException('This booking is already cancelled'), 409],
+      [new ForbiddenException('A hiker profile is required to cancel a booking'), 403],
+    ])('propagates %s from the service', async (error, status) => {
+      bookings.cancel.mockRejectedValue(error);
+      await cancel('9').expect(status);
     });
   });
 });

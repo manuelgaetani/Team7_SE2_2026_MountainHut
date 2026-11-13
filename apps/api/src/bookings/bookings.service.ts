@@ -6,7 +6,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { BookingResult, CreateBookingInput, SlotSummary, CancelledBooking} from '@mountain-hut/shared';
+import type {
+  BookingResult,
+  CreateBookingInput,
+  SlotSummary,
+  CancelledBooking,
+} from '@mountain-hut/shared';
 import { bookingTimeZone } from '../common/booking-config.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
