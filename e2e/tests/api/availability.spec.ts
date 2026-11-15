@@ -2,7 +2,13 @@ import { randomInt, randomUUID } from 'node:crypto';
 import type { APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
-import { createImminentSlot, createPastSlot, createSlot, deleteSlot } from '../../fixtures/db.js';
+import {
+  createImminentSlot,
+  createPastSlot,
+  createSlot,
+  deleteSlot,
+  slotStart,
+} from '../../fixtures/db.js';
 
 interface TableAllocation {
   tableNumber: number;
@@ -382,11 +388,15 @@ test.describe('MH-04 Gray-Box API: Database State & Constraints', () => {
   test('slot in the past returns reason NO_SLOT because past slots cannot be checked', async ({
     request,
   }) => {
-    // Gray-box: insert past slot directly into PostgreSQL
-    trackSlot(createPastSlot([4, 6]));
+    // Gray-box: insert past slot directly into PostgreSQL. Its date is random, so read it back:
+    // the query must hit this very slot, otherwise NO_SLOT would only mean "nothing there".
+    const slotId = trackSlot(createPastSlot([4, 6]));
+    const { date, time } = slotStart(slotId);
+    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(time).toBe('19:00');
 
-    // Query availability for a date in the past
-    const checkRes = await request.get(`/api/availability?date=2001-01-01&time=19:00&partySize=2`);
+    // Query availability for the date and start time of the past slot
+    const checkRes = await request.get(`/api/availability?date=${date}&time=${time}&partySize=2`);
     expect(checkRes.status()).toBe(200);
 
     const body = (await checkRes.json()) as AvailabilityResponse;
