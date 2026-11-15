@@ -1,26 +1,25 @@
-import type { FloorGroup, FloorPlan } from '@mountain-hut/shared';
-import { groupTablesLabel, onTablesLabel, otherSlotTime, peopleLabel } from '../lib/floorLabels.ts';
+import type { FloorGroup } from '@mountain-hut/shared';
+import { groupTablesLabel, onTablesLabel, peopleLabel } from '../lib/floorLabels.ts';
 import { GroupBadge } from './GroupBadge.tsx';
 
 interface FloorGroupsProps {
+  // Only the groups that booked the slot shown.
   groups: FloorGroup[];
-  slot: FloorPlan['slot'];
   selected: string | null;
   onSelect: (label: string | null) => void;
 }
 
-// The side list of the groups seated in the slot. A row can be selected: the selected one
+// The side list of the groups that booked the slot. A row can be selected: the selected one
 // shows where its people sit.
-export function FloorGroups({ groups, slot, selected, onSelect }: FloorGroupsProps) {
+export function FloorGroups({ groups, selected, onSelect }: FloorGroupsProps) {
   if (groups.length === 0) {
-    return <p className="field__hint">No bookings yet: every seat is free.</p>;
+    return <p className="field__hint">Nobody has booked this slot yet.</p>;
   }
 
   return (
     <ul className="floor-groups" aria-label="Groups of the slot">
       {groups.map((group) => {
         const isSelected = selected === group.label;
-        const otherTime = otherSlotTime(group, slot);
         const split = group.tables.length > 1;
         return (
           <li
@@ -40,7 +39,6 @@ export function FloorGroups({ groups, slot, selected, onSelect }: FloorGroupsPro
                   {group.fullName} · {peopleLabel(group.partySize)}
                 </span>
                 <span className="floor-group__tables">{groupTablesLabel(group)}</span>
-                {otherTime && <span className="floor-group__time">Slot {otherTime}</span>}
               </span>
               <span className="floor-group__tags">
                 {group.status === 'PENDING' && (
