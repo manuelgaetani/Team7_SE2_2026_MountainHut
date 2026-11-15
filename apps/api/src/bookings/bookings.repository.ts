@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { MyBooking } from '@mountain-hut/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { Recipient } from '../notifications/notification.service.js';
 import type { BookingConfirmationData } from '../notifications/templates/booking-confirmation.js';
@@ -80,6 +81,51 @@ export class BookingsRepository {
       endTime: r.end_time,
       startsAt: r.starts_at,
       freeSeats: r.free_seats,
+    }));
+  }
+
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  async findUpcomingBookingsOfHiker(
+    client: Tx,
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]> {
+    const rows = await client.$queryRaw<
+      {
+        id: number;
+        slot_id: number;
+        date: string;
+        start_time: string;
+        end_time: string;
+        party_size: number;
+        requirements: string | null;
+        status: MyBooking['status'];
+      }[]
+    >`
+      SELECT b.id,
+             b.slot_id,
+             to_char(s.date, 'YYYY-MM-DD') AS date,
+             to_char(s.start_time, 'HH24:MI') AS start_time,
+             to_char(s.end_time, 'HH24:MI') AS end_time,
+             b.party_size,
+             b.requirements,
+             b.status::text AS status
+      FROM bookings b
+      JOIN slots s ON s.id = b.slot_id
+      WHERE b.hiker_id = ${hikerId}
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.date, s.start_time, b.id`;
+
+    return rows.map((r) => ({
+      id: r.id,
+      slotId: r.slot_id,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      partySize: r.party_size,
+      requirements: r.requirements,
+      status: r.status,
     }));
   }
 

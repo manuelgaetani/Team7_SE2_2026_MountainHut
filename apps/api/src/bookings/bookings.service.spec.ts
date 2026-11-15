@@ -27,6 +27,7 @@ describe('BookingsService', () => {
     findFreeSeatsByTable: vi.fn(),
     findHikerIdByUserId: vi.fn(),
     findUpcomingSlots: vi.fn(),
+    findUpcomingBookingsOfHiker: vi.fn(),
     hasActiveBooking: vi.fn(),
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
@@ -358,6 +359,35 @@ describe('BookingsService', () => {
       const failure = new Error('write failed');
       repo.createBookingTables.mockRejectedValue(failure);
       await expect(service.create(1, input)).rejects.toBe(failure);
+    });
+  });
+
+  describe('listMine', () => {
+    const mine = [{ id: 9, slotId: 3, date: '2026-11-21', status: 'CONFIRMED' }];
+
+    it('returns the upcoming bookings of the hiker of the user', async () => {
+      repo.findUpcomingBookingsOfHiker.mockResolvedValue(mine);
+      await expect(service.listMine(1)).resolves.toBe(mine);
+      expect(repo.findHikerIdByUserId).toHaveBeenCalledWith(prisma, 1);
+      expect(repo.findUpcomingBookingsOfHiker).toHaveBeenCalledWith(prisma, 7, 'Europe/Rome', NOW);
+    });
+
+    it('uses the configured booking time zone', async () => {
+      vi.stubEnv('BOOKING_TIMEZONE', 'Europe/London');
+      repo.findUpcomingBookingsOfHiker.mockResolvedValue([]);
+      await service.listMine(1);
+      expect(repo.findUpcomingBookingsOfHiker).toHaveBeenCalledWith(
+        prisma,
+        7,
+        'Europe/London',
+        NOW,
+      );
+    });
+
+    it('answers 403 when the user has no hiker profile', async () => {
+      repo.findHikerIdByUserId.mockResolvedValue(null);
+      await expect(service.listMine(1)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.findUpcomingBookingsOfHiker).not.toHaveBeenCalled();
     });
   });
 });

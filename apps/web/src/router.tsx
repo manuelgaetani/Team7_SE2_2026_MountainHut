@@ -4,6 +4,7 @@ import { BookingPage } from './pages/BookingPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
+import { MyBookingsPage } from './pages/MyBookingsPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SlotsPage } from './pages/SlotsPage.tsx';
 import { UnauthorizedPage } from './pages/UnauthorizedPage.tsx';
@@ -15,6 +16,7 @@ export const routes = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'book', element: <BookingPage /> },
+      { path: 'bookings', element: <MyBookingsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'staff/slots', element: <SlotsPage /> },

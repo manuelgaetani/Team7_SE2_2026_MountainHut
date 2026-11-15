@@ -36,3 +36,19 @@ export interface BookingResult {
   status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
   tables: { tableNumber: number; assignedSeats: number }[];
 }
+
+// CANCELLED is stored only once MH-08 (cancel a booking) is merged.
+export type MyBookingStatus = BookingResult['status'] | 'CANCELLED';
+
+// A booking of the logged hiker, as listed in GET /api/bookings/me.
+export interface MyBooking {
+  id: number;
+  slotId: number;
+  // Local time of the hut.
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  partySize: number;
+  requirements: string | null;
+  status: MyBookingStatus;
+}

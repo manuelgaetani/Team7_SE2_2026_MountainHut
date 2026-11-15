@@ -1,7 +1,7 @@
-import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import type { BookingResult, CreateBookingInput } from '@mountain-hut/shared';
+import type { BookingResult, CreateBookingInput, MyBooking } from '@mountain-hut/shared';
 import { createBookingSchema } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
@@ -16,6 +16,13 @@ import { BookingsService } from './bookings.service.js';
 @UseGuards(AuthGuard, RolesGuard)
 export class BookingsController {
   constructor(private readonly bookings: BookingsService) {}
+
+  // The upcoming bookings of the logged hiker.
+  @Get('me')
+  @Roles('HIKER')
+  listMine(@Req() req: Request & { user: { id: number } }): Promise<MyBooking[]> {
+    return this.bookings.listMine(req.user.id);
+  }
 
   @Post()
   @HttpCode(201)

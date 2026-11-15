@@ -231,4 +231,45 @@ describe('BookingsRepository', () => {
       });
     });
   });
+
+  describe('findUpcomingBookingsOfHiker', () => {
+    const now = new Date('2026-11-15T10:00:00Z');
+
+    it('maps the rows', async () => {
+      client.$queryRaw.mockResolvedValue([
+        {
+          id: 9,
+          slot_id: 3,
+          date: '2026-11-21',
+          start_time: '12:30',
+          end_time: '14:00',
+          party_size: 4,
+          requirements: null,
+          status: 'PENDING',
+        },
+      ]);
+      await expect(
+        repository.findUpcomingBookingsOfHiker(tx, 7, 'Europe/Rome', now),
+      ).resolves.toEqual([
+        {
+          id: 9,
+          slotId: 3,
+          date: '2026-11-21',
+          startTime: '12:30',
+          endTime: '14:00',
+          partySize: 4,
+          requirements: null,
+          status: 'PENDING',
+        },
+      ]);
+    });
+
+    it('reads only the slots not started yet, the soonest first, with bound values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(tx, 7, 'Europe/Rome', now);
+      expect(queryText()).toContain('WHERE b.hiker_id = ?');
+      expect(queryText()).toContain('ORDER BY s.date, s.start_time, b.id');
+      expect(queryValues()).toEqual([7, 'Europe/Rome', now]);
+    });
+  });
 });

@@ -22,7 +22,7 @@ const result = {
 
 describe('BookingsController', () => {
   let app: INestApplication<App>;
-  const bookings = { create: vi.fn() };
+  const bookings = { create: vi.fn(), listMine: vi.fn() };
   // Role of the fake authenticated user: each test can change it.
   let role: Role;
 
@@ -109,5 +109,43 @@ describe('BookingsController', () => {
       await post({ slotId: 3, partySize: 0 }).expect(403);
       expect(bookings.create).not.toHaveBeenCalled();
     });
+  });
+
+  describe('GET /bookings/me', () => {
+    const mine = [
+      {
+        id: 9,
+        slotId: 3,
+        date: '2026-11-21',
+        startTime: '12:30',
+        endTime: '14:00',
+        partySize: 4,
+        requirements: '2 vegetarians',
+        status: 'CONFIRMED',
+      },
+    ];
+    const get = () => request(app.getHttpServer()).get('/bookings/me');
+
+    it('allows only hikers to list their bookings', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.listMine)).toEqual([
+        'HIKER',
+      ]);
+    });
+
+    it('answers 200 with the bookings of the authenticated user', async () => {
+      bookings.listMine.mockResolvedValue(mine);
+      const response = await get().expect(200);
+      expect(response.body).toEqual(mine);
+      expect(bookings.listMine).toHaveBeenCalledWith(1);
+    });
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 for a %s without calling the service',
+      async (staffRole) => {
+        role = staffRole;
+        await get().expect(403);
+        expect(bookings.listMine).not.toHaveBeenCalled();
+      },
+    );
   });
 });

@@ -25,3 +25,14 @@ export const dateShort = (d: Date): string =>
   `${weekdayShort(d)} ${d.getDate()} ${new Intl.DateTimeFormat(LOCALE, { month: 'short' })
     .format(d)
     .replace('.', '')}`;
+
+/** "Saturday 21 November 2026" */
+export const dateLong = (d: Date): string => {
+  const part = (options: Intl.DateTimeFormatOptions): string =>
+    new Intl.DateTimeFormat(LOCALE, options).format(d);
+  return `${part({ weekday: 'long' })} ${d.getDate()} ${part({ month: 'long' })} ${d.getFullYear()}`;
+};
+
+/** "Nov" */
+export const monthShort = (d: Date): string =>
+  new Intl.DateTimeFormat(LOCALE, { month: 'short' }).format(d).replace('.', '');

@@ -6,7 +6,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
+import type {
+  BookingResult,
+  CreateBookingInput,
+  SlotSummary,
+  MyBooking,
+} from '@mountain-hut/shared';
 import { bookingTimeZone } from '../common/booking-config.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -36,6 +41,18 @@ export class BookingsService {
       ...slot,
       availability: slotAvailability(startsAt, now, slot.freeSeats),
     }));
+  }
+
+  // Upcoming bookings of the logged user, the soonest first.
+  async listMine(userId: number): Promise<MyBooking[]> {
+    const hikerId = await this.repo.findHikerIdByUserId(this.prisma, userId);
+    if (!hikerId) throw new ForbiddenException('A hiker profile is required to see your bookings');
+    return this.repo.findUpcomingBookingsOfHiker(
+      this.prisma,
+      hikerId,
+      bookingTimeZone(),
+      new Date(),
+    );
   }
 
   // userId è l'hiker che prenota: arriva dal token, mai dal body.
