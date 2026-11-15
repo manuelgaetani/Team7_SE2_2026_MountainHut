@@ -124,7 +124,9 @@ export class BookingsRepository {
       startTime: r.start_time,
       endTime: r.end_time,
       partySize: r.party_size,
-      requirements: r.requirements,
+      // TODO(MH-05): read the party_requirements rows once MH-05 is merged. Until then the
+      // single text column is one requirement without allergies.
+      requirements: r.requirements ? [{ allergies: false, description: r.requirements }] : [],
       status: r.status,
     }));
   }

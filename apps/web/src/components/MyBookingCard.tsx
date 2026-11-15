@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { MyBooking, MyBookingStatus } from '@mountain-hut/shared';
 import { dateLong, fromIsoDate, monthShort } from '../lib/dates.ts';
+import { ModifyBookingDialog } from './ModifyBookingDialog.tsx';
 
 const STATUS_LABEL: Record<MyBookingStatus, string> = {
   CONFIRMED: 'Confirmed',
@@ -10,11 +12,27 @@ const STATUS_LABEL: Record<MyBookingStatus, string> = {
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
-// The line at the bottom of the card: the party requirements, or what happens next.
-function note(booking: MyBooking): string | null {
-  if (booking.requirements) return `Requirements: ${booking.requirements}`;
+// Bottom of the card: the party requirements or, for a pending booking, what happens next.
+function CardFooter({ booking }: { booking: MyBooking }) {
+  if (booking.requirements.length > 0) {
+    return (
+      <div className="booking-card__note">
+        <p className="booking-card__note-title">Dietary requirements</p>
+        <ul className="booking-card__requirements">
+          {booking.requirements.map((r, i) => (
+            <li key={i}>
+              {r.allergies && <span className="badge badge--allergies">Allergies</span>}
+              {r.description}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   if (booking.status === 'PENDING') {
-    return "We'll email you as soon as the request is confirmed.";
+    return (
+      <p className="booking-card__note">We'll email you as soon as the request is confirmed.</p>
+    );
   }
   return null;
 }
@@ -24,7 +42,8 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
   const title = dateLong(day);
   const titleId = `booking-${booking.id}-title`;
   const active = booking.status === 'CONFIRMED' || booking.status === 'PENDING';
-  const footer = note(booking);
+  const [modifying, setModifying] = useState(false);
+  const [updated, setUpdated] = useState(false);
 
   return (
     <article className="booking-card" aria-labelledby={titleId}>
@@ -48,10 +67,18 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
           </p>
         </div>
 
-        {/* TODO(MH-06, MH-08): the actions are wired in the next steps of the stories. */}
+        {/* TODO(MH-08): the Cancel button is wired by the cancellation story. */}
         {active && (
           <div className="booking-card__actions">
-            <button type="button" className="pill" aria-label={`Modify booking of ${title}`}>
+            <button
+              type="button"
+              className="pill"
+              aria-label={`Modify booking of ${title}`}
+              onClick={() => {
+                setUpdated(false);
+                setModifying(true);
+              }}
+            >
               Modify
             </button>
             <button
@@ -65,7 +92,24 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
         )}
       </div>
 
-      {footer && <p className="booking-card__note">{footer}</p>}
+      <CardFooter booking={booking} />
+
+      {updated && (
+        <p role="status" className="notice notice--ok booking-card__updated">
+          Booking updated. We'll email you the new details.
+        </p>
+      )}
+
+      {modifying && (
+        <ModifyBookingDialog
+          booking={booking}
+          onClose={() => setModifying(false)}
+          onChanged={() => {
+            setModifying(false);
+            setUpdated(true);
+          }}
+        />
+      )}
     </article>
   );
 }

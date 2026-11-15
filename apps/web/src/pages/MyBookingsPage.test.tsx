@@ -25,7 +25,10 @@ const confirmed: MyBooking = {
   startTime: '12:30',
   endTime: '14:00',
   partySize: 4,
-  requirements: '2 vegetarians',
+  requirements: [
+    { allergies: true, description: '1 vegan, peanut allergy' },
+    { allergies: false, description: '2 vegetarians' },
+  ],
   status: 'CONFIRMED',
 };
 const pending: MyBooking = {
@@ -35,7 +38,7 @@ const pending: MyBooking = {
   startTime: '13:00',
   endTime: '14:30',
   partySize: 1,
-  requirements: null,
+  requirements: [],
   status: 'PENDING',
 };
 const cancelled: MyBooking = { ...confirmed, id: 3, date: '2026-11-29', status: 'CANCELLED' };
@@ -84,7 +87,11 @@ describe('MyBookingsPage', () => {
     expect(first).toHaveTextContent('Nov21');
     expect(first).toHaveTextContent('12:30 · 4 people');
     expect(first).toHaveTextContent('Confirmed');
-    expect(first).toHaveTextContent('Requirements: 2 vegetarians');
+    const requirements = within(first).getAllByRole('listitem');
+    expect(requirements.map((li) => li.textContent)).toEqual([
+      'Allergies1 vegan, peanut allergy',
+      '2 vegetarians',
+    ]);
 
     const second = card('Sunday 6 December 2026');
     expect(second).toHaveTextContent('Dec06');

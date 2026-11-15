@@ -1,151 +1,295 @@
-import { ConflictException } from '@nestjs/common';
-import type { ExecutionContext, INestApplication } from '@nestjs/common';
-import { GUARDS_METADATA } from '@nestjs/common/constants.js';
-import { Test } from '@nestjs/testing';
-import request from 'supertest';
-import type { App } from 'supertest/types.js';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Role } from '@mountain-hut/shared';
-import { AuthGuard } from '../auth/auth.guard.js';
-import { ROLES_KEY } from '../auth/roles.decorator.js';
-import { RolesGuard } from '../auth/roles.guard.js';
-import { BookingsController } from './bookings.controller.js';
-import { BookingsService } from './bookings.service.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Prisma } from '../generated/prisma/client.js';
+import { BookingsRepository } from './bookings.repository.js';
 
-const result = {
-  id: 9,
-  slotId: 3,
-  partySize: 2,
-  status: 'CONFIRMED',
-  tables: [{ tableNumber: 1, assignedSeats: 2 }],
-};
+describe('BookingsRepository', () => {
+  const repository = new BookingsRepository();
+  const client = {
+    $queryRaw: vi.fn(),
+    hiker: { findUnique: vi.fn() },
+    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+    bookingTable: { createMany: vi.fn() },
+  };
+  const tx = client as unknown as Prisma.TransactionClient;
 
-describe('BookingsController', () => {
-  let app: INestApplication<App>;
-  const bookings = { create: vi.fn(), listMine: vi.fn() };
-  // Role of the fake authenticated user: each test can change it.
-  let role: Role;
+  // $queryRaw is a tagged template: the SQL text comes first, then the bound values.
+  const queryText = () => (client.$queryRaw.mock.calls[0][0] as string[]).join('?');
+  const queryValues = () => client.$queryRaw.mock.calls[0].slice(1) as unknown[];
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetAllMocks();
-    role = 'HIKER';
-    const module = await Test.createTestingModule({
-      controllers: [BookingsController],
-      providers: [{ provide: BookingsService, useValue: bookings }],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext) => {
-          context.switchToHttp().getRequest<{ user: { id: number; role: Role } }>().user = {
-            id: 1,
-            role,
-          };
-          return true;
+  });
+
+  describe('findUpcomingSlots', () => {
+    const now = new Date('2026-11-01T10:00:00Z');
+
+    it('maps the rows', async () => {
+      const startsAt = new Date('2026-11-01T19:00:00Z');
+      client.$queryRaw.mockResolvedValue([
+        {
+          id: 3,
+          date: '2026-11-01',
+          start_time: '20:00',
+          end_time: '22:00',
+          starts_at: startsAt,
+          free_seats: 5,
         },
-      })
-      .compile();
-    app = module.createNestApplication();
-    await app.init();
-  });
-
-  afterEach(async () => {
-    await app.close();
-  });
-
-  const post = (body: object) => request(app.getHttpServer()).post('/bookings').send(body);
-
-  it('protects every route with the auth guard and the roles guard', () => {
-    const guards = Reflect.getMetadata(GUARDS_METADATA, BookingsController) as unknown[];
-    expect(guards).toContain(AuthGuard);
-    expect(guards).toContain(RolesGuard);
-  });
-
-  it('allows only hikers to book', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.create)).toEqual(['HIKER']);
-  });
-
-  it('answers 201 with the created booking', async () => {
-    bookings.create.mockResolvedValue(result);
-    const response = await post({ slotId: 3, partySize: 2 }).expect(201);
-    expect(response.body).toEqual(result);
-  });
-
-  it('books for the authenticated user', async () => {
-    bookings.create.mockResolvedValue(result);
-    await post({ slotId: 3, partySize: 2 });
-    expect(bookings.create).toHaveBeenCalledWith(1, { slotId: 3, partySize: 2 });
-  });
-
-  it('ignores a hiker or user id sent in the body', async () => {
-    bookings.create.mockResolvedValue(result);
-    await post({ slotId: 3, partySize: 2, hikerId: 99, userId: 99 });
-    expect(bookings.create).toHaveBeenCalledWith(1, { slotId: 3, partySize: 2 });
-  });
-
-  it('answers 400 without calling the service when the body is invalid', async () => {
-    await post({ slotId: 3, partySize: 0 }).expect(400);
-    expect(bookings.create).not.toHaveBeenCalled();
-  });
-
-  it('propagates the errors of the service', async () => {
-    bookings.create.mockRejectedValue(new ConflictException('No seats'));
-    const response = await post({ slotId: 3, partySize: 2 });
-    expect(response.status).toBe(409);
-  });
-
-  describe('staff accounts', () => {
-    it.each(['EMPLOYEE', 'WARDEN'] as const)(
-      'answers 403 for a %s without calling the service',
-      async (staffRole) => {
-        role = staffRole;
-        const response = await post({ slotId: 3, partySize: 2 }).expect(403);
-        expect(response.body).toMatchObject({ message: 'Operation not allowed for your role' });
-        expect(bookings.create).not.toHaveBeenCalled();
-      },
-    );
-
-    it('checks the role before validating the body', async () => {
-      role = 'EMPLOYEE';
-      await post({ slotId: 3, partySize: 0 }).expect(403);
-      expect(bookings.create).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /bookings/me', () => {
-    const mine = [
-      {
-        id: 9,
-        slotId: 3,
-        date: '2026-11-21',
-        startTime: '12:30',
-        endTime: '14:00',
-        partySize: 4,
-        requirements: '2 vegetarians',
-        status: 'CONFIRMED',
-      },
-    ];
-    const get = () => request(app.getHttpServer()).get('/bookings/me');
-
-    it('allows only hikers to list their bookings', () => {
-      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.listMine)).toEqual([
-        'HIKER',
+      ]);
+      await expect(repository.findUpcomingSlots(tx, 'Europe/Rome', now)).resolves.toEqual([
+        {
+          id: 3,
+          date: '2026-11-01',
+          startTime: '20:00',
+          endTime: '22:00',
+          startsAt,
+          freeSeats: 5,
+        },
       ]);
     });
 
-    it('answers 200 with the bookings of the authenticated user', async () => {
-      bookings.listMine.mockResolvedValue(mine);
-      const response = await get().expect(200);
-      expect(response.body).toEqual(mine);
-      expect(bookings.listMine).toHaveBeenCalledWith(1);
+    it('counts confirmed and pending bookings and binds the values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingSlots(tx, 'Europe/Rome', now);
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
+      expect(queryValues()).toEqual(['Europe/Rome', 'Europe/Rome', now]);
+    });
+  });
+
+  describe('hasActiveBooking', () => {
+    it.each([
+      [1, true],
+      [0, false],
+    ])('with %d bookings returns %s', async (count, expected) => {
+      client.booking.count.mockResolvedValue(count);
+      await expect(repository.hasActiveBooking(tx, 7, 3)).resolves.toBe(expected);
     });
 
-    it.each(['EMPLOYEE', 'WARDEN'] as const)(
-      'answers 403 for a %s without calling the service',
-      async (staffRole) => {
-        role = staffRole;
-        await get().expect(403);
-        expect(bookings.listMine).not.toHaveBeenCalled();
-      },
-    );
+    it('ignores the rejected bookings', async () => {
+      client.booking.count.mockResolvedValue(0);
+      await repository.hasActiveBooking(tx, 7, 3);
+      expect(client.booking.count).toHaveBeenCalledWith({
+        where: { hikerId: 7, slotId: 3, status: { not: 'REJECTED' } },
+      });
+    });
+  });
+
+  describe('lockSlotAndGetStart', () => {
+    it('returns the start of the slot', async () => {
+      const startsAt = new Date('2026-11-01T12:00:00Z');
+      client.$queryRaw.mockResolvedValue([{ starts_at: startsAt }]);
+      await expect(repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome')).resolves.toBe(startsAt);
+    });
+
+    it('returns null when the slot does not exist', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome')).resolves.toBeNull();
+    });
+
+    it('locks the row and binds the values instead of concatenating them', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome');
+      expect(queryText()).toContain('FOR UPDATE');
+      expect(queryValues()).toEqual(['Europe/Rome', 3]);
+    });
+  });
+
+  describe('findFreeSeatsByTable', () => {
+    it('maps the rows', async () => {
+      client.$queryRaw.mockResolvedValue([
+        { table_number: 1, free_seats: 4 },
+        { table_number: 2, free_seats: 0 },
+      ]);
+      await expect(repository.findFreeSeatsByTable(tx, 3)).resolves.toEqual([
+        { tableNumber: 1, freeSeats: 4 },
+        { tableNumber: 2, freeSeats: 0 },
+      ]);
+    });
+
+    it('returns an empty list for a slot without tables', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.findFreeSeatsByTable(tx, 3)).resolves.toEqual([]);
+    });
+
+    it('counts the confirmed and pending bookings of the requested slot', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFreeSeatsByTable(tx, 3);
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
+      expect(queryValues()).toEqual([3]);
+    });
+  });
+
+  describe('findHikerIdByUserId', () => {
+    it('returns the hiker id', async () => {
+      client.hiker.findUnique.mockResolvedValue({ id: 7 });
+      await expect(repository.findHikerIdByUserId(tx, 1)).resolves.toBe(7);
+      expect(client.hiker.findUnique).toHaveBeenCalledWith({
+        where: { userId: 1 },
+        select: { id: true },
+      });
+    });
+
+    it('returns null when the user has no hiker profile', async () => {
+      client.hiker.findUnique.mockResolvedValue(null);
+      await expect(repository.findHikerIdByUserId(tx, 1)).resolves.toBeNull();
+    });
+  });
+
+  describe('confirmBooking', () => {
+    it('confirms the booking only while it is still pending', async () => {
+      client.booking.updateMany.mockResolvedValue({ count: 1 });
+      await repository.confirmBooking(tx, 9);
+      expect(client.booking.updateMany).toHaveBeenCalledWith({
+        where: { id: 9, status: 'PENDING' },
+        data: { status: 'CONFIRMED' },
+      });
+    });
+
+    it('tells whether the booking was confirmed', async () => {
+      client.booking.updateMany.mockResolvedValue({ count: 1 });
+      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(true);
+      // Rejected or already confirmed in the meantime.
+      client.booking.updateMany.mockResolvedValue({ count: 0 });
+      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(false);
+    });
+  });
+
+  describe('createBooking', () => {
+    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: null };
+
+    it('stores the booking as pending', async () => {
+      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      await repository.createBooking(tx, data);
+      expect(client.booking.create).toHaveBeenCalledWith({
+        data: { ...data, status: 'PENDING' },
+      });
+    });
+
+    it('does not expose the hiker id in the result', async () => {
+      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      await expect(repository.createBooking(tx, data)).resolves.toEqual({
+        id: 9,
+        slotId: 3,
+        partySize: 2,
+        status: 'PENDING',
+      });
+    });
+  });
+
+  describe('findBookingConfirmation', () => {
+    const slot = {
+      date: new Date('2026-11-14T00:00:00.000Z'),
+      startTime: new Date('1970-01-01T12:30:00.000Z'),
+      endTime: new Date('1970-01-01T13:30:00.000Z'),
+    };
+    const row = {
+      partySize: 2,
+      requirements: 'no nuts',
+      hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
+      slot,
+    };
+
+    it('maps the booking, its hiker and its slot', async () => {
+      client.booking.findUnique.mockResolvedValue(row);
+      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toEqual({
+        recipient: { userId: 1, email: 'anna@example.com' },
+        booking: {
+          ...slot,
+          bookingId: 9,
+          fullName: 'Anna Rossi',
+          partySize: 2,
+          requirements: 'no nuts',
+        },
+      });
+    });
+
+    it('has no email for a hiker without an account', async () => {
+      client.booking.findUnique.mockResolvedValue({
+        ...row,
+        hiker: { fullName: 'Anna Rossi', userId: null, user: null },
+      });
+      const found = await repository.findBookingConfirmation(tx, 9);
+      expect(found?.recipient).toEqual({ userId: null, email: null });
+    });
+
+    it('returns null when the booking does not exist', async () => {
+      client.booking.findUnique.mockResolvedValue(null);
+      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toBeNull();
+    });
+  });
+
+  describe('createBookingTables', () => {
+    it('stores one row for each allocated table', async () => {
+      await repository.createBookingTables(tx, 9, 3, [
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 2 },
+      ]);
+      expect(client.bookingTable.createMany).toHaveBeenCalledWith({
+        data: [
+          { bookingId: 9, slotId: 3, tableNumber: 1, assignedSeats: 4 },
+          { bookingId: 9, slotId: 3, tableNumber: 2, assignedSeats: 2 },
+        ],
+      });
+    });
+  });
+
+  describe('findUpcomingBookingsOfHiker', () => {
+    const now = new Date('2026-11-15T10:00:00Z');
+
+    it('maps the rows, the text requirements as one entry without allergies', async () => {
+      client.$queryRaw.mockResolvedValue([
+        {
+          id: 9,
+          slot_id: 3,
+          date: '2026-11-21',
+          start_time: '12:30',
+          end_time: '14:00',
+          party_size: 4,
+          requirements: null,
+          status: 'PENDING',
+        },
+        {
+          id: 10,
+          slot_id: 5,
+          date: '2026-11-29',
+          start_time: '13:00',
+          end_time: '14:30',
+          party_size: 2,
+          requirements: '2 vegetarians',
+          status: 'CONFIRMED',
+        },
+      ]);
+      await expect(
+        repository.findUpcomingBookingsOfHiker(tx, 7, 'Europe/Rome', now),
+      ).resolves.toEqual([
+        {
+          id: 9,
+          slotId: 3,
+          date: '2026-11-21',
+          startTime: '12:30',
+          endTime: '14:00',
+          partySize: 4,
+          requirements: [],
+          status: 'PENDING',
+        },
+        {
+          id: 10,
+          slotId: 5,
+          date: '2026-11-29',
+          startTime: '13:00',
+          endTime: '14:30',
+          partySize: 2,
+          requirements: [{ allergies: false, description: '2 vegetarians' }],
+          status: 'CONFIRMED',
+        },
+      ]);
+    });
+
+    it('reads only the slots not started yet, the soonest first, with bound values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(tx, 7, 'Europe/Rome', now);
+      expect(queryText()).toContain('WHERE b.hiker_id = ?');
+      expect(queryText()).toContain('ORDER BY s.date, s.start_time, b.id');
+      expect(queryValues()).toEqual([7, 'Europe/Rome', now]);
+    });
   });
 });

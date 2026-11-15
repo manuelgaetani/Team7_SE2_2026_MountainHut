@@ -235,7 +235,7 @@ describe('BookingsRepository', () => {
   describe('findUpcomingBookingsOfHiker', () => {
     const now = new Date('2026-11-15T10:00:00Z');
 
-    it('maps the rows', async () => {
+    it('maps the rows, the text requirements as one entry without allergies', async () => {
       client.$queryRaw.mockResolvedValue([
         {
           id: 9,
@@ -246,6 +246,16 @@ describe('BookingsRepository', () => {
           party_size: 4,
           requirements: null,
           status: 'PENDING',
+        },
+        {
+          id: 10,
+          slot_id: 5,
+          date: '2026-11-29',
+          start_time: '13:00',
+          end_time: '14:30',
+          party_size: 2,
+          requirements: '2 vegetarians',
+          status: 'CONFIRMED',
         },
       ]);
       await expect(
@@ -258,8 +268,18 @@ describe('BookingsRepository', () => {
           startTime: '12:30',
           endTime: '14:00',
           partySize: 4,
-          requirements: null,
+          requirements: [],
           status: 'PENDING',
+        },
+        {
+          id: 10,
+          slotId: 5,
+          date: '2026-11-29',
+          startTime: '13:00',
+          endTime: '14:30',
+          partySize: 2,
+          requirements: [{ allergies: false, description: '2 vegetarians' }],
+          status: 'CONFIRMED',
         },
       ]);
     });
