@@ -12,8 +12,12 @@ import {
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../config/app-config.js';
-import { AuthService } from './auth.service.js';
-import type { AuthSession } from './auth.service.js';
+import { GetCurrentUser } from './application/get-current-user.js';
+import { Login } from './application/login.js';
+import { Logout } from './application/logout.js';
+import { RefreshSession } from './application/refresh-session.js';
+import { RegisterUser } from './application/register-user.js';
+import type { AuthSession } from './application/session-issuer.js';
 import { AuthGuard } from './auth.guard.js';
 import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { loginSchema, registerSchema } from '@mountain-hut/shared';
@@ -31,14 +35,18 @@ function readRefreshCookie(req: Request): string | undefined {
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly auth: AuthService,
+    private readonly registerUser: RegisterUser,
+    private readonly loginUser: Login,
+    private readonly refreshSession: RefreshSession,
+    private readonly logoutUser: Logout,
+    private readonly currentUser: GetCurrentUser,
     private readonly config: AppConfig,
   ) {}
 
   @Post('register')
   @ApiZodBody(registerSchema)
   register(@Body(new ZodValidationPipe(registerSchema)) body: RegisterInput) {
-    return this.auth.register(body);
+    return this.registerUser.execute(body);
   }
 
   @Post('login')
@@ -48,7 +56,7 @@ export class AuthController {
     @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const session = await this.auth.login(body);
+    const session = await this.loginUser.execute(body);
     this.setSessionCookies(res, session);
     return session.user;
   }
@@ -58,7 +66,7 @@ export class AuthController {
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = readRefreshCookie(req);
     if (!raw) throw new UnauthorizedException('Non autenticato');
-    const session = await this.auth.refresh(raw);
+    const session = await this.refreshSession.execute(raw);
     this.setSessionCookies(res, session);
     return session.user;
   }
@@ -66,7 +74,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    await this.auth.logout(readRefreshCookie(req));
+    await this.logoutUser.execute(readRefreshCookie(req));
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE, { path: REFRESH_PATH });
     return { message: 'Logged out' };
@@ -76,7 +84,7 @@ export class AuthController {
   @ApiCookieAuth()
   @Get('me')
   me(@Req() req: Request & { user: { id: number } }) {
-    return this.auth.me(req.user.id);
+    return this.currentUser.execute(req.user.id);
   }
 
   private setSessionCookies(res: Response, session: AuthSession): void {
