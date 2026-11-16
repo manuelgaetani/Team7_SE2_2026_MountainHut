@@ -6,11 +6,11 @@ import type { PartyRequirement } from '@mountain-hut/shared';
 export interface BookingConfirmationData {
   fullName: string;
   bookingId: number;
-  // Day of the slot, as Prisma returns a `@db.Date` column (midnight UTC).
-  date: Date;
-  // Start and end of the slot, as Prisma returns `@db.Time` columns (1970-01-01, UTC).
-  startTime: Date;
-  endTime: Date;
+  // Day of the slot, 'YYYY-MM-DD'.
+  date: string;
+  // Start and end of the slot, 'HH:MM'.
+  startTime: string;
+  endTime: string;
   partySize: number;
   // Needs of the subsets of the party; empty when there are none.
   requirements: PartyRequirement[];
@@ -26,7 +26,7 @@ export interface EmailContent {
   attachments: MailAttachment[];
 }
 
-// Date and time columns carry no time zone: format them in UTC so they are shown unchanged.
+// Dates and times carry no time zone: format them in UTC so they are shown unchanged.
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   weekday: 'long',
   day: 'numeric',
@@ -39,6 +39,8 @@ const timeFormat = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
   timeZone: 'UTC',
 });
+
+const formatTime = (time: string): string => timeFormat.format(new Date(`1970-01-01T${time}:00Z`));
 
 // nest-cli.json copies the assets folder next to the compiled template.
 const HEADER_IMAGE: MailAttachment = {
@@ -119,8 +121,8 @@ ${rows}
 }
 
 export function bookingConfirmationEmail(booking: BookingConfirmationData): EmailContent {
-  const day = dateFormat.format(booking.date);
-  const time = `${timeFormat.format(booking.startTime)} - ${timeFormat.format(booking.endTime)}`;
+  const day = dateFormat.format(new Date(`${booking.date}T00:00:00Z`));
+  const time = `${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}`;
   const people = booking.partySize === 1 ? '1 person' : `${booking.partySize} people`;
   const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
   // One line per requirement: the ones with allergies are marked for the kitchen.
