@@ -11,7 +11,8 @@ export function HomePage() {
   });
 
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
+  // The warden role does not exist yet: only employees see the staff home.
+  const isEmployee = user?.role === 'EMPLOYEE';
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
 
@@ -24,16 +25,20 @@ export function HomePage() {
 
         <div className="home-hero__content">
           <div className="home-hero__content">
-            {isStaff ? (
+            {isEmployee ? (
               <>
                 <p className="eyebrow">Hut staff · Monte Vettore</p>
                 <h1>Ready for service.</h1>
                 <p className="lead">
-                  Define the time slots and the tables of each day, so the hut never takes more
-                  guests than it can serve.
+                  Define the time slots and the tables of each day, and enter the bookings made by
+                  phone or at the hut.
                 </p>
                 <Link to="/staff/slots" className="button-primary button-primary--inline">
                   <span>Manage time slots</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+                <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
+                  <span>New booking</span>
                   <span aria-hidden="true">→</span>
                 </Link>
               </>

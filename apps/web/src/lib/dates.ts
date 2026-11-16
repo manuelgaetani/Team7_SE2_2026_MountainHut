@@ -25,3 +25,9 @@ export const dateShort = (d: Date): string =>
   `${weekdayShort(d)} ${d.getDate()} ${new Intl.DateTimeFormat(LOCALE, { month: 'short' })
     .format(d)
     .replace('.', '')}`;
+
+/** "Saturday 21 November" */
+export const dateLong = (d: Date): string =>
+  new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })
+    .format(d)
+    .replace(',', '');
