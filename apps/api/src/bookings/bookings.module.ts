@@ -5,7 +5,7 @@ import { BookingsRepository } from './application/bookings.repository.port.js';
 import { BookingsService } from './application/bookings.service.js';
 import { ConfirmationSender, Sleeper, TimerSleeper } from './application/confirmation-sender.js';
 import { ListBookableSlots } from './application/list-bookable-slots.js';
-import { BookingsController } from './bookings.controller.js';
+import { BookingsController } from './presentation/bookings.controller.js';
 import { PrismaBookingsRepository } from './infrastructure/prisma-bookings.repository.js';
 
 @Module({

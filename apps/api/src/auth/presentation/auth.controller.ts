@@ -11,19 +11,21 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AppConfig } from '../config/app-config.js';
-import { GetCurrentUser } from './application/get-current-user.js';
-import { Login } from './application/login.js';
-import { Logout } from './application/logout.js';
-import { RefreshSession } from './application/refresh-session.js';
-import { RegisterUser } from './application/register-user.js';
-import type { AuthSession } from './application/session-issuer.js';
+import { AppConfig } from '../../config/app-config.js';
+import { GetCurrentUser } from '../application/get-current-user.js';
+import { Login } from '../application/login.js';
+import { Logout } from '../application/logout.js';
+import { RefreshSession } from '../application/refresh-session.js';
+import { RegisterUser } from '../application/register-user.js';
+import type { AuthSession } from '../application/session-issuer.js';
 import { AuthGuard } from './auth.guard.js';
 import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { loginSchema, registerSchema } from '@mountain-hut/shared';
-import { ApiZodBody } from '../common/api-zod-body.decorator.js';
-import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_PATH } from './presentation/session-cookies.js';
+import { ApiZodBody } from '../../presentation/api-zod-body.decorator.js';
+import { CurrentUser } from '../../presentation/current-user.decorator.js';
+import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
+import { ZodValidationPipe } from '../../presentation/zod-validation.pipe.js';
+import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_PATH } from './session-cookies.js';
 
 // cookie-parser turns a value starting with "j:" into an object: it is not a token.
 function readRefreshCookie(req: Request): string | undefined {
@@ -83,8 +85,8 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @ApiCookieAuth()
   @Get('me')
-  me(@Req() req: Request & { user: { id: number } }) {
-    return this.currentUser.execute(req.user.id);
+  me(@CurrentUser() user: AuthenticatedUser) {
+    return this.currentUser.execute(user.id);
   }
 
   private setSessionCookies(res: Response, session: AuthSession): void {

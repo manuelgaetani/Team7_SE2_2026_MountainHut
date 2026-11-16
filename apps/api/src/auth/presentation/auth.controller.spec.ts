@@ -4,15 +4,16 @@ import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppConfig } from '../config/app-config.js';
+import { AppConfig } from '../../config/app-config.js';
 import { AuthController } from './auth.controller.js';
+import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
 import { AuthGuard } from './auth.guard.js';
-import { GetCurrentUser } from './application/get-current-user.js';
-import { Login } from './application/login.js';
-import { Logout } from './application/logout.js';
-import { RefreshSession } from './application/refresh-session.js';
-import { RegisterUser } from './application/register-user.js';
-import type { AuthSession } from './application/session-issuer.js';
+import { GetCurrentUser } from '../application/get-current-user.js';
+import { Login } from '../application/login.js';
+import { Logout } from '../application/logout.js';
+import { RefreshSession } from '../application/refresh-session.js';
+import { RegisterUser } from '../application/register-user.js';
+import type { AuthSession } from '../application/session-issuer.js';
 
 const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const };
 const session: AuthSession = {
@@ -220,8 +221,8 @@ describe('AuthController', () => {
   describe('me', () => {
     it('returns the profile of the user set by the guard', async () => {
       auth.me.mockResolvedValue(user);
-      const req = { user: { id: 1 } } as Request & { user: { id: number } };
-      await expect(controller.me(req)).resolves.toEqual(user);
+      const authenticated: AuthenticatedUser = { id: 1, email: 'anna@example.com', role: 'HIKER' };
+      await expect(controller.me(authenticated)).resolves.toEqual(user);
       expect(auth.me).toHaveBeenCalledWith(1);
     });
   });
