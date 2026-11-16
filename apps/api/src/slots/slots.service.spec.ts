@@ -62,7 +62,10 @@ describe('SlotsService', () => {
 
     it('throws NotFound when the slot does not exist', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.findOne(99)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(service.findOne(99)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Slot not found',
+      });
     });
   });
 
@@ -105,6 +108,7 @@ describe('SlotsService', () => {
       repo.findById.mockResolvedValue(slotRow({ id: 3, tables: [] }));
       await expect(service.create({ ...input, copyTablesFromSlotId: 3 })).rejects.toMatchObject({
         code: 'UNPROCESSABLE',
+        message: 'The slot to copy the tables from has no tables',
       });
       expect(repo.create).not.toHaveBeenCalled();
     });
@@ -116,7 +120,10 @@ describe('SlotsService', () => {
           clientVersion: 'test',
         }),
       );
-      await expect(service.create(input)).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(service.create(input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'A slot with the same date, start and end already exists',
+      });
     });
 
     it('rethrows database errors other than a duplicate slot', async () => {
@@ -140,7 +147,10 @@ describe('SlotsService', () => {
     it('throws Conflict when the slot already has tables', async () => {
       repo.lock.mockResolvedValue(true);
       repo.findTables.mockResolvedValue(tables);
-      await expect(service.defineTables(5, { tables })).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(service.defineTables(5, { tables })).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'This slot already has tables: changing them is MH-19',
+      });
       expect(repo.createTables).not.toHaveBeenCalled();
     });
 
