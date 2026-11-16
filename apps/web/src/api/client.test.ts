@@ -52,6 +52,10 @@ describe('API client', () => {
   it('throws ApiError on failed PUT request', async () => {
     answer(new Response('{"message":"Conflict"}', { status: 409 }));
     await expect(apiPut('/x/1', {})).rejects.toThrow('Conflict');
+    answer(new Response('{"message":"msg"}', { status: 409 }));
+    const error = await apiPut('/x/1', {}).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 409, message: 'msg' });
   });
 
   it('uses the message of the API in the error', async () => {
