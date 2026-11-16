@@ -7,6 +7,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
+- Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
+
 ## [release-1] - 2026-11-06
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
