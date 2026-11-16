@@ -4,9 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import bcrypt from 'bcrypt';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppConfig, loadAppConfig } from '../config/app-config.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from './auth.service.js';
+
+const config = (env: Record<string, string | undefined> = {}) =>
+  loadAppConfig({ JWT_SECRET: 'unit-test-secret', DATABASE_URL: 'postgresql://x', ...env });
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -23,6 +27,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
+        { provide: AppConfig, useFactory: () => config() },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -206,6 +211,11 @@ describe('AuthService', () => {
           AuthService,
           { provide: PrismaService, useValue: prisma },
           { provide: JwtService, useValue: jwt },
+          {
+            provide: AppConfig,
+            useFactory: () =>
+              config({ REFRESH_TOKEN_TTL_DAYS: process.env.REFRESH_TOKEN_TTL_DAYS }),
+          },
         ],
       }).compile();
 
@@ -236,15 +246,21 @@ describe('AuthService', () => {
     };
 
     it('lasts 1 day by default', async () => {
-      vi.stubEnv('REFRESH_TOKEN_TTL_DAYS', undefined);
-      const svc = new AuthService(prisma as unknown as PrismaService, jwt as unknown as JwtService);
+      const svc = new AuthService(
+        prisma as unknown as PrismaService,
+        jwt as unknown as JwtService,
+        config(),
+      );
       const result = await loginAt(svc);
       expect(result.refreshExpiresAt).toEqual(new Date(now.getTime() + DAY_MS));
     });
 
     it('follows REFRESH_TOKEN_TTL_DAYS', async () => {
-      vi.stubEnv('REFRESH_TOKEN_TTL_DAYS', '7');
-      const svc = new AuthService(prisma as unknown as PrismaService, jwt as unknown as JwtService);
+      const svc = new AuthService(
+        prisma as unknown as PrismaService,
+        jwt as unknown as JwtService,
+        config({ REFRESH_TOKEN_TTL_DAYS: '7' }),
+      );
       const result = await loginAt(svc);
       expect(result.refreshExpiresAt).toEqual(new Date(now.getTime() + 7 * DAY_MS));
       expect(prisma.refreshToken.create).toHaveBeenCalledWith({

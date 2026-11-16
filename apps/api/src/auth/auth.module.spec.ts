@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfigModule } from '../config/config.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
@@ -13,7 +14,7 @@ describe('AuthModule', () => {
   const auth = { me: vi.fn() };
 
   const compile = () =>
-    Test.createTestingModule({ imports: [PrismaModule, AuthModule] })
+    Test.createTestingModule({ imports: [ConfigModule, PrismaModule, AuthModule] })
       .overrideProvider(PrismaService)
       .useValue({})
       .overrideProvider(AuthService)
@@ -30,6 +31,7 @@ describe('AuthModule', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.stubEnv('JWT_SECRET', 'unit-test-secret');
+    vi.stubEnv('DATABASE_URL', 'postgresql://x');
     vi.stubEnv('JWT_EXPIRES_IN', undefined);
   });
 

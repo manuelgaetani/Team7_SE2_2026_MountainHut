@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { BookingsRepository } from '../src/bookings/bookings.repository.js';
 import { BookingsService } from '../src/bookings/bookings.service.js';
 import type { NotificationService } from '../src/notifications/notification.service.js';
+import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
@@ -29,13 +30,14 @@ async function createSlotWithTables(
 }
 
 describe('Bookings with PostgreSQL (integration)', () => {
-  const prisma = new PrismaService();
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
   const repo = new BookingsRepository();
 
   const notifications = {
     sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
   } as unknown as NotificationService;
-  const service = new BookingsService(prisma, repo, notifications);
+  const service = new BookingsService(prisma, repo, notifications, config);
 
   // A and B overlap and share table 2. C overlaps both but has its own table 3.
   const diningRoom = async () => ({

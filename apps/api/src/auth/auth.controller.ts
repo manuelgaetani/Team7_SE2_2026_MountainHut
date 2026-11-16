@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { AppConfig } from '../config/app-config.js';
 import { AuthService } from './auth.service.js';
 import type { AuthSession } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
@@ -29,7 +30,10 @@ function readRefreshCookie(req: Request): string | undefined {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly config: AppConfig,
+  ) {}
 
   @Post('register')
   @ApiZodBody(registerSchema)
@@ -76,7 +80,7 @@ export class AuthController {
   }
 
   private setSessionCookies(res: Response, session: AuthSession): void {
-    const secure = process.env.NODE_ENV === 'production';
+    const secure = this.config.secureCookies;
     // Nessun maxAge: la scadenza dell'access token la decide il JWT (JWT_EXPIRES_IN).
     res.cookie(ACCESS_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', secure });
     res.cookie(REFRESH_COOKIE, session.refreshToken, {

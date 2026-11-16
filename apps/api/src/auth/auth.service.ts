@@ -3,6 +3,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import type { AuthUser, LoginInput, RegisterInput } from '@mountain-hut/shared';
+import { AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 
@@ -13,28 +14,17 @@ export interface AuthSession {
   user: AuthUser;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const DUMMY_HASH = bcrypt.hashSync('password-fittizia', 10);
-
-function refreshTtlMs(): number {
-  const ttl = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS;
-  // An invalid duration would otherwise fail on every login, not at startup.
-  if (!(ttl > 0) || Number.isNaN(new Date(ttl).getTime())) {
-    throw new Error('REFRESH_TOKEN_TTL_DAYS must be a positive number of days');
-  }
-  return ttl;
-}
 
 // SHA-256 e non bcrypt: il token è già casuale e va cercato per uguaglianza.
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 @Injectable()
 export class AuthService {
-  private readonly refreshTtlMs = refreshTtlMs();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly config: AppConfig,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthUser> {
@@ -128,7 +118,7 @@ export class AuthService {
   private async issueSession(user: AuthUser): Promise<AuthSession> {
     const token = await this.jwt.signAsync({ sub: user.id, email: user.email, role: user.role });
     const refreshToken = randomBytes(32).toString('base64url');
-    const refreshExpiresAt = new Date(Date.now() + this.refreshTtlMs);
+    const refreshExpiresAt = new Date(Date.now() + this.config.refreshTtlMs);
     await this.prisma.refreshToken.create({
       data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt: refreshExpiresAt },
     });
