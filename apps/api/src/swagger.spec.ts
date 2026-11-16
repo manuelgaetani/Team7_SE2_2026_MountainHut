@@ -4,7 +4,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HealthController } from './health/health.controller.js';
-import { ACCESS_TOKEN_COOKIE, SWAGGER_PATH, setupSwagger } from './swagger.js';
+import { SWAGGER_PATH, setupSwagger } from './swagger.js';
+import { ACCESS_COOKIE } from './auth/presentation/session-cookies.js';
 
 describe('setupSwagger', () => {
   let app: INestApplication<App>;
@@ -30,7 +31,7 @@ describe('setupSwagger', () => {
   it('documents the cookie that carries the session', async () => {
     const response = await request(app.getHttpServer()).get(`/${SWAGGER_PATH}-json`);
     expect(Object.values(response.body.components.securitySchemes)).toContainEqual(
-      expect.objectContaining({ in: 'cookie', name: ACCESS_TOKEN_COOKIE }),
+      expect.objectContaining({ in: 'cookie', name: ACCESS_COOKIE }),
     );
   });
 
