@@ -1,4 +1,4 @@
-import type { PrismaService } from '../../src/prisma/prisma.service.js';
+import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service.js';
 import { assertTestDatabase } from './test-database.js';
 
 type BookingStatus = 'CONFIRMED' | 'PENDING' | 'REJECTED';

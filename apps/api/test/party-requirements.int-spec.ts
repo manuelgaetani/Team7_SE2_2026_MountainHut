@@ -7,12 +7,20 @@ import {
 import { vi } from 'vitest';
 import { MAX_REQUIREMENTS_COUNT, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import type { BookingResult, PartyRequirement } from '@mountain-hut/shared';
-import { BookingsRepository } from '../src/bookings/bookings.repository.js';
-import { BookingsService } from '../src/bookings/bookings.service.js';
+import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import {
+  ConfirmationSender,
+  TimerSleeper,
+} from '../src/bookings/application/confirmation-sender.js';
+import { PrismaBookingsRepository } from '../src/bookings/infrastructure/prisma-bookings.repository.js';
+import { loadAppConfig } from '../src/config/app-config.js';
+import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
+import { BookingConfirmationAdapter } from '../src/notifications/infrastructure/booking-confirmation.adapter.js';
 import { Mailer } from '../src/notifications/mailer.js';
 import type { MailMessage } from '../src/notifications/mailer.js';
 import { NotificationService } from '../src/notifications/notification.service.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createHiker, createSlot, resetDatabase } from './integration/database.js';
 
 // Keeps the emails instead of sending them.
@@ -28,10 +36,15 @@ const SHELLFISH: PartyRequirement = { allergies: true, description: '1 shellfish
 const VEGETARIANS: PartyRequirement = { allergies: false, description: '2 vegetarians' };
 
 describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
-  const prisma = new PrismaService();
-  const repo = new BookingsRepository();
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
+  const context = new TransactionContext(prisma);
+  const uow = new PrismaUnitOfWork(prisma, context);
+  const repo = new PrismaBookingsRepository(context);
   const mailer = new FakeMailer();
-  const service = new BookingsService(prisma, repo, new NotificationService(mailer, prisma));
+  const notifier = new BookingConfirmationAdapter(context, new NotificationService(mailer, prisma));
+  const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
+  const service = new BookingsService(uow, repo, sender, config);
 
   // What the database holds for a booking, in the order the hiker entered it.
   const storedFor = (bookingId: number) =>

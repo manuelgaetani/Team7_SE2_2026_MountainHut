@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Maximum value of a Postgres INTEGER: larger ids would fail in the database.
-const MAX_DB_INT = 2_147_483_647;
+export const MAX_DB_INT = 2_147_483_647;
 
 export const MAX_REQUIREMENTS_LENGTH = 500;
 
@@ -40,11 +40,13 @@ export interface SlotSummary {
   availability: SlotAvailability;
 }
 
+export type BookingStatus = 'CONFIRMED' | 'PENDING' | 'REJECTED';
+
 export interface BookingResult {
   id: number;
   slotId: number;
   partySize: number;
   requirements: PartyRequirement[];
-  status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
+  status: BookingStatus;
   tables: { tableNumber: number; assignedSeats: number }[];
 }
