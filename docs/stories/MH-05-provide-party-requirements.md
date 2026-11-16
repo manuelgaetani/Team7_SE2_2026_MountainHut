@@ -13,16 +13,18 @@ As a hiker,
 I want to specify dietary restrictions and allergies for people in my party,  
 So that the hut can prepare suitable meals safely.
 
-### Notes & Clarifications
+### Notes
 
-- **Allergies flag:** In case of allergies, a flag must be checked to notify that special care is needed during the preparation. The allergies flag can be simply a checkbox to make explicit that it is an important safety issue.
-- **Details description:** The details of each requirement are described in a text field.
-- **Subsets of the party:** Multiple requirements can be specified for subsets of the party.
-- **List of requirements:** It must be possible to enter multiple requirements for subsets of the party. A list of requirements per booking, each with its own allergies flag and description.
-- **Example list:**
-  1. `allergies: yes` (`true`), `"1 vegan, peanut allergy"`
-  2. `allergies: yes` (`true`), `"1 shellfish allergy"`
-  3. `allergies: no` (`false`), `"2 vegetarians"`
+In case of allergies a flag must be checked to notify that special care is needed during the preparation. The details are described in a text field. Multiple requirements can be specified for subsets of the party.
+
+### Clarifications
+
+- The allergies flags can be simply a checkbox to be selected in case of allergies to make explicit that it is an important issue.
+- It must be possible to enter multiple requirements for subsets of the party. A list of requirements per booking, each with its own allergies flag and description.  
+  E.g., three requirements:
+  - allergies: yes, "1 vegan, peanut allergy"
+  - allergies: yes, "1 shellfish allergy"
+  - allergies: no, "2 vegetarians"
 
 ## Requirements
 
