@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { Mailer } from './mailer.js';
 import { NotificationService } from './notification.service.js';
 import type { BookingConfirmationData } from './templates/booking-confirmation.js';
@@ -13,9 +13,9 @@ describe('NotificationService', () => {
   const booking: BookingConfirmationData = {
     fullName: 'Anna Rossi',
     bookingId: 42,
-    date: new Date('2026-11-14T00:00:00.000Z'),
-    startTime: new Date('1970-01-01T12:30:00.000Z'),
-    endTime: new Date('1970-01-01T13:30:00.000Z'),
+    date: '2026-11-14',
+    startTime: '12:30',
+    endTime: '13:30',
     partySize: 4,
     requirements: null,
   };

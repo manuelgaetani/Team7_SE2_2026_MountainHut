@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
-import { SlotsController } from './slots.controller.js';
-import { SlotsRepository } from './slots.repository.js';
-import { SlotsService } from './slots.service.js';
+import { BookingsModule } from '../bookings/bookings.module.js';
+import { SlotsRepository } from './application/slots.repository.port.js';
+import { SlotsService } from './application/slots.service.js';
+import { PrismaSlotsRepository } from './infrastructure/prisma-slots.repository.js';
+import { SlotsController } from './presentation/slots.controller.js';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, BookingsModule],
   controllers: [SlotsController],
-  providers: [SlotsService, SlotsRepository],
+  providers: [SlotsService, { provide: SlotsRepository, useClass: PrismaSlotsRepository }],
 })
 export class SlotsModule {}
