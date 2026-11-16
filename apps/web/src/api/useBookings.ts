@@ -1,19 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { changeBooking, fetchMyBookings, fetchSlots } from './bookings.ts';
+import { changeBooking, createBooking, fetchMyBookings, fetchSlots } from './bookings.ts';
 import type { ChangeBookingInput } from './bookings.ts';
 
 export const MY_BOOKINGS_KEY = ['bookings', 'me'] as const;
-// Same key as the booking page: both read the same list of slots.
+// The booking page and the change dialog read the same list of slots.
 export const SLOTS_KEY = ['slots'] as const;
+
+// The slots a hiker can book.
+export function useBookableSlots() {
+  return useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
+}
+
+export function useCreateBooking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createBooking,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
+  });
+}
 
 export function useMyBookings() {
   return useQuery({ queryKey: MY_BOOKINGS_KEY, queryFn: fetchMyBookings });
 }
 
 // Upcoming slots, to move a booking to another date or time.
-export function useUpcomingSlots() {
-  return useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
-}
+export const useUpcomingSlots = useBookableSlots;
 
 export function useChangeBooking() {
   const queryClient = useQueryClient();

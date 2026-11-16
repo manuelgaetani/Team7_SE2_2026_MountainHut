@@ -17,7 +17,7 @@ describe('AppModule', () => {
   const startApp = async () => {
     vi.resetModules();
     const { AppModule } = await import('./app.module.js');
-    const { PrismaService } = await import('./prisma/prisma.service.js');
+    const { PrismaService } = await import('./infrastructure/prisma/prisma.service.js');
     vi.spyOn(PrismaService.prototype, 'onModuleInit').mockResolvedValue();
     vi.spyOn(PrismaService.prototype, 'onModuleDestroy').mockResolvedValue();
     app = await NestFactory.create<INestApplication<App>>(AppModule, { logger: false });
