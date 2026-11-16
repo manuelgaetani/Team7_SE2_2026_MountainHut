@@ -1,11 +1,5 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { DomainError } from '../shared-kernel/domain-error.js';
 import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
 import { AppConfig } from '../config/app-config.js';
 import { NotificationService } from '../notifications/notification.service.js';
@@ -45,18 +39,19 @@ export class BookingsService {
     const result = await this.prisma.$transaction(async (tx) => {
       // The user booking must have a hiker profile
       const hikerId = await this.repo.findHikerIdByUserId(tx, userId);
-      if (!hikerId) throw new ForbiddenException('A hiker profile is required to book a table');
+      if (!hikerId)
+        throw new DomainError('FORBIDDEN', 'A hiker profile is required to book a table');
       // 2. Lock the slot and get its start time.
       const startsAt = await this.repo.lockSlotAndGetStart(
         tx,
         input.slotId,
         this.config.bookingTimeZone,
       );
-      if (!startsAt) throw new NotFoundException('Slot not found');
+      if (!startsAt) throw new DomainError('NOT_FOUND', 'Slot not found');
 
       // The slot lock also serializes two identical requests sent at the same time.
       if (await this.repo.hasActiveBooking(tx, hikerId, input.slotId)) {
-        throw new ConflictException('You already have a booking for this slot');
+        throw new DomainError('CONFLICT', 'You already have a booking for this slot');
       }
 
       // 3. Read available seats and check with the policy if booking is allowed.
@@ -69,11 +64,12 @@ export class BookingsService {
       });
       if (!decision.ok) {
         if (decision.reason === 'TOO_LATE') {
-          throw new UnprocessableEntityException(
+          throw new DomainError(
+            'UNPROCESSABLE',
             'Less than 2 hours remaining before the slot starts',
           );
         }
-        throw new ConflictException('Insufficient seats available for this slot');
+        throw new DomainError('CONFLICT', 'Insufficient seats available for this slot');
       }
 
       // 4. Save booking and table assignments.

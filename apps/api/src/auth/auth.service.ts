@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import type { AuthUser, LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { DomainError } from '../shared-kernel/domain-error.js';
+import { isUniqueViolation } from '../infrastructure/prisma/prisma-errors.js';
 
 export interface AuthSession {
   token: string;
@@ -29,7 +30,7 @@ export class AuthService {
 
   async register(input: RegisterInput): Promise<AuthUser> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existing) throw new DomainError('CONFLICT', 'Email already registered');
 
     const password = await bcrypt.hash(input.password, 10);
     try {
@@ -50,8 +51,8 @@ export class AuthService {
       return { id: user.id, email: user.email, role: user.role };
     } catch (e) {
       // Due registrazioni concorrenti con la stessa email: vince il vincolo unique del DB.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('Email already registered');
+      if (isUniqueViolation(e)) {
+        throw new DomainError('CONFLICT', 'Email already registered');
       }
       throw e;
     }
@@ -59,7 +60,7 @@ export class AuthService {
 
   async me(userId: number): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('Not authenticated');
+    if (!user) throw new DomainError('UNAUTHORIZED', 'Not authenticated');
     return { id: user.id, email: user.email, role: user.role };
   }
 
@@ -69,7 +70,7 @@ export class AuthService {
     const hash = user?.password ?? DUMMY_HASH;
     const matches = await bcrypt.compare(input.password, hash);
     if (!user || !matches) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new DomainError('UNAUTHORIZED', 'Invalid credentials');
     }
     return this.issueSession({ id: user.id, email: user.email, role: user.role });
   }
@@ -79,7 +80,7 @@ export class AuthService {
       where: { tokenHash: hashToken(rawToken) },
       include: { user: true },
     });
-    if (!stored) throw new UnauthorizedException('Invalid session');
+    if (!stored) throw new DomainError('UNAUTHORIZED', 'Invalid session');
 
     if (stored.revokedAt) {
       // Token già ruotato presentato di nuovo: possibile furto, chiudiamo tutte le sessioni.
@@ -87,10 +88,10 @@ export class AuthService {
         where: { userId: stored.userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
-      throw new UnauthorizedException('Invalid session');
+      throw new DomainError('UNAUTHORIZED', 'Invalid session');
     }
     if (stored.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Session expired');
+      throw new DomainError('UNAUTHORIZED', 'Session expired');
     }
 
     // Revoca atomica: se due richieste usano lo stesso token, solo una vince.
@@ -98,7 +99,7 @@ export class AuthService {
       where: { id: stored.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    if (count !== 1) throw new UnauthorizedException('Invalid session');
+    if (count !== 1) throw new DomainError('UNAUTHORIZED', 'Invalid session');
 
     return this.issueSession({
       id: stored.user.id,

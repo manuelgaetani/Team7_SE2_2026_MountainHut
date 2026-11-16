@@ -1,4 +1,3 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import { vi } from 'vitest';
 import { BookingsRepository } from '../../src/bookings/bookings.repository.js';
 import {
@@ -202,9 +201,9 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const anna = await hiker('anna@example.test', 'Anna Rossi');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [2]);
 
-      await expect(service.create(anna.userId, { slotId, partySize: 5 })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.create(anna.userId, { slotId, partySize: 5 })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
       await sleep(100);
 
       expect(mailer.sent).toHaveLength(0);
@@ -215,9 +214,9 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const anna = await hiker('anna@example.test', 'Anna Rossi');
       const slotId = await createSlot(prisma, '2020-01-01', '12:00', '13:00', [4]);
 
-      await expect(service.create(anna.userId, { slotId, partySize: 2 })).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
+      await expect(service.create(anna.userId, { slotId, partySize: 2 })).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+      });
       await sleep(100);
 
       expect(mailer.sent).toHaveLength(0);

@@ -1,9 +1,6 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { DomainError } from '../shared-kernel/domain-error.js';
+import { isUniqueViolation } from '../infrastructure/prisma/prisma-errors.js';
 import type {
   CreateSlotInput,
   DefineSlotTablesInput,
@@ -33,9 +30,6 @@ const toDetails = (slot: SlotRow): SlotDetails => ({
   totalSeats: slot.tables.reduce((sum, t) => sum + t.seats, 0),
 });
 
-const isUniqueViolation = (e: unknown): boolean =>
-  e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
-
 // MH-02: employees define the tables and seats available in each time slot.
 @Injectable()
 export class SlotsService {
@@ -63,7 +57,10 @@ export class SlotsService {
       return await this.findOne(id);
     } catch (e) {
       if (isUniqueViolation(e)) {
-        throw new ConflictException('A slot with the same date, start and end already exists');
+        throw new DomainError(
+          'CONFLICT',
+          'A slot with the same date, start and end already exists',
+        );
       }
       throw e;
     }
@@ -78,7 +75,7 @@ export class SlotsService {
   // 404 if the slot does not exist.
   async findOne(id: number): Promise<SlotDetails> {
     const slot = await this.repo.findById(this.prisma, id);
-    if (!slot) throw new NotFoundException('Slot not found');
+    if (!slot) throw new DomainError('NOT_FOUND', 'Slot not found');
     return toDetails(slot);
   }
 
@@ -87,9 +84,9 @@ export class SlotsService {
   // changing an existing table set is MH-19.
   async defineTables(id: number, input: DefineSlotTablesInput): Promise<SlotDetails> {
     await this.prisma.$transaction(async (tx) => {
-      if (!(await this.repo.lock(tx, id))) throw new NotFoundException('Slot not found');
+      if (!(await this.repo.lock(tx, id))) throw new DomainError('NOT_FOUND', 'Slot not found');
       if ((await this.repo.findTables(tx, id)).length > 0) {
-        throw new ConflictException('This slot already has tables: changing them is MH-19');
+        throw new DomainError('CONFLICT', 'This slot already has tables: changing them is MH-19');
       }
       const tables = await this.resolveTables(tx, input);
       if (tables) await this.repo.createTables(tx, id, tables);
@@ -107,9 +104,10 @@ export class SlotsService {
     if (input.copyTablesFromSlotId === undefined) return undefined;
 
     const source = await this.repo.findById(tx, input.copyTablesFromSlotId);
-    if (!source) throw new NotFoundException('The slot to copy the tables from does not exist');
+    if (!source)
+      throw new DomainError('NOT_FOUND', 'The slot to copy the tables from does not exist');
     if (source.tables.length === 0) {
-      throw new UnprocessableEntityException('The slot to copy the tables from has no tables');
+      throw new DomainError('UNPROCESSABLE', 'The slot to copy the tables from has no tables');
     }
     return source.tables;
   }

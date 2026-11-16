@@ -1,5 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { DomainExceptionFilter } from '../presentation/domain-exception.filter.js';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
@@ -121,6 +123,7 @@ describe('Authentication flow over HTTP', () => {
     db = createDatabase();
     const module = await Test.createTestingModule({
       imports: [ConfigModule, AuthModule],
+      providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
     })
       .useMocker((token) => (token === PrismaService ? db : undefined))
       .compile();
