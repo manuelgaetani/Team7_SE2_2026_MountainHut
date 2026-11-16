@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { mailFromEnv, smtpOptionsFromEnv } from './mail.config.js';
+import { AppConfig } from '../config/app-config.js';
 
 // A file sent with the email. The HTML shows it with <img src="cid:...">, so the image needs no
 // public URL and most email clients show it without asking.
@@ -29,10 +29,16 @@ export abstract class Mailer {
 export class SmtpMailer extends Mailer {
   // Nodemailer connects only when the first email is sent, so a missing SMTP server
   // does not stop the application from starting.
-  private readonly transporter: Transporter = nodemailer.createTransport(
-    smtpOptionsFromEnv(process.env),
-  );
-  private readonly from = mailFromEnv(process.env);
+  private readonly transporter: Transporter;
+  private readonly from: string;
+
+  constructor(config: AppConfig) {
+    super();
+    // AppConfig decides the encryption (implicit TLS on 465, requireTLS when there are credentials).
+    // `secure` is repeated here so static analysis can see the transport does not ignore TLS.
+    this.transporter = nodemailer.createTransport({ ...config.smtp, secure: config.smtp.secure });
+    this.from = config.mailFrom;
+  }
 
   async send(message: MailMessage): Promise<void> {
     await this.transporter.sendMail({ from: this.from, ...message });
