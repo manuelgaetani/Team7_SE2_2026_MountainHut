@@ -47,6 +47,17 @@ module.exports = {
       to: { path: '^apps/', pathNot: '^apps/$1/' },
     },
     {
+      name: 'bookings-not-to-notifications',
+      severity: 'error',
+      comment:
+        'Bookings send their confirmation through the BookingConfirmationNotifier port: only the notifications module knows about emails. The Nest module that wires the two together is the one exception.',
+      from: {
+        path: '^apps/api/src/bookings/',
+        pathNot: '\\.(spec|test)\\.tsx?$|^apps/api/src/bookings/bookings\\.module\\.ts$',
+      },
+      to: { path: '^apps/api/src/notifications/' },
+    },
+    {
       name: 'shared-does-not-depend-on-apps',
       severity: 'error',
       comment:

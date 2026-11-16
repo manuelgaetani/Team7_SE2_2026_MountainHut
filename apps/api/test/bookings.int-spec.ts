@@ -1,8 +1,8 @@
 import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import type { ConfirmationSender } from '../src/bookings/application/confirmation-sender.js';
 import { PrismaBookingsRepository } from '../src/bookings/infrastructure/prisma-bookings.repository.js';
 import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
 import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
-import type { NotificationService } from '../src/notifications/notification.service.js';
 import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
@@ -37,10 +37,8 @@ describe('Bookings with PostgreSQL (integration)', () => {
   const uow = new PrismaUnitOfWork(prisma, context);
   const repo = new PrismaBookingsRepository(context);
 
-  const notifications = {
-    sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
-  } as unknown as NotificationService;
-  const service = new BookingsService(uow, repo, notifications, config);
+  const confirmationSender = { send: () => Promise.resolve() } as unknown as ConfirmationSender;
+  const service = new BookingsService(uow, repo, confirmationSender, config);
 
   // A and B overlap and share table 2. C overlaps both but has its own table 3.
   const diningRoom = async () => ({

@@ -1,11 +1,14 @@
 import { vi } from 'vitest';
+import { BookingsService } from '../../src/bookings/application/bookings.service.js';
 import {
-  BookingsService,
   CONFIRMATION_RETRY_DELAYS_MS,
-} from '../../src/bookings/application/bookings.service.js';
+  ConfirmationSender,
+  TimerSleeper,
+} from '../../src/bookings/application/confirmation-sender.js';
 import { PrismaBookingsRepository } from '../../src/bookings/infrastructure/prisma-bookings.repository.js';
 import { PrismaUnitOfWork } from '../../src/infrastructure/prisma/prisma-unit-of-work.js';
 import { TransactionContext } from '../../src/infrastructure/prisma/transaction-context.js';
+import { BookingConfirmationAdapter } from '../../src/notifications/infrastructure/booking-confirmation.adapter.js';
 import { Mailer } from '../../src/notifications/mailer.js';
 import type { MailMessage } from '../../src/notifications/mailer.js';
 import { NotificationService } from '../../src/notifications/notification.service.js';
@@ -45,7 +48,9 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
   const repo = new PrismaBookingsRepository(context);
   const mailer = new FakeMailer();
   const notifications = new NotificationService(mailer, prisma);
-  const service = new BookingsService(uow, repo, notifications, config);
+  const notifier = new BookingConfirmationAdapter(context, notifications);
+  const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
+  const service = new BookingsService(uow, repo, sender, config);
 
   const originalDelays = [...CONFIRMATION_RETRY_DELAYS_MS];
 
@@ -256,27 +261,25 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
     });
   });
 
-  describe('findBookingConfirmation', () => {
-    it('returns null for a booking that does not exist', async () => {
-      await expect(repo.findBookingConfirmation(999)).resolves.toBeNull();
+  describe('the booking confirmation notifier', () => {
+    it('skips a booking that does not exist', async () => {
+      await expect(notifier.notify(999)).resolves.toBe('SKIPPED');
+      expect(mailer.sent).toHaveLength(0);
     });
 
-    it('returns the account and the email of the hiker who booked', async () => {
+    it('sends the email to the hiker who booked', async () => {
       const anna = await hiker('anna@example.test', 'Anna Rossi');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
       const bookingId = await createBooking(prisma, anna.hikerId, slotId, 'PENDING', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      const confirmation = await repo.findBookingConfirmation(bookingId);
-      expect(confirmation?.recipient).toMatchObject({
-        userId: anna.userId,
-        email: 'anna@example.test',
-      });
-      expect(confirmation?.booking).toMatchObject({ bookingId });
+      await expect(notifier.notify(bookingId)).resolves.toBe('SENT');
+      expect(mailer.sent[0]).toMatchObject({ to: 'anna@example.test' });
+      expect(mailer.sent[0].text).toContain(`Booking n.: ${bookingId}`);
     });
 
-    it('returns no email for a hiker without an account', async () => {
+    it('skips a hiker without an account', async () => {
       const walkIn = await prisma.hiker.create({
         data: { fullName: 'Walk In', phone: '3330000000' },
       });
@@ -285,8 +288,8 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      const confirmation = await repo.findBookingConfirmation(bookingId);
-      expect(confirmation?.recipient).toMatchObject({ userId: null, email: null });
+      await expect(notifier.notify(bookingId)).resolves.toBe('SKIPPED');
+      expect(mailer.sent).toHaveLength(0);
     });
   });
 });

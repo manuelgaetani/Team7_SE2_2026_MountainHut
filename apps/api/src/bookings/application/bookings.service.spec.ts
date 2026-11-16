@@ -2,11 +2,11 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { AppConfig } from '../../config/app-config.js';
-import { NotificationService } from '../../notifications/notification.service.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
 import { MIN_LEAD_MS } from '../domain/booking-policy.js';
 import { BookingsRepository } from './bookings.repository.port.js';
 import { BookingsService } from './bookings.service.js';
+import { ConfirmationSender } from './confirmation-sender.js';
 
 const NOW = new Date('2026-11-01T10:00:00Z');
 const slotStart = new Date(NOW.getTime() + MIN_LEAD_MS);
@@ -34,14 +34,8 @@ describe('BookingsService', () => {
     hasActiveBooking: vi.fn(),
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
-    findBookingConfirmation: vi.fn(),
-    confirmBooking: vi.fn(),
   };
-  const notifications = { sendBookingConfirmation: vi.fn() };
-  const confirmation = {
-    recipient: { userId: 1, email: 'anna@example.com' },
-    booking: { bookingId: 9 },
-  };
+  const confirmationSender = { send: vi.fn() };
 
   const config = { bookingTimeZone: 'Europe/Rome' };
 
@@ -62,13 +56,13 @@ describe('BookingsService', () => {
     repo.hasActiveBooking.mockResolvedValue(false);
     repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 4 }]);
     repo.createBooking.mockResolvedValue(storedBooking);
-    repo.findBookingConfirmation.mockResolvedValue(confirmation);
+    confirmationSender.send.mockResolvedValue(undefined);
     const module = await Test.createTestingModule({
       providers: [
         BookingsService,
         { provide: UnitOfWork, useValue: uow },
         { provide: BookingsRepository, useValue: repo },
-        { provide: NotificationService, useValue: notifications },
+        { provide: ConfirmationSender, useValue: confirmationSender },
         { provide: AppConfig, useValue: config },
       ],
     }).compile();
@@ -167,127 +161,24 @@ describe('BookingsService', () => {
     });
   });
 
-  describe('confirmation email', () => {
-    const sent = () => notifications.sendBookingConfirmation;
-
-    it('is sent to the hiker with the stored booking', async () => {
+  describe('confirmation of the booking', () => {
+    it('is started for the stored booking, after the transaction has been committed', async () => {
       await service.create(1, input);
-      await vi.waitFor(() =>
-        expect(sent()).toHaveBeenCalledWith(confirmation.recipient, confirmation.booking),
-      );
-      expect(repo.findBookingConfirmation).toHaveBeenCalledWith(9);
-    });
-
-    it('is read outside the transaction, once it has been committed', async () => {
-      await service.create(1, input);
-      await vi.waitFor(() => expect(sent()).toHaveBeenCalledOnce());
-      expect(repo.findBookingConfirmation.mock.invocationCallOrder[0]).toBeGreaterThan(
+      expect(confirmationSender.send).toHaveBeenCalledExactlyOnceWith(9);
+      expect(confirmationSender.send.mock.invocationCallOrder[0]).toBeGreaterThan(
         runEnded.mock.invocationCallOrder[0],
       );
     });
 
-    it('does not make the answer wait for the SMTP server', async () => {
-      sent().mockReturnValue(new Promise(() => undefined));
-      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
+    it('does not make the answer wait for it', async () => {
+      confirmationSender.send.mockReturnValue(new Promise(() => undefined));
+      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9, status: 'PENDING' });
     });
 
-    it('does not fail the booking when it cannot be read', async () => {
-      repo.findBookingConfirmation.mockRejectedValue(new Error('database down'));
-      await expect(service.create(1, input)).resolves.toMatchObject({ id: 9 });
-      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
-      expect(sent()).not.toHaveBeenCalled();
-    });
-
-    it('is not sent when the booking has disappeared', async () => {
-      repo.findBookingConfirmation.mockResolvedValue(null);
-      await service.create(1, input);
-      await vi.waitFor(() => expect(repo.findBookingConfirmation).toHaveBeenCalled());
-      expect(sent()).not.toHaveBeenCalled();
-    });
-
-    it('is not sent when the booking is refused', async () => {
+    it('is not started when the booking is refused', async () => {
       repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
-      await expect(service.create(1, input)).rejects.toMatchObject({
-        code: 'CONFLICT',
-        message: 'Insufficient seats available for this slot',
-      });
-      expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('confirmation of the booking by the email', () => {
-    const sent = () => notifications.sendBookingConfirmation;
-
-    it('confirms the booking once its email is sent', async () => {
-      sent().mockResolvedValue('SENT');
-      await service.create(1, input);
-      await vi.waitFor(() => expect(repo.confirmBooking).toHaveBeenCalledWith(9));
-      expect(sent()).toHaveBeenCalledOnce();
-    });
-
-    it('retries a failed email up to three times, waiting longer each time', async () => {
-      vi.useFakeTimers({ now: NOW });
-      sent()
-        .mockResolvedValueOnce('FAILED')
-        .mockResolvedValueOnce('FAILED')
-        .mockResolvedValueOnce('FAILED')
-        .mockResolvedValueOnce('SENT');
-      await service.create(1, input);
-
-      await vi.advanceTimersByTimeAsync(0);
-      expect(sent()).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(999);
-      expect(sent()).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(1);
-      expect(sent()).toHaveBeenCalledTimes(2);
-      await vi.advanceTimersByTimeAsync(5_000);
-      expect(sent()).toHaveBeenCalledTimes(3);
-      await vi.advanceTimersByTimeAsync(25_000);
-      expect(sent()).toHaveBeenCalledTimes(4);
-      expect(repo.confirmBooking).toHaveBeenCalledOnce();
-    });
-
-    it('confirms the booking when a retry succeeds', async () => {
-      vi.useFakeTimers({ now: NOW });
-      sent().mockResolvedValueOnce('FAILED').mockResolvedValueOnce('SENT');
-      await service.create(1, input);
-      await vi.advanceTimersByTimeAsync(1_000);
-      expect(sent()).toHaveBeenCalledTimes(2);
-      expect(repo.confirmBooking).toHaveBeenCalledWith(9);
-    });
-
-    it('leaves the booking pending after four failed attempts', async () => {
-      vi.useFakeTimers({ now: NOW });
-      sent().mockResolvedValue('FAILED');
-      await service.create(1, input);
-      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
-      expect(sent()).toHaveBeenCalledTimes(4);
-      expect(repo.confirmBooking).not.toHaveBeenCalled();
-    });
-
-    it('neither retries nor confirms when the hiker has no email', async () => {
-      vi.useFakeTimers({ now: NOW });
-      sent().mockResolvedValue('SKIPPED');
-      await service.create(1, input);
-      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
-      expect(sent()).toHaveBeenCalledOnce();
-      expect(repo.confirmBooking).not.toHaveBeenCalled();
-    });
-
-    it('does not resend the email when the booking cannot be confirmed', async () => {
-      vi.useFakeTimers({ now: NOW });
-      sent().mockResolvedValue('SENT');
-      repo.confirmBooking.mockRejectedValue(new Error('database down'));
-      await expect(service.create(1, input)).resolves.toMatchObject({ status: 'PENDING' });
-      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
-      expect(repo.confirmBooking).toHaveBeenCalledOnce();
-      expect(sent()).toHaveBeenCalledOnce();
-    });
-
-    it('answers with the booking still pending, before the email is sent', async () => {
-      sent().mockReturnValue(new Promise(() => undefined));
-      await expect(service.create(1, input)).resolves.toMatchObject({ status: 'PENDING' });
-      expect(repo.confirmBooking).not.toHaveBeenCalled();
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(confirmationSender.send).not.toHaveBeenCalled();
     });
   });
 
