@@ -1,9 +1,3 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationService } from '../notifications/notification.service.js';
@@ -196,7 +190,7 @@ describe('BookingsService', () => {
 
     it('is not sent when the booking is refused', async () => {
       repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
-      await expect(service.create(1, input)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'CONFLICT' });
       expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
     });
   });
@@ -280,7 +274,7 @@ describe('BookingsService', () => {
   describe('when the user has no hiker profile', () => {
     it('rejects the booking before touching the slot', async () => {
       repo.findHikerIdByUserId.mockResolvedValue(null);
-      await expect(service.create(1, input)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'FORBIDDEN' });
       expect(repo.lockSlotAndGetStart).not.toHaveBeenCalled();
       expectNothingWritten();
     });
@@ -289,7 +283,7 @@ describe('BookingsService', () => {
   describe('when the slot does not exist', () => {
     it('rejects the booking before reading the seats', async () => {
       repo.lockSlotAndGetStart.mockResolvedValue(null);
-      await expect(service.create(1, input)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'NOT_FOUND' });
       expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
       expectNothingWritten();
     });
@@ -298,9 +292,10 @@ describe('BookingsService', () => {
   describe('when the hiker already has a booking for the slot', () => {
     it('answers 409 after locking the slot and writes nothing', async () => {
       repo.hasActiveBooking.mockResolvedValue(true);
-      await expect(service.create(1, input)).rejects.toThrow(
-        new ConflictException('You already have a booking for this slot'),
-      );
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'You already have a booking for this slot',
+      });
       expect(repo.hasActiveBooking).toHaveBeenCalledWith(tx, 7, input.slotId);
       expect(repo.lockSlotAndGetStart.mock.invocationCallOrder[0]).toBeLessThan(
         repo.hasActiveBooking.mock.invocationCallOrder[0]!,
@@ -342,7 +337,7 @@ describe('BookingsService', () => {
   describe('when the policy refuses the booking', () => {
     it('answers 422 when less than two hours remain', async () => {
       repo.lockSlotAndGetStart.mockResolvedValue(new Date(slotStart.getTime() - 1));
-      await expect(service.create(1, input)).rejects.toBeInstanceOf(UnprocessableEntityException);
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
       expectNothingWritten();
     });
 
@@ -352,7 +347,7 @@ describe('BookingsService', () => {
 
     it('answers 409 when the seats are not enough', async () => {
       repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
-      await expect(service.create(1, input)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'CONFLICT' });
       expectNothingWritten();
     });
   });

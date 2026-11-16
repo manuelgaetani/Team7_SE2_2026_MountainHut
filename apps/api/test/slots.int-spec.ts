@@ -1,4 +1,3 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { SlotsRepository } from '../src/slots/slots.repository.js';
@@ -376,7 +375,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '13:00',
           copyTablesFromSlotId: 999_999,
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
       const empty = await service.create({
         date: '2033-09-03',
@@ -385,7 +384,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
       });
       await expect(
         service.defineTables(empty.id, { copyTablesFromSlotId: 999_999 }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
     it('throws 422 when attempting to copy tables from a slot that has no tables', async () => {
@@ -402,7 +401,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '14:00',
           copyTablesFromSlotId: emptySource.id,
         }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      ).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
 
       const target = await service.create({
         date: '2033-09-04',
@@ -411,7 +410,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
       });
       await expect(
         service.defineTables(target.id, { copyTablesFromSlotId: emptySource.id }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      ).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
     });
   });
 
@@ -431,7 +430,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '14:00',
           tables: [{ tableNumber: 2, seats: 6 }],
         }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('throws 409 when trying to define tables on a slot that already has tables', async () => {
@@ -446,7 +445,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         service.defineTables(slot.id, {
           tables: [{ tableNumber: 1, seats: 6 }],
         }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('throws 404 when defineTables or findOne is called on a non-existent slot id', async () => {
@@ -454,9 +453,9 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         service.defineTables(999_999, {
           tables: [{ tableNumber: 1, seats: 4 }],
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
-      await expect(service.findOne(999_999)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne(999_999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
     it('prevents concurrent definitions on the same slot via database row locking', async () => {
@@ -476,7 +475,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
 
       expect(fulfilled).toHaveLength(1);
       expect(rejected).toHaveLength(1);
-      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
+      expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' });
 
       const finalSlot = await service.findOne(slot.id);
       expect(finalSlot.tables).toHaveLength(1);

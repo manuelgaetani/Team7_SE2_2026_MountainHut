@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import bcrypt from 'bcrypt';
@@ -59,7 +58,7 @@ describe('AuthService', () => {
 
     it('lancia Conflict se l’email esiste già', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 1 });
-      await expect(service.register(registerInput)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(registerInput)).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('crea l’utente con ruolo di default e senza esporre la password', async () => {
@@ -77,7 +76,7 @@ describe('AuthService', () => {
           clientVersion: 'test',
         }),
       );
-      await expect(service.register(registerInput)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(registerInput)).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('rethrows database errors other than a duplicate email', async () => {
@@ -132,16 +131,16 @@ describe('AuthService', () => {
   describe('login', () => {
     it('lancia Unauthorized con password sbagliata', async () => {
       prisma.user.findUnique.mockResolvedValue(await registeredUser());
-      await expect(
-        service.login({ email: 'a@b.it', password: 'sbagliata' }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.login({ email: 'a@b.it', password: 'sbagliata' })).rejects.toMatchObject(
+        { code: 'UNAUTHORIZED' },
+      );
     });
 
     it('lancia Unauthorized se l’utente non esiste', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(
-        service.login({ email: 'x@y.it', password: 'qualsiasi' }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.login({ email: 'x@y.it', password: 'qualsiasi' })).rejects.toMatchObject(
+        { code: 'UNAUTHORIZED' },
+      );
     });
 
     it('restituisce access token, refresh token e utente', async () => {
@@ -183,9 +182,9 @@ describe('AuthService', () => {
 
     it('issues no session when the credentials are rejected', async () => {
       prisma.user.findUnique.mockResolvedValue(await registeredUser());
-      await expect(
-        service.login({ email: 'a@b.it', password: 'sbagliata' }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.login({ email: 'a@b.it', password: 'sbagliata' })).rejects.toMatchObject(
+        { code: 'UNAUTHORIZED' },
+      );
       expect(jwt.signAsync).not.toHaveBeenCalled();
       expect(prisma.refreshToken.create).not.toHaveBeenCalled();
     });
@@ -196,7 +195,7 @@ describe('AuthService', () => {
       try {
         await expect(
           service.login({ email: 'x@y.it', password: 'qualsiasi' }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
         expect(compare).toHaveBeenCalledTimes(1);
       } finally {
         compare.mockRestore();
@@ -281,7 +280,7 @@ describe('AuthService', () => {
 
     it('lancia Unauthorized se il token non esiste', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue(null);
-      await expect(service.refresh('sconosciuto')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('sconosciuto')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     });
 
     it('lancia Unauthorized se il token è scaduto', async () => {
@@ -289,13 +288,13 @@ describe('AuthService', () => {
         ...valid,
         expiresAt: new Date(Date.now() - 1000),
       });
-      await expect(service.refresh('scaduto')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('scaduto')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     });
 
     it('token già revocato: revoca tutte le sessioni dell’utente e lancia Unauthorized', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue({ ...valid, revokedAt: new Date() });
       prisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
-      await expect(service.refresh('riusato')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('riusato')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
       expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
         where: { userId: 1, revokedAt: null },
         data: { revokedAt: expect.any(Date) },
@@ -305,7 +304,7 @@ describe('AuthService', () => {
     it('lancia Unauthorized se un’altra richiesta ha già usato il token', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue(valid);
       prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
-      await expect(service.refresh('gara')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('gara')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     });
 
     it('token valido: revoca il vecchio ed emette una nuova coppia di token', async () => {
@@ -325,7 +324,7 @@ describe('AuthService', () => {
 
     it('looks the token up by its SHA-256 hash', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue(null);
-      await expect(service.refresh('raw-token')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('raw-token')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
       expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
         where: { tokenHash: sha256('raw-token') },
         include: { user: true },
@@ -337,14 +336,14 @@ describe('AuthService', () => {
       const now = new Date('2026-10-28T12:00:00Z');
       vi.setSystemTime(now);
       prisma.refreshToken.findUnique.mockResolvedValue({ ...valid, expiresAt: now });
-      await expect(service.refresh('al-limite')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('al-limite')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
       expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
     });
 
     it('issues no new session when a revoked token is reused', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue({ ...valid, revokedAt: new Date() });
       prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
-      await expect(service.refresh('riusato')).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.refresh('riusato')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
       expect(jwt.signAsync).not.toHaveBeenCalled();
       expect(prisma.refreshToken.create).not.toHaveBeenCalled();
     });
@@ -391,7 +390,7 @@ describe('AuthService', () => {
 
     it('lancia Unauthorized se l’utente non esiste più', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.me(99)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(service.me(99)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     });
 
     it('never returns the password hash', async () => {

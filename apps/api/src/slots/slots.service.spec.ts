@@ -1,4 +1,3 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../generated/prisma/client.js';
@@ -63,7 +62,7 @@ describe('SlotsService', () => {
 
     it('throws NotFound when the slot does not exist', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.findOne(99)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne(99)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
   });
 
@@ -96,17 +95,17 @@ describe('SlotsService', () => {
 
     it('throws NotFound, creating nothing, when the slot to copy from does not exist', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.create({ ...input, copyTablesFromSlotId: 99 })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.create({ ...input, copyTablesFromSlotId: 99 })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
       expect(repo.create).not.toHaveBeenCalled();
     });
 
     it('throws UnprocessableEntity when the slot to copy from has no tables', async () => {
       repo.findById.mockResolvedValue(slotRow({ id: 3, tables: [] }));
-      await expect(service.create({ ...input, copyTablesFromSlotId: 3 })).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
+      await expect(service.create({ ...input, copyTablesFromSlotId: 3 })).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+      });
       expect(repo.create).not.toHaveBeenCalled();
     });
 
@@ -117,7 +116,7 @@ describe('SlotsService', () => {
           clientVersion: 'test',
         }),
       );
-      await expect(service.create(input)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.create(input)).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('rethrows database errors other than a duplicate slot', async () => {
@@ -132,14 +131,16 @@ describe('SlotsService', () => {
 
     it('throws NotFound when the slot does not exist', async () => {
       repo.lock.mockResolvedValue(false);
-      await expect(service.defineTables(5, { tables })).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.defineTables(5, { tables })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
       expect(repo.createTables).not.toHaveBeenCalled();
     });
 
     it('throws Conflict when the slot already has tables', async () => {
       repo.lock.mockResolvedValue(true);
       repo.findTables.mockResolvedValue(tables);
-      await expect(service.defineTables(5, { tables })).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.defineTables(5, { tables })).rejects.toMatchObject({ code: 'CONFLICT' });
       expect(repo.createTables).not.toHaveBeenCalled();
     });
 

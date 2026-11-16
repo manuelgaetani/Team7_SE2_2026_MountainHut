@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { BookingsRepository } from '../src/bookings/bookings.repository.js';
 import { BookingsService } from '../src/bookings/bookings.service.js';
 import type { NotificationService } from '../src/notifications/notification.service.js';
@@ -313,7 +312,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       const failed = results.find((r) => r.status === 'rejected');
-      expect((failed as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
+      expect((failed as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' });
       const seats = await prisma.bookingTable.aggregate({
         where: { slotId },
         _sum: { assignedSeats: true },
@@ -354,7 +353,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
       await expect(
         service.create(bruno.userId, { slotId: b, partySize: 10 }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
       await expect(
         service.create(bruno.userId, { slotId: b, partySize: 9 }),
       ).resolves.toMatchObject({ slotId: b });
@@ -392,7 +391,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       expect(rejected).toHaveLength(1);
       // A 409, not a deadlock or any other database error.
-      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+      expect(rejected[0].reason).toMatchObject({ code: 'CONFLICT' });
       const seats = await prisma.bookingTable.aggregate({ _sum: { assignedSeats: true } });
       expect(seats._sum.assignedSeats).toBe(15);
     });
@@ -411,7 +410,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         ]);
 
         for (const r of results) {
-          if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(ConflictException);
+          if (r.status === 'rejected') expect(r.reason).toMatchObject({ code: 'CONFLICT' });
         }
       }
     }, 30_000);
@@ -431,9 +430,9 @@ describe('Bookings with PostgreSQL (integration)', () => {
       expect(freeSeats(b)).toBe(1);
       expect(freeSeats(c)).toBe(8);
 
-      await expect(
-        service.create(bruno.userId, { slotId: b, partySize: 2 }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.create(bruno.userId, { slotId: b, partySize: 2 })).rejects.toMatchObject(
+        { code: 'CONFLICT' },
+      );
       await expect(
         service.create(bruno.userId, { slotId: c, partySize: 8 }),
       ).resolves.toMatchObject({ slotId: c });
