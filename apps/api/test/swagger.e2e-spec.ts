@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
 import { setupSwagger } from '../src/swagger.js';
 
 describe('Swagger (e2e)', () => {
