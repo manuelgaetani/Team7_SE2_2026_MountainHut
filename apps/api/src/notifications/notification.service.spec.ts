@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { Mailer } from './mailer.js';
 import { NotificationService } from './notification.service.js';
 import type { BookingConfirmationData } from './templates/booking-confirmation.js';

@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigModule } from '../config/config.module.js';
-import { PrismaModule } from '../prisma/prisma.module.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaModule } from '../infrastructure/prisma/prisma.module.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { Mailer, SmtpMailer } from './mailer.js';
 import { NotificationService } from './notification.service.js';
 import { NotificationsModule } from './notifications.module.js';

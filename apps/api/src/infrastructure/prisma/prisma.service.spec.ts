@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppConfig } from '../config/app-config.js';
+import type { AppConfig } from '../../config/app-config.js';
 import { PrismaService } from './prisma.service.js';
 
 describe('PrismaService', () => {

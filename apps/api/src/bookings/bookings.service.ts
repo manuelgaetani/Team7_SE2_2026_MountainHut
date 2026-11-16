@@ -3,7 +3,7 @@ import { DomainError } from '../shared-kernel/domain-error.js';
 import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
 import { AppConfig } from '../config/app-config.js';
 import { NotificationService } from '../notifications/notification.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { decideBooking, slotAvailability } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
 

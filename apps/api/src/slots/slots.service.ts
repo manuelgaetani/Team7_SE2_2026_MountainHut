@@ -8,7 +8,7 @@ import type {
   SlotTable,
 } from '@mountain-hut/shared';
 import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { SlotsRepository } from './slots.repository.js';
 import type { SlotRow, TableRow } from './slots.repository.js';
 

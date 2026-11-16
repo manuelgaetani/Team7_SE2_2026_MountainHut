@@ -4,8 +4,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigModule } from '../config/config.module.js';
-import { PrismaModule } from '../prisma/prisma.module.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaModule } from '../infrastructure/prisma/prisma.module.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
 import { AuthService } from './auth.service.js';
 

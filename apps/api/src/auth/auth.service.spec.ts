@@ -5,7 +5,7 @@ import bcrypt from 'bcrypt';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig, loadAppConfig } from '../config/app-config.js';
 import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { AuthService } from './auth.service.js';
 
 const config = (env: Record<string, string | undefined> = {}) =>
