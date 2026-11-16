@@ -100,6 +100,7 @@ describe('SlotsService', () => {
       repo.findById.mockResolvedValue(null);
       await expect(service.create({ ...input, copyTablesFromSlotId: 99 })).rejects.toMatchObject({
         code: 'NOT_FOUND',
+        message: 'The slot to copy the tables from does not exist',
       });
       expect(repo.create).not.toHaveBeenCalled();
     });
@@ -140,6 +141,7 @@ describe('SlotsService', () => {
       repo.lock.mockResolvedValue(false);
       await expect(service.defineTables(5, { tables })).rejects.toMatchObject({
         code: 'NOT_FOUND',
+        message: 'Slot not found',
       });
       expect(repo.createTables).not.toHaveBeenCalled();
     });
