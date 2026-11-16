@@ -16,6 +16,7 @@ import type {
   DefineSlotTablesInput,
   ListSlotsQuery,
   SlotDetails,
+  SlotSummary,
 } from '@mountain-hut/shared';
 import {
   createSlotSchema,
@@ -27,6 +28,7 @@ import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { ApiZodBody } from '../common/api-zod-body.decorator.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { ListBookableSlots } from '../bookings/application/list-bookable-slots.js';
 import { SlotsService } from './application/slots.service.js';
 
 // Staff only: the warden can do everything an employee can (context.md).
@@ -36,7 +38,18 @@ import { SlotsService } from './application/slots.service.js';
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('EMPLOYEE', 'WARDEN')
 export class SlotsController {
-  constructor(private readonly slots: SlotsService) {}
+  constructor(
+    private readonly slots: SlotsService,
+    private readonly bookableSlots: ListBookableSlots,
+  ) {}
+
+  // MH-01: hikers list the bookable slots; any authenticated role may (overrides the class roles).
+  @Get()
+  @ApiTags('bookings')
+  @Roles('HIKER', 'EMPLOYEE', 'WARDEN')
+  listBookable(): Promise<SlotSummary[]> {
+    return this.bookableSlots.execute(new Date());
+  }
 
   @Post()
   @HttpCode(201)
@@ -47,7 +60,7 @@ export class SlotsController {
     return this.slots.create(body);
   }
 
-  // Not GET /slots: that route lists the bookable slots for hikers (MH-01).
+  // Not GET /slots: that route lists the bookable slots for any role (MH-01).
   @Get('schedule')
   @ApiQuery({ name: 'date', example: '2026-11-02' })
   schedule(

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { BookingResult, CreateBookingInput, SlotSummary } from '@mountain-hut/shared';
+import type { BookingResult, CreateBookingInput } from '@mountain-hut/shared';
 import { AppConfig } from '../../config/app-config.js';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
-import { decideBooking, slotAvailability } from '../domain/booking-policy.js';
+import { decideBooking } from '../domain/booking-policy.js';
 import { BookingsRepository } from './bookings.repository.port.js';
 import { ConfirmationSender } from './confirmation-sender.js';
 
@@ -15,15 +15,6 @@ export class BookingsService {
     private readonly confirmationSender: ConfirmationSender,
     private readonly config: AppConfig,
   ) {}
-
-  async listSlots(): Promise<SlotSummary[]> {
-    const now = new Date();
-    const slots = await this.repo.findUpcomingSlots(this.config.bookingTimeZone, now);
-    return slots.map(({ startsAt, ...slot }) => ({
-      ...slot,
-      availability: slotAvailability(startsAt, now, slot.freeSeats),
-    }));
-  }
 
   // userId è l'hiker che prenota: arriva dal token, mai dal body.
   async create(userId: number, input: CreateBookingInput): Promise<BookingResult> {

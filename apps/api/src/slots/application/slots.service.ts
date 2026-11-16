@@ -7,7 +7,6 @@ import type {
 } from '@mountain-hut/shared';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
-import { isUniqueViolation } from '../../infrastructure/prisma/prisma-errors.js';
 import type { Slot } from '../domain/slot.js';
 import { SlotsRepository } from './slots.repository.port.js';
 
@@ -25,31 +24,21 @@ export class SlotsService {
   ) {}
 
   // Creates a slot, optionally with its tables (a list, or a copy of another slot's tables).
-  // 404 if copyTablesFromSlotId does not exist, 409 if a slot with the same date, start and end exists.
+  // 404 if copyTablesFromSlotId does not exist, 409 (raised by the repository) if a slot with the same date, start and end exists.
   async create(input: CreateSlotInput): Promise<SlotDetails> {
     // TODO(MH-02): overlapping slots and slots in the past are accepted for now; the team is
     // deciding whether to ask the product owner. Add the checks here if they must be refused.
-    try {
-      const id = await this.uow.run(async () => {
-        const tables = await this.resolveTables(input);
-        const slotId = await this.repo.create({
-          date: input.date,
-          startTime: input.startTime,
-          endTime: input.endTime,
-        });
-        if (tables) await this.repo.createTables(slotId, tables);
-        return slotId;
+    const id = await this.uow.run(async () => {
+      const tables = await this.resolveTables(input);
+      const slotId = await this.repo.create({
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
       });
-      return await this.findOne(id);
-    } catch (e) {
-      if (isUniqueViolation(e)) {
-        throw new DomainError(
-          'CONFLICT',
-          'A slot with the same date, start and end already exists',
-        );
-      }
-      throw e;
-    }
+      if (tables) await this.repo.createTables(slotId, tables);
+      return slotId;
+    });
+    return this.findOne(id);
   }
 
   // Slots of one day, ordered by start time, each with its tables and total seats.

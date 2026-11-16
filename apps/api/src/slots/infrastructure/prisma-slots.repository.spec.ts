@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { PrismaSlotsRepository } from './prisma-slots.repository.js';
@@ -139,6 +140,29 @@ describe('PrismaSlotsRepository', () => {
         },
         select: { id: true },
       });
+    });
+  });
+
+  describe('create on a duplicate', () => {
+    const newSlot = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
+
+    it('translates the unique violation into a conflict', async () => {
+      client.slot.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+      await expect(repository.create(newSlot)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'A slot with the same date, start and end already exists',
+      });
+    });
+
+    it('rethrows other database errors', async () => {
+      const failure = new Error('database unreachable');
+      client.slot.create.mockRejectedValue(failure);
+      await expect(repository.create(newSlot)).rejects.toBe(failure);
     });
   });
 
