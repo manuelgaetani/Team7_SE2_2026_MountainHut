@@ -1,17 +1,19 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
 import { vi } from 'vitest';
 import { changeBookingSchema } from '@mountain-hut/shared';
-import { BookingsRepository } from '../src/bookings/bookings.repository.js';
-import { BookingsService } from '../src/bookings/bookings.service.js';
+import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import {
+  ConfirmationSender,
+  TimerSleeper,
+} from '../src/bookings/application/confirmation-sender.js';
+import { PrismaBookingsRepository } from '../src/bookings/infrastructure/prisma-bookings.repository.js';
+import { loadAppConfig } from '../src/config/app-config.js';
+import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
+import { BookingConfirmationAdapter } from '../src/notifications/infrastructure/booking-confirmation.adapter.js';
 import { Mailer } from '../src/notifications/mailer.js';
 import type { MailMessage } from '../src/notifications/mailer.js';
 import { NotificationService } from '../src/notifications/notification.service.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
 // MH-06: a hiker changes the slot, the party size or the requirements of a booking.
@@ -37,10 +39,15 @@ const WAIT = { timeout: 3000 };
 const NOW = new Date('2031-07-01T08:00:00Z');
 
 describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
-  const prisma = new PrismaService();
-  const repo = new BookingsRepository();
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
+  const context = new TransactionContext(prisma);
+  const uow = new PrismaUnitOfWork(prisma, context);
+  const repo = new PrismaBookingsRepository(context);
   const mailer = new FakeMailer();
-  const service = new BookingsService(prisma, repo, new NotificationService(mailer, prisma));
+  const notifier = new BookingConfirmationAdapter(context, new NotificationService(mailer, prisma));
+  const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
+  const service = new BookingsService(uow, repo, sender, config);
 
   // The emails are sent after the commit and not awaited. Each test waits for its own before the
   // next one empties the database: a late email could otherwise land on a booking of the next test.
@@ -137,9 +144,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
       const before = await snapshot(booking);
 
-      await expect(service.change(anna.userId, booking, { partySize: 6 })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.change(anna.userId, booking, { partySize: 6 })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
 
       expect(await snapshot(booking)).toEqual(before);
       expect(mailer.sent).toEqual([]);
@@ -154,7 +161,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
       await expect(
         service.create(bruno.userId, { slotId: slot, partySize: 2 }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
 
       await service.change(anna.userId, booking, { partySize: 4 });
 
@@ -209,9 +216,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
       const before = await snapshot(booking);
 
-      await expect(service.change(anna.userId, booking, { slotId: dinner })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.change(anna.userId, booking, { slotId: dinner })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
       expect(await snapshot(booking)).toEqual(before);
     });
 
@@ -222,9 +229,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      await expect(
-        service.change(anna.userId, booking, { slotId: 999_999 }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.change(anna.userId, booking, { slotId: 999_999 })).rejects.toMatchObject(
+        { code: 'NOT_FOUND' },
+      );
       expect((await bookingOf(booking)).slotId).toBe(lunch);
     });
   });
@@ -287,9 +294,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       vi.setSystemTime(new Date('2031-07-08T17:00:01Z'));
 
       for (const change of [{ partySize: 3 }, { requirements: 'vegan' }, { slotId: later }]) {
-        await expect(service.change(anna.userId, booking, change)).rejects.toBeInstanceOf(
-          UnprocessableEntityException,
-        );
+        await expect(service.change(anna.userId, booking, change)).rejects.toMatchObject({
+          code: 'UNPROCESSABLE',
+        });
       }
       expect(await snapshot(booking)).toEqual(before);
     });
@@ -306,9 +313,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       const before = await snapshot(booking);
 
       // 2031-07-02 19:00 in Rome is 33 hours after NOW: more than 2 hours, less than 48.
-      await expect(service.change(anna.userId, booking, { slotId: soon })).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
+      await expect(service.change(anna.userId, booking, { slotId: soon })).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+      });
       expect(await snapshot(booking)).toEqual(before);
     });
   });
@@ -323,17 +330,17 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
       const before = await snapshot(booking);
 
-      await expect(service.change(bruno.userId, booking, { partySize: 4 })).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(service.change(bruno.userId, booking, { partySize: 4 })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
       expect(await snapshot(booking)).toEqual(before);
     });
 
     it('answers NotFound for a booking that does not exist', async () => {
       const anna = await createHiker(prisma, 'anna@example.test');
-      await expect(service.change(anna.userId, 999_999, { partySize: 2 })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.change(anna.userId, 999_999, { partySize: 2 })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
     });
 
     it('refuses to change a rejected booking', async () => {
@@ -343,9 +350,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      await expect(service.change(anna.userId, booking, { partySize: 3 })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.change(anna.userId, booking, { partySize: 3 })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
       expect((await bookingOf(booking)).partySize).toBe(2);
     });
   });
@@ -370,7 +377,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
 
       const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
       expect(rejected).toHaveLength(1);
-      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+      expect(rejected[0].reason).toMatchObject({ code: 'CONFLICT' });
       expect(await seatsTakenIn(slot)).toBe(6);
     });
 
