@@ -1,6 +1,7 @@
 import type { FloorPlan } from '@mountain-hut/shared';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useFloorPlan } from '../api/useSlots.ts';
 import { FloorGroups } from '../components/FloorGroups.tsx';
@@ -127,7 +128,6 @@ export function FloorPlanPage() {
   const { id: rawId } = useParams();
   const id = parseSlotId(rawId);
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let content = null;
   let showsPlan = false;
@@ -138,7 +138,7 @@ export function FloorPlanPage() {
           <Link to="/login">Log in</Link> with a staff account to see the floor plan.
         </p>
       );
-    } else if (!isStaff) {
+    } else if (!isStaff(user)) {
       content = <p className="notice notice--ok">This page is for the hut staff.</p>;
     } else if (id === null) {
       content = (

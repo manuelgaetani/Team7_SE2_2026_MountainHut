@@ -25,15 +25,15 @@ The email contains:
 
 ## Requirements
 
-| #   | Requirement                                                   | Status | Implemented in                                                          |
-| --- | ------------------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
-| R1  | An email is sent to the hiker who made the reservation        | Done   | `BookingsService.create`, `NotificationService`                         |
-| R2  | The email contains a booking reference                        | Done   | `bookingConfirmationEmail` (booking id)                                 |
-| R3  | The email contains the date and the time slot                 | Done   | `bookingConfirmationEmail`                                              |
-| R4  | The email contains the party size                             | Done   | `bookingConfirmationEmail`                                              |
-| R5  | The email contains the party requirements, e.g. allergies     | Done   | `bookings.requirements`, optional free-text (up to 500 chars)           |
-| R6  | The email contains the name of the hiker who made the booking | Done   | `bookingConfirmationEmail`                                              |
-| R7  | The booking is confirmed when its confirmation email is sent  | Done   | `BookingsService.sendConfirmation`, `BookingsRepository.confirmBooking` |
+| #   | Requirement                                                   | Status | Implemented in                                                 |
+| --- | ------------------------------------------------------------- | ------ | -------------------------------------------------------------- |
+| R1  | An email is sent to the hiker who made the reservation        | Done   | `BookingsService.create`, `NotificationService`                |
+| R2  | The email contains a booking reference                        | Done   | `bookingConfirmationEmail` (booking id)                        |
+| R3  | The email contains the date and the time slot                 | Done   | `bookingConfirmationEmail`                                     |
+| R4  | The email contains the party size                             | Done   | `bookingConfirmationEmail`                                     |
+| R5  | The email contains the party requirements, e.g. allergies     | Done   | `bookings.requirements`, optional free-text (up to 500 chars)  |
+| R6  | The email contains the name of the hiker who made the booking | Done   | `bookingConfirmationEmail`                                     |
+| R7  | The booking is confirmed when its confirmation email is sent  | Done   | `ConfirmationSender.send`, `BookingsRepository.confirmBooking` |
 
 ### Decisions
 
@@ -53,7 +53,7 @@ The email contains:
 1. `POST /api/bookings` validates input (including optional `requirements`) and executes the booking transaction as described in [MH-01](MH-01-book-a-table.md).
 2. The booking is inserted with status `PENDING`, and table seats are assigned.
 3. The transaction commits and the HTTP handler immediately returns `201 Created` with the booking details.
-4. Asynchronously, `BookingsService.sendConfirmation` reads the booking details along with the hiker's full name, email, and slot schedule.
+4. Asynchronously, `ConfirmationSender.send` reads the booking details along with the hiker's full name, email, and slot schedule.
 5. `NotificationService` renders the email template (both plain text and HTML) and attempts delivery through `Mailer`.
 6. Each attempt is logged in `notifications` (`SENT` or `FAILED`).
 7. If the email fails with `FAILED`, it is retried after 1s, 5s, and 25s.
@@ -197,19 +197,19 @@ Emails can be inspected in development at <http://localhost:8025>.
 
 ## Code map
 
-| Path                                                           | Content                                                    |
-| -------------------------------------------------------------- | ---------------------------------------------------------- |
-| `packages/shared/src/bookings.ts`                              | Schema with `requirements` field (max 500 chars)           |
-| `apps/api/src/bookings/bookings.service.ts`                    | Asynchronous confirmation dispatch, retry backoff, confirm |
-| `apps/api/src/bookings/bookings.repository.ts`                 | Reads booking email details, `confirmBooking` query        |
-| `apps/api/src/notifications/notification.service.ts`           | Sends email and logs to `notifications` table              |
-| `apps/api/src/notifications/templates/booking-confirmation.ts` | Email subject, plain-text and HTML templates               |
-| `apps/api/src/notifications/templates/escape-html.ts`          | HTML escaping utility for safe rendering                   |
-| `apps/api/src/notifications/mailer.ts`                         | `Mailer` interface and Nodemailer `SmtpMailer`             |
-| `apps/api/src/notifications/mail.config.ts`                    | SMTP configuration and port range validation               |
-| `apps/api/src/notifications/notifications.module.ts`           | NestJS notifications module                                |
-| `apps/api/prisma/schema.prisma`                                | `Notification` model and `Booking.requirements`            |
-| `apps/web/src/components/BookingSentDialog.tsx`                | Dialog explaining the email confirmation status            |
+| Path                                                                 | Content                                                    |
+| -------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `packages/shared/src/bookings.ts`                                    | Schema with `requirements` field (max 500 chars)           |
+| `apps/api/src/bookings/application/confirmation-sender.ts`           | Asynchronous confirmation dispatch, retry backoff, confirm |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | Reads booking email details, `confirmBooking` query        |
+| `apps/api/src/notifications/notification.service.ts`                 | Sends email and logs to `notifications` table              |
+| `apps/api/src/notifications/templates/booking-confirmation.ts`       | Email subject, plain-text and HTML templates               |
+| `apps/api/src/notifications/templates/escape-html.ts`                | HTML escaping utility for safe rendering                   |
+| `apps/api/src/notifications/mailer.ts`                               | `Mailer` interface and Nodemailer `SmtpMailer`             |
+| `apps/api/src/config/app-config.ts`                                  | SMTP configuration and port range validation               |
+| `apps/api/src/notifications/notifications.module.ts`                 | NestJS notifications module                                |
+| `apps/api/prisma/schema.prisma`                                      | `Notification` model and `Booking.requirements`            |
+| `apps/web/src/components/BookingSentDialog.tsx`                      | Dialog explaining the email confirmation status            |
 
 ## Testing
 
@@ -235,20 +235,20 @@ docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                                | Covers                                                                 |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`                              | Request schema validation, length bounds, rejection of NUL bytes       |
-| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email content, timezone formatting, party size pluralization, escaping |
-| `apps/api/src/notifications/templates/escape-html.spec.ts`          | Escaping of user input in HTML templates                               |
-| `apps/api/src/notifications/notification.service.spec.ts`           | Delivery flow, recording `SENT`/`FAILED`, missing recipient handling   |
-| `apps/api/src/notifications/mail.config.spec.ts`                    | SMTP settings from env, port number and range (1–65535) validation     |
-| `apps/api/src/notifications/mailer.spec.ts`                         | `SmtpMailer` sends emails via Nodemailer with correct options          |
-| `apps/api/src/notifications/notifications.module.spec.ts`           | Module wiring and dependency injection                                 |
-| `apps/api/src/bookings/bookings.service.spec.ts`                    | Confirmation trigger after commit, retry loop with backoff, confirm    |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Booking confirmation data query and `confirmBooking` status update     |
-| `apps/api/test/bookings.int-spec.ts`                                | Integration test for `confirmBooking` with real PostgreSQL             |
-| `apps/web/src/components/BookingSentDialog.test.tsx`                | Dialog message advising the hiker to wait for confirmation email       |
-| `e2e/tests/api/bookings.spec.ts`                                    | E2E test verifying Mailpit receives email and booking is `CONFIRMED`   |
+| Spec                                                                      | Covers                                                                 |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`                                    | Request schema validation, length bounds, rejection of NUL bytes       |
+| `apps/api/src/notifications/templates/booking-confirmation.spec.ts`       | Email content, timezone formatting, party size pluralization, escaping |
+| `apps/api/src/notifications/templates/escape-html.spec.ts`                | Escaping of user input in HTML templates                               |
+| `apps/api/src/notifications/notification.service.spec.ts`                 | Delivery flow, recording `SENT`/`FAILED`, missing recipient handling   |
+| `apps/api/src/config/app-config.spec.ts`                                  | SMTP settings from env, port number and range (1–65535) validation     |
+| `apps/api/src/notifications/mailer.spec.ts`                               | `SmtpMailer` sends emails via Nodemailer with correct options          |
+| `apps/api/src/notifications/notifications.module.spec.ts`                 | Module wiring and dependency injection                                 |
+| `apps/api/src/bookings/application/confirmation-sender.spec.ts`           | Retry loop with backoff, confirm                                       |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | Booking confirmation data query and `confirmBooking` status update     |
+| `apps/api/test/bookings.int-spec.ts`                                      | Integration test for `confirmBooking` with real PostgreSQL             |
+| `apps/web/src/components/BookingSentDialog.test.tsx`                      | Dialog message advising the hiker to wait for confirmation email       |
+| `e2e/tests/api/bookings.spec.ts`                                          | E2E test verifying Mailpit receives email and booking is `CONFIRMED`   |
 
 ### Try it manually
 

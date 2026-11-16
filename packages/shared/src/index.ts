@@ -4,6 +4,7 @@ export interface HealthStatus {
 }
 
 export * from './auth.js';
+export * from './db-limits.js';
 export * from './bookings.js';
 export * from './slots.js';
 export * from './floor.js';

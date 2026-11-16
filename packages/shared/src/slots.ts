@@ -1,7 +1,5 @@
 import { z } from 'zod';
-
-// Maximum value of a Postgres INTEGER: larger numbers would fail in the database.
-const MAX_DB_INT = 2_147_483_647;
+import { MAX_DB_INT } from './db-limits.js';
 
 const isCalendarDate = (s: string): boolean => {
   const parsed = new Date(`${s}T00:00:00Z`);
