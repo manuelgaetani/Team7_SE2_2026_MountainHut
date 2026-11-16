@@ -77,12 +77,21 @@ describe('loadAppConfig', () => {
         host: 'smtp.example.com',
         port: 587,
         secure: false,
+        requireTLS: true,
         auth: { user: 'hut', pass: 'secret' },
       });
     });
 
     it('uses implicit TLS on port 465', () => {
       expect(smtp({ SMTP_PORT: '465' })).toMatchObject({ secure: true });
+    });
+
+    it('requires TLS when credentials are sent, so they never travel in clear text', () => {
+      expect(smtp({ SMTP_USER: 'hut', SMTP_PASS: 'secret' })).toMatchObject({ requireTLS: true });
+    });
+
+    it('does not require TLS for Mailpit, which has no credentials and no certificate', () => {
+      expect(smtp({ SMTP_HOST: 'mailpit' })).not.toHaveProperty('requireTLS');
     });
 
     it('sends no credentials when the user is empty', () => {
