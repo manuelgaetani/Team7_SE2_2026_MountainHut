@@ -45,10 +45,16 @@ function smtpOptions(env: Env): SMTPTransport.Options {
   const options: SMTPTransport.Options = {
     host: env.SMTP_HOST || 'localhost',
     port,
-    // Port 465 uses implicit TLS; the other ports upgrade with STARTTLS when the server offers it.
+    // Port 465 uses implicit TLS; the other ports upgrade with STARTTLS.
     secure: port === 465,
   };
-  if (env.SMTP_USER) options.auth = { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' };
+  if (env.SMTP_USER) {
+    options.auth = { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' };
+    // A real server (it has credentials) must encrypt: if it does not offer STARTTLS the email
+    // fails instead of sending password and content in clear text. Mailpit has no credentials
+    // and no certificate, so it keeps working without TLS.
+    options.requireTLS = true;
+  }
   return options;
 }
 

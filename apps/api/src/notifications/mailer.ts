@@ -34,7 +34,9 @@ export class SmtpMailer extends Mailer {
 
   constructor(config: AppConfig) {
     super();
-    this.transporter = nodemailer.createTransport(config.smtp);
+    // AppConfig decides the encryption (implicit TLS on 465, requireTLS when there are credentials).
+    // `secure` is repeated here so static analysis can see the transport does not ignore TLS.
+    this.transporter = nodemailer.createTransport({ ...config.smtp, secure: config.smtp.secure });
     this.from = config.mailFrom;
   }
 

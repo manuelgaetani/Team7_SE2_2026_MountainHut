@@ -22,23 +22,23 @@
 
 ## Audit findings (spec)
 
-| Id | Finding | Principle | Where |
-|----|---------|-----------|-------|
-| F1 | Services depend on concrete `PrismaService` and call `$transaction`; repositories take `Prisma.TransactionClient` → ORM type leaks into application layer | DIP, Clean Arch | `bookings.service.ts`, `slots.service.ts`, both repositories |
-| F2 | Repositories are concrete classes injected directly, no port | DIP | same |
-| F3 | Use cases throw Nest HTTP exceptions (`ConflictException`, …) → framework in business layer | Clean Arch | all services |
-| F4 | `AuthService` does user registration, password hashing, JWT issuing, refresh-token persistence and rotation, talks to Prisma directly (no repo) | SRP, DIP | `auth/auth.service.ts` |
-| F5 | Prisma error `P2002` checked in two services | DRY, Clean Arch | `auth.service.ts`, `slots.service.ts` |
-| F6 | `process.env` read in 7 places, some at import time (`DUMMY_HASH`, `refreshTtlMs`) | DIP, testability | auth.module/service/controller, mailer, booking-config, prisma.service, app.module |
-| F7 | Access-cookie name defined 3 times (`ACCESS_COOKIE`, `ACCESS_TOKEN_COOKIE`, literal `.token` in guard) | DRY | auth.controller, swagger.ts, auth.guard |
-| F8 | Two `@Controller('slots')` in different modules; hikers' slot list lives in `BookingsService.listSlots` | SRP, cohesion | `bookings/slots.controller.ts`, `slots/slots.controller.ts` |
-| F9 | Overlapping-slot free-seats SQL duplicated; overlap rule (business) encoded only in raw SQL | DRY | `bookings.repository.ts` `findUpcomingSlots` / `findFreeSeatsByTable` |
-| F10 | `BookingsRepository` imports `Recipient` / `BookingConfirmationData` from notifications → persistence coupled to email template shape | ISP, coupling | `bookings.repository.ts` |
-| F11 | Booking status union duplicated (`StoredBooking.status`, shared `BookingResult.status`); `MAX_DB_INT` / `isDbId` duplicated | DRY | repo, shared, slots.repository |
-| F12 | `Request & { user: { id: number } }` repeated in controllers; no `@CurrentUser()` | DRY | controllers |
-| F13 | DB date/time mapping (`toDbDate`, `fromDbTime`) in service; template gets Prisma-shaped `Date` (1970-01-01 UTC) | Clean Arch | `slots.service.ts`, `booking-confirmation.ts` |
-| F14 | Email retry is in-process `setTimeout` fire-and-forget; lost on restart (documented TODO) | Reliability debt | `bookings.service.ts` |
-| F15 | Web: `isStaff` duplicated; BookingPage calls `useQuery`/`useMutation` inline while slots use hooks; `apiPost`/`apiPut` duplicated | DRY, consistency | `BookingPage.tsx`, `SlotsPage.tsx`, `api/client.ts` |
+| Id  | Finding                                                                                                                                                   | Principle        | Where                                                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| F1  | Services depend on concrete `PrismaService` and call `$transaction`; repositories take `Prisma.TransactionClient` → ORM type leaks into application layer | DIP, Clean Arch  | `bookings.service.ts`, `slots.service.ts`, both repositories                       |
+| F2  | Repositories are concrete classes injected directly, no port                                                                                              | DIP              | same                                                                               |
+| F3  | Use cases throw Nest HTTP exceptions (`ConflictException`, …) → framework in business layer                                                               | Clean Arch       | all services                                                                       |
+| F4  | `AuthService` does user registration, password hashing, JWT issuing, refresh-token persistence and rotation, talks to Prisma directly (no repo)           | SRP, DIP         | `auth/auth.service.ts`                                                             |
+| F5  | Prisma error `P2002` checked in two services                                                                                                              | DRY, Clean Arch  | `auth.service.ts`, `slots.service.ts`                                              |
+| F6  | `process.env` read in 7 places, some at import time (`DUMMY_HASH`, `refreshTtlMs`)                                                                        | DIP, testability | auth.module/service/controller, mailer, booking-config, prisma.service, app.module |
+| F7  | Access-cookie name defined 3 times (`ACCESS_COOKIE`, `ACCESS_TOKEN_COOKIE`, literal `.token` in guard)                                                    | DRY              | auth.controller, swagger.ts, auth.guard                                            |
+| F8  | Two `@Controller('slots')` in different modules; hikers' slot list lives in `BookingsService.listSlots`                                                   | SRP, cohesion    | `bookings/slots.controller.ts`, `slots/slots.controller.ts`                        |
+| F9  | Overlapping-slot free-seats SQL duplicated; overlap rule (business) encoded only in raw SQL                                                               | DRY              | `bookings.repository.ts` `findUpcomingSlots` / `findFreeSeatsByTable`              |
+| F10 | `BookingsRepository` imports `Recipient` / `BookingConfirmationData` from notifications → persistence coupled to email template shape                     | ISP, coupling    | `bookings.repository.ts`                                                           |
+| F11 | Booking status union duplicated (`StoredBooking.status`, shared `BookingResult.status`); `MAX_DB_INT` / `isDbId` duplicated                               | DRY              | repo, shared, slots.repository                                                     |
+| F12 | `Request & { user: { id: number } }` repeated in controllers; no `@CurrentUser()`                                                                         | DRY              | controllers                                                                        |
+| F13 | DB date/time mapping (`toDbDate`, `fromDbTime`) in service; template gets Prisma-shaped `Date` (1970-01-01 UTC)                                           | Clean Arch       | `slots.service.ts`, `booking-confirmation.ts`                                      |
+| F14 | Email retry is in-process `setTimeout` fire-and-forget; lost on restart (documented TODO)                                                                 | Reliability debt | `bookings.service.ts`                                                              |
+| F15 | Web: `isStaff` duplicated; BookingPage calls `useQuery`/`useMutation` inline while slots use hooks; `apiPost`/`apiPut` duplicated                         | DRY, consistency | `BookingPage.tsx`, `SlotsPage.tsx`, `api/client.ts`                                |
 
 Already good (keep): pure `booking-policy.ts` / `seat-allocation.ts`; `Mailer` abstraction; Zod schemas shared FE/BE; dependency-cruiser in CI; strong test pyramid.
 
@@ -81,6 +81,7 @@ apps/api/src/
 ### Task 1: Shared constants, cookie names, CurrentUser decorator (F7, F11, F12)
 
 **Files:**
+
 - Modify: `packages/shared/src/bookings.ts` (export `MAX_DB_INT`, `BookingStatus = 'CONFIRMED' | 'PENDING' | 'REJECTED'`, use in `BookingResult`)
 - Modify: `packages/shared/src/index.ts`
 - Create: `apps/api/src/auth/presentation/session-cookies.ts` (`ACCESS_COOKIE = 'token'`, `REFRESH_COOKIE = 'refresh_token'`, `REFRESH_PATH = '/api/auth'`)
@@ -89,6 +90,7 @@ apps/api/src/
 - Test: `apps/api/src/presentation/current-user.decorator.spec.ts`
 
 **Interfaces:**
+
 - Produces: `interface AuthenticatedUser { id: number; email: string; role: Role }`; `CurrentUser: ParameterDecorator` returning `req.user as AuthenticatedUser`; `type BookingStatus`; `MAX_DB_INT`.
 
 - [ ] **Step 1:** Failing test: `CurrentUser` factory with mocked `ExecutionContext` whose request has `user = {id:7,email:'a@b.c',role:'HIKER'}` returns that object.
@@ -100,11 +102,13 @@ apps/api/src/
 ### Task 2: Typed AppConfig (F6)
 
 **Files:**
+
 - Create: `apps/api/src/config/app-config.ts`, `apps/api/src/config/config.module.ts` (`@Global`)
 - Modify: `auth.module.ts`, `auth.service.ts`, `auth.controller.ts`, `mailer.ts`, `prisma.service.ts`, `common/booking-config.ts` (delete), `bookings.service.ts`
 - Test: `apps/api/src/config/app-config.spec.ts`
 
 **Interfaces:**
+
 - Produces: `abstract class AppConfig { jwtSecret: string; jwtExpiresIn: string; refreshTtlMs: number; secureCookies: boolean; bookingTimeZone: string; databaseUrl: string; smtp: SMTPTransport.Options; mailFrom: string }`; `function loadAppConfig(env: Record<string,string|undefined>): AppConfig` (Zod-parsed; throws on invalid). Provided as `{ provide: AppConfig, useFactory: () => loadAppConfig(process.env) }`. `process.env` read only in `config.module.ts` and `app.module.ts` (WEB_DIST_PATH) and `main.ts` (PORT).
 
 - [ ] **Step 1:** Tests: missing `JWT_SECRET` → throws `'JWT_SECRET is not defined'`; `REFRESH_TOKEN_TTL_DAYS='0'` → throws `'REFRESH_TOKEN_TTL_DAYS must be a positive number of days'`; defaults: `jwtExpiresIn '15m'`, `refreshTtlMs 86_400_000`, `bookingTimeZone 'Europe/Rome'`, `secureCookies = NODE_ENV==='production'`; SMTP cases moved from `mail.config.spec.ts`.
@@ -116,11 +120,13 @@ apps/api/src/
 ### Task 3: Domain errors + global exception filter (F3, F5)
 
 **Files:**
+
 - Create: `apps/api/src/shared-kernel/domain-error.ts`, `apps/api/src/presentation/domain-exception.filter.ts`, `apps/api/src/infrastructure/prisma/prisma-errors.ts`
 - Modify: `main.ts` (`app.useGlobalFilters`) — also register in e2e/int test app bootstrap helpers; all services
 - Test: `domain-exception.filter.spec.ts`, `prisma-errors.spec.ts`
 
 **Interfaces:**
+
 - Produces: `type DomainErrorCode = 'NOT_FOUND' | 'CONFLICT' | 'FORBIDDEN' | 'UNPROCESSABLE' | 'UNAUTHORIZED'`; `class DomainError extends Error { constructor(code: DomainErrorCode, message: string) }`; `isUniqueViolation(e: unknown): boolean`.
 - Mapping: NOT_FOUND→404, CONFLICT→409, FORBIDDEN→403, UNPROCESSABLE→422, UNAUTHORIZED→401. Body identical to Nest default: `{ statusCode, message, error }`.
 
@@ -133,6 +139,7 @@ apps/api/src/
 ### Task 4: UnitOfWork port + repository ports for slots and bookings (F1, F2, F13)
 
 **Files:**
+
 - Create: `shared-kernel/unit-of-work.ts`, `infrastructure/prisma/prisma-unit-of-work.ts`, `infrastructure/prisma/db-time.ts`
 - Create: `slots/application/slots.repository.port.ts`, move impl to `slots/infrastructure/prisma-slots.repository.ts`
 - Create: `bookings/application/bookings.repository.port.ts`, move impl to `bookings/infrastructure/prisma-bookings.repository.ts`
@@ -140,6 +147,7 @@ apps/api/src/
 - Test: `prisma-unit-of-work.int-spec.ts` (in `apps/api/test/integration/`), update existing service specs to mock ports
 
 **Interfaces:**
+
 - Produces:
   - `abstract class UnitOfWork { abstract run<T>(work: () => Promise<T>): Promise<T> }` — adapter uses `prisma.$transaction` + `AsyncLocalStorage<Prisma.TransactionClient>`; repositories call `this.db()` = ALS store ?? `PrismaService`. Repos no longer take a `tx` argument.
   - `abstract class SlotsRepository { findById(id): Promise<Slot|null>; findByDate(date: string): Promise<Slot[]>; lock(id): Promise<boolean>; findTables(slotId): Promise<SlotTable[]>; create(s: {date: string; startTime: string; endTime: string}): Promise<number>; createTables(slotId, tables: SlotTable[]): Promise<void> }` where `Slot = SlotDetails minus totalSeats` and date/time are `'YYYY-MM-DD'`/`'HH:MM'` strings (conversion via `db-time.ts` inside adapter only).
@@ -155,12 +163,14 @@ apps/api/src/
 ### Task 5: Decouple bookings from notifications (F10, F14 first step)
 
 **Files:**
+
 - Create: `bookings/application/booking-confirmation.port.ts`, `notifications/infrastructure/booking-confirmation.adapter.ts`
 - Create: `bookings/application/confirmation-sender.ts` (retry loop moved out of `BookingsService`)
 - Modify: `bookings.service.ts`, `prisma-bookings.repository.ts`, `booking-confirmation.ts` template (takes strings `date: 'YYYY-MM-DD'`, `startTime/endTime: 'HH:MM'`)
 - Test: `confirmation-sender.spec.ts` (move retry tests from `bookings.service.spec.ts`), template spec update
 
 **Interfaces:**
+
 - Produces: `abstract class BookingConfirmationNotifier { abstract notify(bookingId: number): Promise<'SENT'|'FAILED'|'SKIPPED'> }` implemented in notifications (loads recipient + data itself via its own Prisma read). `class ConfirmationSender { send(bookingId: number): Promise<void> }` with `CONFIRMATION_RETRY_DELAYS_MS = [1_000, 5_000, 25_000]` and injectable `sleep(ms)`. `BookingsService.create` calls `void this.confirmationSender.send(id)`.
 - `bookings/` no longer imports from `notifications/`; dependency-cruiser rule `bookings-not-to-notifications` added.
 
@@ -173,6 +183,7 @@ apps/api/src/
 ### Task 6: One `slots` HTTP surface, hiker listing as its own use case (F8, F9)
 
 **Files:**
+
 - Create: `bookings/application/list-bookable-slots.ts` (`ListBookableSlots.execute(now: Date): Promise<SlotSummary[]>`)
 - Delete: `bookings/slots.controller.ts`; add `@Get()` (roles: any authenticated, override class `@Roles` with `@Roles('HIKER','EMPLOYEE','WARDEN')`) to `slots/presentation/slots.controller.ts` delegating to `ListBookableSlots` (exported by BookingsModule)
 - Modify: `prisma-bookings.repository.ts` — extract shared SQL fragment `bookedSeatsOnTable(tableNumberSql, slotAlias)` via `Prisma.sql`, used by both queries
@@ -187,12 +198,14 @@ apps/api/src/
 ### Task 7: Split AuthService (F4)
 
 **Files:**
+
 - Create: `auth/application/ports.ts` (`UsersRepository`, `RefreshTokenRepository`, `PasswordHasher`, `AccessTokenIssuer`)
 - Create: `auth/application/{register-user.ts, login.ts, refresh-session.ts, logout.ts, session-issuer.ts}`
 - Create: `auth/infrastructure/{prisma-users.repository.ts, prisma-refresh-token.repository.ts, bcrypt-password-hasher.ts, jwt-access-token-issuer.ts}`
 - Delete: `auth/auth.service.ts` (split its spec accordingly)
 
 **Interfaces:**
+
 - `UsersRepository { findByEmail(email): Promise<UserRecord|null>; findById(id): Promise<UserRecord|null>; createWithHiker(input: RegisterInput, passwordHash: string): Promise<AuthUser> /* throws DomainError CONFLICT on unique */ }`
 - `RefreshTokenRepository { create(userId, tokenHash, expiresAt); findByHash(hash): Promise<{id,userId,revokedAt,expiresAt,user:AuthUser}|null>; revokeIfActive(id): Promise<boolean>; revokeAllForUser(userId); revokeByHash(hash) }`
 - `PasswordHasher { hash(p): Promise<string>; compare(p, hash: string|null): Promise<boolean> /* compares against lazy dummy hash when null */ }`
@@ -208,6 +221,7 @@ apps/api/src/
 ### Task 8: Enforce layers in dependency-cruiser
 
 **Files:**
+
 - Modify: `.dependency-cruiser.cjs`
 
 - [ ] **Step 1:** Add rules (severity `error`): `domain-is-pure` (from `^apps/api/src/[^/]+/domain/` to `@nestjs|generated/prisma|express|nodemailer|bcrypt|/application/|/infrastructure/|/presentation/`); `application-not-to-infra` (from `/application/` to `/infrastructure/|/presentation/|generated/prisma`); `presentation-not-to-infra` (from `/presentation/` to `/infrastructure/`).
@@ -218,6 +232,7 @@ apps/api/src/
 ### Task 9: Web consistency (F15)
 
 **Files:**
+
 - Create: `apps/web/src/api/useBookings.ts` (`useBookableSlots()`, `useCreateBooking()`), `apps/web/src/api/roles.ts` (`isStaff(user?: AuthUser|null): boolean`)
 - Modify: `api/client.ts` (private `send<T>(method: 'GET'|'POST'|'PUT', path, body?)`; `apiGet/apiPost/apiPut` become one-liners), `BookingPage.tsx`, `SlotsPage.tsx`
 - Test: `api/client.test.ts` (extend), `api/roles.test.ts`
