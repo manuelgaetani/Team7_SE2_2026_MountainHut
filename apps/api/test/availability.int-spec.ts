@@ -1,8 +1,11 @@
-import { AvailabilityService } from '../src/bookings/availability.service.js';
-import { BookingsRepository } from '../src/bookings/bookings.repository.js';
-import { BookingsService } from '../src/bookings/bookings.service.js';
-import type { NotificationService } from '../src/notifications/notification.service.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
+import { AvailabilityService } from '../src/bookings/application/availability.service.js';
+import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import type { ConfirmationSender } from '../src/bookings/application/confirmation-sender.js';
+import { PrismaBookingsRepository } from '../src/bookings/infrastructure/prisma-bookings.repository.js';
+import { loadAppConfig } from '../src/config/app-config.js';
+import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
 // The hut is in Europe/Rome: 19:00 on 1 July 2031 is 17:00 UTC (summer time).
@@ -14,9 +17,11 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_BEFORE = new Date(STARTS_AT.getTime() - 24 * HOUR_MS);
 
 describe('Availability with PostgreSQL (integration) - MH-04', () => {
-  const prisma = new PrismaService();
-  const repo = new BookingsRepository();
-  const service = new AvailabilityService(prisma, repo);
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
+  const context = new TransactionContext(prisma);
+  const repo = new PrismaBookingsRepository(context);
+  const service = new AvailabilityService(repo, config);
 
   const check = (partySize: number, now = DAY_BEFORE, date = DATE, time = TIME) =>
     service.check({ date, time, partySize }, now);
@@ -243,10 +248,9 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
   });
 
   describe('together with bookings', () => {
-    const notifications = {
-      sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
-    } as unknown as NotificationService;
-    const bookings = new BookingsService(prisma, repo, notifications);
+    const confirmationSender = { send: () => Promise.resolve() } as unknown as ConfirmationSender;
+    const uow = new PrismaUnitOfWork(prisma, context);
+    const bookings = new BookingsService(uow, repo, confirmationSender, config);
 
     it('is read-only: a check stores nothing and reserves no seats', async () => {
       await createSlot(prisma, DATE, TIME, '21:00', [4, 2]);

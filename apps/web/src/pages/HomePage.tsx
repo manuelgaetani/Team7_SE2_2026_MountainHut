@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import type { HealthStatus } from '@mountain-hut/shared';
 import { apiGet } from '../api/client.ts';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function HomePage() {
@@ -11,7 +12,7 @@ export function HomePage() {
   });
 
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
+  const staff = isStaff(user);
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
 
@@ -24,7 +25,7 @@ export function HomePage() {
 
         <div className="home-hero__content">
           <div className="home-hero__content">
-            {isStaff ? (
+            {staff ? (
               <>
                 <p className="eyebrow">Hut staff · Monte Vettore</p>
                 <h1>Ready for service.</h1>
