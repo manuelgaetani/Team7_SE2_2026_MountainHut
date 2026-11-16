@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import type { NotificationType } from '../generated/prisma/client.js';
 import { Mailer } from './mailer.js';
 import type { EmailContent } from './templates/booking-confirmation.js';
