@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
 import type {
@@ -7,6 +8,19 @@ import type {
   UpcomingSlot,
 } from '../application/bookings.repository.port.js';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
+
+// Seats already assigned on a table, over every slot of the same day that overlaps the given one.
+// slotAlias is the alias of the slot being measured; the table number is a SQL expression.
+const bookedSeatsOnTable = (tableNumberSql: Prisma.Sql, slotAlias: Prisma.Sql) => Prisma.sql`
+  SELECT SUM(bt.assigned_seats)
+  FROM booking_tables bt
+  JOIN bookings b ON b.id = bt.booking_id
+  JOIN slots s_other ON s_other.id = bt.slot_id
+  WHERE bt.table_number = ${tableNumberSql}
+    AND b.status IN ('CONFIRMED', 'PENDING')
+    AND s_other.date = ${slotAlias}.date
+    AND s_other.start_time < ${slotAlias}.end_time
+    AND s_other.end_time > ${slotAlias}.start_time`;
 
 // Uses the transaction of the current unit of work, or the plain client outside one.
 @Injectable()
@@ -38,15 +52,7 @@ export class PrismaBookingsRepository extends BookingsRepository {
              ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at,
              COALESCE((
                SELECT SUM(GREATEST(st.seats - COALESCE((
-                 SELECT SUM(bt.assigned_seats)
-                 FROM booking_tables bt
-                 JOIN bookings b ON b.id = bt.booking_id
-                 JOIN slots s_other ON s_other.id = bt.slot_id
-                 WHERE bt.table_number = st.table_number
-                   AND b.status IN ('CONFIRMED', 'PENDING')
-                   AND s_other.date = s.date
-                   AND s_other.start_time < s.end_time
-                   AND s_other.end_time > s.start_time
+                 ${bookedSeatsOnTable(Prisma.sql`st.table_number`, Prisma.sql`s`)}
                ), 0), 0))
                FROM slot_tables st
                WHERE st.slot_id = s.id
@@ -98,15 +104,7 @@ export class PrismaBookingsRepository extends BookingsRepository {
     const rows = await this.db().$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
              (st.seats - COALESCE((
-               SELECT SUM(bt.assigned_seats)
-               FROM booking_tables bt
-               JOIN bookings b ON b.id = bt.booking_id
-               JOIN slots s_other ON s_other.id = bt.slot_id
-               WHERE bt.table_number = st.table_number
-                 AND b.status IN ('CONFIRMED', 'PENDING')
-                 AND s_other.date = s_target.date
-                 AND s_other.start_time < s_target.end_time
-                 AND s_other.end_time > s_target.start_time
+               ${bookedSeatsOnTable(Prisma.sql`st.table_number`, Prisma.sql`s_target`)}
              ), 0))::int AS free_seats
       FROM slots s_target
       JOIN slot_tables st ON st.slot_id = s_target.id

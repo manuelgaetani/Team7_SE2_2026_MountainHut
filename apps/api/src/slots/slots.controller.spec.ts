@@ -6,12 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { SlotsController } from './slots.controller.js';
+import { ListBookableSlots } from '../bookings/application/list-bookable-slots.js';
 import { SlotsService } from './application/slots.service.js';
 
 describe('SlotsController', () => {
   let app: INestApplication<App>;
   let role: Role;
   const slots = { create: vi.fn(), listByDate: vi.fn(), findOne: vi.fn(), defineTables: vi.fn() };
+  const bookable = { execute: vi.fn() };
   const body = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
 
   beforeEach(async () => {
@@ -19,7 +21,10 @@ describe('SlotsController', () => {
     role = 'EMPLOYEE';
     const module = await Test.createTestingModule({
       controllers: [SlotsController],
-      providers: [{ provide: SlotsService, useValue: slots }],
+      providers: [
+        { provide: SlotsService, useValue: slots },
+        { provide: ListBookableSlots, useValue: bookable },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useValue({
@@ -71,5 +76,24 @@ describe('SlotsController', () => {
       .query({ date: '2026-11-02' })
       .expect(200);
     expect(slots.listByDate).toHaveBeenCalledWith('2026-11-02');
+  });
+
+  it.each(['HIKER', 'EMPLOYEE', 'WARDEN'] as const)(
+    'lets a %s list the bookable slots',
+    async (anyRole) => {
+      role = anyRole;
+      bookable.execute.mockResolvedValue([{ id: 1 }]);
+      const res = await request(app.getHttpServer()).get('/slots').expect(200);
+      expect(res.body).toEqual([{ id: 1 }]);
+      expect(bookable.execute).toHaveBeenCalledWith(expect.any(Date));
+    },
+  );
+
+  it('keeps the staff routes closed to a hiker next to the open listing', async () => {
+    role = 'HIKER';
+    await request(app.getHttpServer()).get('/slots/1').expect(403);
+    await request(app.getHttpServer()).put('/slots/1/tables').send({}).expect(403);
+    expect(slots.findOne).not.toHaveBeenCalled();
+    expect(slots.defineTables).not.toHaveBeenCalled();
   });
 });

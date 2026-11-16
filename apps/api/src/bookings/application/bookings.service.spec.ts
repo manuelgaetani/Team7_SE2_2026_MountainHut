@@ -30,7 +30,6 @@ describe('BookingsService', () => {
     lockSlotAndGetStart: vi.fn(),
     findFreeSeatsByTable: vi.fn(),
     findHikerIdByUserId: vi.fn(),
-    findUpcomingSlots: vi.fn(),
     hasActiveBooking: vi.fn(),
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
@@ -218,37 +217,6 @@ describe('BookingsService', () => {
         repo.hasActiveBooking.mock.invocationCallOrder[0]!,
       );
       expectNothingWritten();
-    });
-  });
-
-  describe('listSlots', () => {
-    const visible = {
-      id: 1,
-      date: '2026-11-01',
-      startTime: '20:00',
-      endTime: '22:00',
-      freeSeats: 4,
-    };
-    const slot = { ...visible, startsAt: slotStart };
-
-    it('reads the slots in the booking time zone', async () => {
-      repo.findUpcomingSlots.mockResolvedValue([]);
-      await expect(service.listSlots()).resolves.toEqual([]);
-      expect(repo.findUpcomingSlots).toHaveBeenCalledWith('Europe/Rome', NOW);
-      expect(uow.run).not.toHaveBeenCalled();
-    });
-
-    it('marks each slot with its availability and hides the raw start', async () => {
-      repo.findUpcomingSlots.mockResolvedValue([
-        slot,
-        { ...slot, id: 2, freeSeats: 0 },
-        { ...slot, id: 3, startsAt: new Date(slotStart.getTime() - 1) },
-      ]);
-      await expect(service.listSlots()).resolves.toEqual([
-        { ...visible, availability: 'AVAILABLE' },
-        { ...visible, id: 2, freeSeats: 0, availability: 'FULL' },
-        { ...visible, id: 3, availability: 'TOO_LATE' },
-      ]);
     });
   });
 

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { MAX_DB_INT } from '@mountain-hut/shared';
 import type { SlotTable } from '@mountain-hut/shared';
+import { DomainError } from '../../shared-kernel/domain-error.js';
+import { isUniqueViolation } from '../../infrastructure/prisma/prisma-errors.js';
 import { fromDbDate, fromDbTime, toDbDate, toDbTime } from '../../infrastructure/prisma/db-time.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { SlotsRepository } from '../application/slots.repository.port.js';
@@ -71,15 +73,25 @@ export class PrismaSlotsRepository extends SlotsRepository {
   }
 
   async create(slot: NewSlot): Promise<number> {
-    const created = await this.db().slot.create({
-      data: {
-        date: toDbDate(slot.date),
-        startTime: toDbTime(slot.startTime),
-        endTime: toDbTime(slot.endTime),
-      },
-      select: { id: true },
-    });
-    return created.id;
+    try {
+      const created = await this.db().slot.create({
+        data: {
+          date: toDbDate(slot.date),
+          startTime: toDbTime(slot.startTime),
+          endTime: toDbTime(slot.endTime),
+        },
+        select: { id: true },
+      });
+      return created.id;
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        throw new DomainError(
+          'CONFLICT',
+          'A slot with the same date, start and end already exists',
+        );
+      }
+      throw e;
+    }
   }
 
   async createTables(slotId: number, tables: SlotTable[]): Promise<void> {

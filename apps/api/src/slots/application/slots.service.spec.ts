@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Prisma } from '../../generated/prisma/client.js';
+import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
 import type { Slot } from '../domain/slot.js';
 import { SlotsRepository } from './slots.repository.port.js';
@@ -128,12 +128,9 @@ describe('SlotsService', () => {
       expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('translates the unique violation into Conflict', async () => {
+    it('lets the conflict raised by the repository through', async () => {
       repo.create.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-          code: 'P2002',
-          clientVersion: 'test',
-        }),
+        new DomainError('CONFLICT', 'A slot with the same date, start and end already exists'),
       );
       await expect(service.create(input)).rejects.toMatchObject({
         code: 'CONFLICT',

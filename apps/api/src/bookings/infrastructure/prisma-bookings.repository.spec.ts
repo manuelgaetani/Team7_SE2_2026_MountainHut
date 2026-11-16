@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { PrismaBookingsRepository } from './prisma-bookings.repository.js';
@@ -16,8 +17,13 @@ describe('PrismaBookingsRepository', () => {
   );
 
   // $queryRaw is a tagged template: the SQL text comes first, then the bound values.
-  const queryText = () => (client.$queryRaw.mock.calls[0][0] as string[]).join('?');
-  const queryValues = () => client.$queryRaw.mock.calls[0].slice(1) as unknown[];
+  // Nested Prisma.sql fragments are flattened the way the client does before running the query.
+  const flatQuery = () => {
+    const [strings, ...values] = client.$queryRaw.mock.calls[0] as [string[], ...unknown[]];
+    return Prisma.sql(strings as unknown as TemplateStringsArray, ...values);
+  };
+  const queryText = () => flatQuery().strings.join('?');
+  const queryValues = () => flatQuery().values as unknown[];
 
   beforeEach(() => {
     vi.resetAllMocks();
