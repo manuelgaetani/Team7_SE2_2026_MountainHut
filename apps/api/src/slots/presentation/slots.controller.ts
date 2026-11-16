@@ -23,13 +23,13 @@ import {
   defineSlotTablesSchema,
   listSlotsQuerySchema,
 } from '@mountain-hut/shared';
-import { AuthGuard } from '../auth/auth.guard.js';
-import { Roles } from '../auth/roles.decorator.js';
-import { RolesGuard } from '../auth/roles.guard.js';
-import { ApiZodBody } from '../common/api-zod-body.decorator.js';
-import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { ListBookableSlots } from '../bookings/application/list-bookable-slots.js';
-import { SlotsService } from './application/slots.service.js';
+import { AuthGuard } from '../../auth/presentation/auth.guard.js';
+import { Roles } from '../../auth/presentation/roles.decorator.js';
+import { RolesGuard } from '../../auth/presentation/roles.guard.js';
+import { ApiZodBody } from '../../presentation/api-zod-body.decorator.js';
+import { ZodValidationPipe } from '../../presentation/zod-validation.pipe.js';
+import { ListBookableSlots } from '../../bookings/application/list-bookable-slots.js';
+import { SlotsService } from '../application/slots.service.js';
 
 // Staff only: the warden can do everything an employee can (context.md).
 @ApiTags('slots')

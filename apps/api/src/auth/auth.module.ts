@@ -1,8 +1,8 @@
 import { JwtModule } from '@nestjs/jwt';
 import type { JwtModuleOptions } from '@nestjs/jwt';
 import { AppConfig } from '../config/app-config.js';
-import { AuthController } from './auth.controller.js';
-import { AuthGuard } from './auth.guard.js';
+import { AuthController } from './presentation/auth.controller.js';
+import { AuthGuard } from './presentation/auth.guard.js';
 import { GetCurrentUser } from './application/get-current-user.js';
 import { Login } from './application/login.js';
 import { Logout } from './application/logout.js';
@@ -21,7 +21,7 @@ import { CryptoRefreshTokenGenerator } from './infrastructure/crypto-refresh-tok
 import { JwtAccessTokenIssuer } from './infrastructure/jwt-access-token-issuer.js';
 import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-token.repository.js';
 import { PrismaUsersRepository } from './infrastructure/prisma-users.repository.js';
-import { RolesGuard } from './roles.guard.js';
+import { RolesGuard } from './presentation/roles.guard.js';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 

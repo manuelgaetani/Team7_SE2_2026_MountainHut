@@ -4,7 +4,7 @@ import { BookingsModule } from '../bookings/bookings.module.js';
 import { SlotsRepository } from './application/slots.repository.port.js';
 import { SlotsService } from './application/slots.service.js';
 import { PrismaSlotsRepository } from './infrastructure/prisma-slots.repository.js';
-import { SlotsController } from './slots.controller.js';
+import { SlotsController } from './presentation/slots.controller.js';
 
 @Module({
   imports: [AuthModule, BookingsModule],

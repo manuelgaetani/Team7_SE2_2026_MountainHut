@@ -6,11 +6,11 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@mountain-hut/shared';
-import { AuthGuard } from '../auth/auth.guard.js';
-import { ROLES_KEY } from '../auth/roles.decorator.js';
-import { RolesGuard } from '../auth/roles.guard.js';
+import { AuthGuard } from '../../auth/presentation/auth.guard.js';
+import { ROLES_KEY } from '../../auth/presentation/roles.decorator.js';
+import { RolesGuard } from '../../auth/presentation/roles.guard.js';
 import { BookingsController } from './bookings.controller.js';
-import { BookingsService } from './application/bookings.service.js';
+import { BookingsService } from '../application/bookings.service.js';
 
 const result = {
   id: 9,

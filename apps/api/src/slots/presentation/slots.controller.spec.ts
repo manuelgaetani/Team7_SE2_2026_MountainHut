@@ -4,10 +4,10 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@mountain-hut/shared';
-import { AuthGuard } from '../auth/auth.guard.js';
+import { AuthGuard } from '../../auth/presentation/auth.guard.js';
 import { SlotsController } from './slots.controller.js';
-import { ListBookableSlots } from '../bookings/application/list-bookable-slots.js';
-import { SlotsService } from './application/slots.service.js';
+import { ListBookableSlots } from '../../bookings/application/list-bookable-slots.js';
+import { SlotsService } from '../application/slots.service.js';
 
 describe('SlotsController', () => {
   let app: INestApplication<App>;
