@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import type { HealthStatus } from '@mountain-hut/shared';
 import { apiGet } from '../api/client.ts';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function HomePage() {
@@ -11,8 +12,7 @@ export function HomePage() {
   });
 
   const { data: user, isPending } = useCurrentUser();
-  // The warden role does not exist yet: only employees see the staff home.
-  const isEmployee = user?.role === 'EMPLOYEE';
+  const staff = isStaff(user);
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
 
@@ -25,25 +25,18 @@ export function HomePage() {
 
         <div className="home-hero__content">
           <div className="home-hero__content">
-            {isEmployee ? (
+            {staff ? (
               <>
                 <p className="eyebrow">Hut staff · Monte Vettore</p>
                 <h1>Ready for service.</h1>
                 <p className="lead">
-                  Define the time slots and the tables of each day, and enter the bookings made by
-                  phone or at the hut.
+                  Define the time slots and the tables of each day, so the hut never takes more
+                  guests than it can serve.
                 </p>
-                {/* One above the other, with the same width. */}
-                <div className="home-hero__actions">
-                  <Link to="/staff/slots" className="button-primary button-primary--inline">
-                    <span>Manage time slots</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
-                  <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
-                    <span>Reserve for an hiker</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
+                <Link to="/staff/slots" className="button-primary button-primary--inline">
+                  <span>Manage time slots</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
               </>
             ) : (
               <>

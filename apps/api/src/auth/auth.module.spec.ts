@@ -3,21 +3,22 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaModule } from '../prisma/prisma.module.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { ConfigModule } from '../config/config.module.js';
+import { PrismaModule } from '../infrastructure/prisma/prisma.module.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
-import { AuthService } from './auth.service.js';
+import { GetCurrentUser } from './application/get-current-user.js';
 
 describe('AuthModule', () => {
   const user = { id: 1, email: 'anna@example.it', role: 'HIKER' };
   const auth = { me: vi.fn() };
 
   const compile = () =>
-    Test.createTestingModule({ imports: [PrismaModule, AuthModule] })
+    Test.createTestingModule({ imports: [ConfigModule, PrismaModule, AuthModule] })
       .overrideProvider(PrismaService)
       .useValue({})
-      .overrideProvider(AuthService)
-      .useValue(auth)
+      .overrideProvider(GetCurrentUser)
+      .useValue({ execute: auth.me })
       .compile();
 
   const tokenLifetime = async () => {
@@ -30,6 +31,7 @@ describe('AuthModule', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.stubEnv('JWT_SECRET', 'unit-test-secret');
+    vi.stubEnv('DATABASE_URL', 'postgresql://x');
     vi.stubEnv('JWT_EXPIRES_IN', undefined);
   });
 
