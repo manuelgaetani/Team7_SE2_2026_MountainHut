@@ -1,16 +1,16 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
-import { SlotsRepository } from './slots.repository.js';
-import type { SlotRow } from './slots.repository.js';
+import { Prisma } from '../../generated/prisma/client.js';
+import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
+import type { Slot } from '../domain/slot.js';
+import { SlotsRepository } from './slots.repository.port.js';
 import { SlotsService } from './slots.service.js';
 
-const slotRow = (overrides: Partial<SlotRow> = {}): SlotRow => ({
+const slotRow = (overrides: Partial<Slot> = {}): Slot => ({
   id: 1,
-  date: new Date('2026-11-02T00:00:00.000Z'),
-  startTime: new Date('1970-01-01T12:00:00.000Z'),
-  endTime: new Date('1970-01-01T13:00:00.000Z'),
+  date: '2026-11-02',
+  startTime: '12:00',
+  endTime: '13:00',
   tables: [
     { tableNumber: 1, seats: 4 },
     { tableNumber: 2, seats: 6 },
@@ -20,8 +20,9 @@ const slotRow = (overrides: Partial<SlotRow> = {}): SlotRow => ({
 
 describe('SlotsService', () => {
   let service: SlotsService;
-  const tx = { marker: 'tx' };
-  const prisma = { $transaction: vi.fn() };
+  const uow = { run: vi.fn() };
+  // Whether the repository call happened inside uow.run.
+  let inRun = false;
   const repo = {
     findById: vi.fn(),
     findByDate: vi.fn(),
@@ -33,11 +34,19 @@ describe('SlotsService', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    prisma.$transaction.mockImplementation((work: (client: typeof tx) => unknown) => work(tx));
+    inRun = false;
+    uow.run.mockImplementation(async (work: () => Promise<unknown>) => {
+      inRun = true;
+      try {
+        return await work();
+      } finally {
+        inRun = false;
+      }
+    });
     const module = await Test.createTestingModule({
       providers: [
         SlotsService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: UnitOfWork, useValue: uow },
         { provide: SlotsRepository, useValue: repo },
       ],
     }).compile();
@@ -74,26 +83,31 @@ describe('SlotsService', () => {
     const tables = [{ tableNumber: 1, seats: 4 }];
 
     it('creates the slot and its tables in one transaction', async () => {
-      repo.create.mockResolvedValue(7);
+      const writesInRun: boolean[] = [];
+      repo.create.mockImplementation(() => {
+        writesInRun.push(inRun);
+        return Promise.resolve(7);
+      });
+      repo.createTables.mockImplementation(() => {
+        writesInRun.push(inRun);
+        return Promise.resolve();
+      });
       repo.findById.mockResolvedValue(slotRow({ id: 7, tables }));
       await service.create({ ...input, tables });
-      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(repo.create).toHaveBeenCalledWith(tx, {
-        date: new Date('2026-11-02T00:00:00.000Z'),
-        startTime: new Date('1970-01-01T12:00:00.000Z'),
-        endTime: new Date('1970-01-01T13:00:00.000Z'),
-      });
-      expect(repo.createTables).toHaveBeenCalledWith(tx, 7, tables);
+      expect(uow.run).toHaveBeenCalledTimes(1);
+      expect(repo.create).toHaveBeenCalledWith(input);
+      expect(repo.createTables).toHaveBeenCalledWith(7, tables);
+      expect(writesInRun).toEqual([true, true]);
     });
 
     it('copies the tables of another slot', async () => {
       const source = slotRow({ id: 3 });
       repo.create.mockResolvedValue(8);
-      repo.findById.mockImplementation((_client: unknown, id: number) =>
+      repo.findById.mockImplementation((id: number) =>
         Promise.resolve(id === 3 ? source : slotRow({ id: 8 })),
       );
       await service.create({ ...input, copyTablesFromSlotId: 3 });
-      expect(repo.createTables).toHaveBeenCalledWith(tx, 8, source.tables);
+      expect(repo.createTables).toHaveBeenCalledWith(8, source.tables);
     });
 
     it('throws NotFound, creating nothing, when the slot to copy from does not exist', async () => {
@@ -157,11 +171,16 @@ describe('SlotsService', () => {
     });
 
     it('defines the tables of a slot that has none, locking it first', async () => {
-      repo.lock.mockResolvedValue(true);
+      let lockedInRun = false;
+      repo.lock.mockImplementation(() => {
+        lockedInRun = inRun;
+        return Promise.resolve(true);
+      });
       repo.findTables.mockResolvedValue([]);
       repo.findById.mockResolvedValue(slotRow({ id: 5, tables }));
       const result = await service.defineTables(5, { tables });
-      expect(repo.createTables).toHaveBeenCalledWith(tx, 5, tables);
+      expect(lockedInRun).toBe(true);
+      expect(repo.createTables).toHaveBeenCalledWith(5, tables);
       expect(result.totalSeats).toBe(4);
       const lockOrder = repo.lock.mock.invocationCallOrder[0];
       const readOrder = repo.findTables.mock.invocationCallOrder[0];

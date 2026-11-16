@@ -27,7 +27,7 @@ import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { ApiZodBody } from '../common/api-zod-body.decorator.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { SlotsService } from './slots.service.js';
+import { SlotsService } from './application/slots.service.js';
 
 // Staff only: the warden can do everything an employee can (context.md).
 @ApiTags('slots')

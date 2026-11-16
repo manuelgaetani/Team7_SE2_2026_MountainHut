@@ -9,7 +9,7 @@ import { ApiZodBody } from '../common/api-zod-body.decorator.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { CurrentUser } from '../presentation/current-user.decorator.js';
 import type { AuthenticatedUser } from '../presentation/current-user.decorator.js';
-import { BookingsService } from './bookings.service.js';
+import { BookingsService } from './application/bookings.service.js';
 
 @ApiTags('bookings')
 @ApiCookieAuth()

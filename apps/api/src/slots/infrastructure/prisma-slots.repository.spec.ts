@@ -1,20 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Prisma } from '../generated/prisma/client.js';
-import { SlotsRepository } from './slots.repository.js';
+import type { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
+import { PrismaSlotsRepository } from './prisma-slots.repository.js';
 
 const MAX_DB_INT = 2_147_483_647;
 const withTables = {
   tables: { select: { tableNumber: true, seats: true }, orderBy: { tableNumber: 'asc' } },
 };
+const row = (id: number) => ({
+  id,
+  date: new Date('2026-11-02T00:00:00.000Z'),
+  startTime: new Date('1970-01-01T12:00:00.000Z'),
+  endTime: new Date('1970-01-01T13:30:00.000Z'),
+  tables: [{ tableNumber: 1, seats: 4 }],
+});
+const slot = (id: number) => ({
+  id,
+  date: '2026-11-02',
+  startTime: '12:00',
+  endTime: '13:30',
+  tables: [{ tableNumber: 1, seats: 4 }],
+});
 
-describe('SlotsRepository', () => {
-  const repository = new SlotsRepository();
+describe('PrismaSlotsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     slot: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     slotTable: { findMany: vi.fn(), createMany: vi.fn() },
   };
-  const tx = client as unknown as Prisma.TransactionClient;
+  // Outside a unit of work the context gives the plain client.
+  const repository = new PrismaSlotsRepository(
+    new TransactionContext(client as unknown as PrismaService),
+  );
   // $queryRaw is a tagged template: the SQL text comes first, then the bound values.
   const queryText = () => (client.$queryRaw.mock.calls[0][0] as string[]).join('?');
   const queryValues = () => client.$queryRaw.mock.calls[0].slice(1) as unknown[];
@@ -24,10 +41,9 @@ describe('SlotsRepository', () => {
   });
 
   describe('findById', () => {
-    it('returns the slot with its tables', async () => {
-      const slot = { id: 3, tables: [] };
-      client.slot.findUnique.mockResolvedValue(slot);
-      await expect(repository.findById(tx, 3)).resolves.toBe(slot);
+    it('returns the slot with its local date and times and its tables', async () => {
+      client.slot.findUnique.mockResolvedValue(row(3));
+      await expect(repository.findById(3)).resolves.toEqual(slot(3));
       expect(client.slot.findUnique).toHaveBeenCalledWith({
         where: { id: 3 },
         include: withTables,
@@ -36,19 +52,19 @@ describe('SlotsRepository', () => {
 
     it('returns null when the slot does not exist', async () => {
       client.slot.findUnique.mockResolvedValue(null);
-      await expect(repository.findById(tx, 3)).resolves.toBeNull();
+      await expect(repository.findById(3)).resolves.toBeNull();
     });
 
     it.each([1, MAX_DB_INT])('queries the database for the id %d', async (id) => {
       client.slot.findUnique.mockResolvedValue(null);
-      await repository.findById(tx, id);
+      await repository.findById(id);
       expect(client.slot.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it.each([0, -1, 1.5, MAX_DB_INT + 1, Number.NaN])(
       'returns null without querying for the id %s, which cannot exist',
       async (id) => {
-        await expect(repository.findById(tx, id)).resolves.toBeNull();
+        await expect(repository.findById(id)).resolves.toBeNull();
         expect(client.slot.findUnique).not.toHaveBeenCalled();
       },
     );
@@ -56,12 +72,10 @@ describe('SlotsRepository', () => {
 
   describe('findByDate', () => {
     it('returns the slots of the date ordered by start time', async () => {
-      const slots = [{ id: 3 }, { id: 4 }];
-      const date = new Date('2026-11-02T00:00:00.000Z');
-      client.slot.findMany.mockResolvedValue(slots);
-      await expect(repository.findByDate(tx, date)).resolves.toBe(slots);
+      client.slot.findMany.mockResolvedValue([row(3), row(4)]);
+      await expect(repository.findByDate('2026-11-02')).resolves.toEqual([slot(3), slot(4)]);
       expect(client.slot.findMany).toHaveBeenCalledWith({
-        where: { date },
+        where: { date: new Date('2026-11-02T00:00:00.000Z') },
         include: withTables,
         orderBy: { startTime: 'asc' },
       });
@@ -71,17 +85,17 @@ describe('SlotsRepository', () => {
   describe('lock', () => {
     it('returns true when the slot exists', async () => {
       client.$queryRaw.mockResolvedValue([{ id: 3 }]);
-      await expect(repository.lock(tx, 3)).resolves.toBe(true);
+      await expect(repository.lock(3)).resolves.toBe(true);
     });
 
     it('returns false when the slot does not exist', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await expect(repository.lock(tx, 3)).resolves.toBe(false);
+      await expect(repository.lock(3)).resolves.toBe(false);
     });
 
     it('locks the row and binds the id instead of concatenating it', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.lock(tx, 3);
+      await repository.lock(3);
       expect(queryText()).toContain('FOR UPDATE');
       expect(queryValues()).toEqual([3]);
     });
@@ -89,7 +103,7 @@ describe('SlotsRepository', () => {
     it.each([0, -1, 1.5, MAX_DB_INT + 1, Number.NaN])(
       'returns false without querying for the id %s',
       async (id) => {
-        await expect(repository.lock(tx, id)).resolves.toBe(false);
+        await expect(repository.lock(id)).resolves.toBe(false);
         expect(client.$queryRaw).not.toHaveBeenCalled();
       },
     );
@@ -102,7 +116,7 @@ describe('SlotsRepository', () => {
         { tableNumber: 2, seats: 2 },
       ];
       client.slotTable.findMany.mockResolvedValue(rows);
-      await expect(repository.findTables(tx, 3)).resolves.toBe(rows);
+      await expect(repository.findTables(3)).resolves.toBe(rows);
       expect(client.slotTable.findMany).toHaveBeenCalledWith({
         where: { slotId: 3 },
         select: { tableNumber: true, seats: true },
@@ -112,21 +126,25 @@ describe('SlotsRepository', () => {
   });
 
   describe('create', () => {
-    it('stores the slot and returns its id', async () => {
-      const data = {
-        date: new Date('2026-11-02T00:00:00.000Z'),
-        startTime: new Date('1970-01-01T12:00:00.000Z'),
-        endTime: new Date('1970-01-01T13:00:00.000Z'),
-      };
+    it('stores the slot with its date and times as database values and returns its id', async () => {
       client.slot.create.mockResolvedValue({ id: 5 });
-      await expect(repository.create(tx, data)).resolves.toBe(5);
-      expect(client.slot.create).toHaveBeenCalledWith({ data, select: { id: true } });
+      await expect(
+        repository.create({ date: '2026-11-02', startTime: '12:00', endTime: '13:00' }),
+      ).resolves.toBe(5);
+      expect(client.slot.create).toHaveBeenCalledWith({
+        data: {
+          date: new Date('2026-11-02T00:00:00.000Z'),
+          startTime: new Date('1970-01-01T12:00:00.000Z'),
+          endTime: new Date('1970-01-01T13:00:00.000Z'),
+        },
+        select: { id: true },
+      });
     });
   });
 
   describe('createTables', () => {
     it('stores one row for each table of the slot', async () => {
-      await repository.createTables(tx, 3, [
+      await repository.createTables(3, [
         { tableNumber: 1, seats: 4 },
         { tableNumber: 2, seats: 2 },
       ]);

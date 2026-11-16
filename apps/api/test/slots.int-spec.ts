@@ -1,7 +1,9 @@
 import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
-import { SlotsRepository } from '../src/slots/slots.repository.js';
-import { SlotsService } from '../src/slots/slots.service.js';
+import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
+import { SlotsService } from '../src/slots/application/slots.service.js';
+import { PrismaSlotsRepository } from '../src/slots/infrastructure/prisma-slots.repository.js';
 import { resetDatabase } from './integration/database.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -9,8 +11,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe('Slots with PostgreSQL (integration) - MH-02', () => {
   const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
   const prisma = new PrismaService(config);
-  const repo = new SlotsRepository();
-  const service = new SlotsService(prisma, repo);
+  const context = new TransactionContext(prisma);
+  const uow = new PrismaUnitOfWork(prisma, context);
+  const repo = new PrismaSlotsRepository(context);
+  const service = new SlotsService(uow, repo);
 
   beforeEach(async () => {
     await resetDatabase(prisma);
@@ -22,13 +26,13 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
 
   describe('SlotsRepository against real PostgreSQL', () => {
     it('creates a slot and retrieves it by id with its tables ordered by tableNumber', async () => {
-      const slotId = await prisma.$transaction(async (tx) => {
-        const id = await repo.create(tx, {
-          date: new Date('2032-06-15T00:00:00.000Z'),
-          startTime: new Date('1970-01-01T12:00:00.000Z'),
-          endTime: new Date('1970-01-01T14:00:00.000Z'),
+      const slotId = await uow.run(async () => {
+        const id = await repo.create({
+          date: '2032-06-15',
+          startTime: '12:00',
+          endTime: '14:00',
         });
-        await repo.createTables(tx, id, [
+        await repo.createTables(id, [
           { tableNumber: 3, seats: 6 },
           { tableNumber: 1, seats: 2 },
           { tableNumber: 2, seats: 4 },
@@ -36,7 +40,7 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         return id;
       });
 
-      const slot = await repo.findById(prisma, slotId);
+      const slot = await repo.findById(slotId);
       expect(slot).not.toBeNull();
       expect(slot!.id).toBe(slotId);
       expect(slot!.tables).toEqual([
@@ -47,52 +51,48 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
     });
 
     it('returns null when slot does not exist or id is out of integer range', async () => {
-      await expect(repo.findById(prisma, 999_999)).resolves.toBeNull();
-      await expect(repo.findById(prisma, -1)).resolves.toBeNull();
-      await expect(repo.findById(prisma, 2_147_483_648)).resolves.toBeNull();
+      await expect(repo.findById(999_999)).resolves.toBeNull();
+      await expect(repo.findById(-1)).resolves.toBeNull();
+      await expect(repo.findById(2_147_483_648)).resolves.toBeNull();
     });
 
     it('findTables returns empty array for a slot without tables', async () => {
-      const slotId = await repo.create(prisma, {
-        date: new Date('2032-06-15T00:00:00.000Z'),
-        startTime: new Date('1970-01-01T12:00:00.000Z'),
-        endTime: new Date('1970-01-01T14:00:00.000Z'),
+      const slotId = await repo.create({
+        date: '2032-06-15',
+        startTime: '12:00',
+        endTime: '14:00',
       });
-      await expect(repo.findTables(prisma, slotId)).resolves.toEqual([]);
+      await expect(repo.findTables(slotId)).resolves.toEqual([]);
     });
 
     it('enforces table uniqueness and positive seat count at the database level', async () => {
-      const slotId = await repo.create(prisma, {
-        date: new Date('2032-06-15T00:00:00.000Z'),
-        startTime: new Date('1970-01-01T12:00:00.000Z'),
-        endTime: new Date('1970-01-01T14:00:00.000Z'),
+      const slotId = await repo.create({
+        date: '2032-06-15',
+        startTime: '12:00',
+        endTime: '14:00',
       });
 
       // Duplicate table number in the same slot violates primary key (slot_id, table_number)
-      await repo.createTables(prisma, slotId, [{ tableNumber: 1, seats: 4 }]);
-      await expect(
-        repo.createTables(prisma, slotId, [{ tableNumber: 1, seats: 2 }]),
-      ).rejects.toThrow();
+      await repo.createTables(slotId, [{ tableNumber: 1, seats: 4 }]);
+      await expect(repo.createTables(slotId, [{ tableNumber: 1, seats: 2 }])).rejects.toThrow();
 
       // Non-positive seats violates check constraint
-      await expect(
-        repo.createTables(prisma, slotId, [{ tableNumber: 2, seats: 0 }]),
-      ).rejects.toThrow();
+      await expect(repo.createTables(slotId, [{ tableNumber: 2, seats: 0 }])).rejects.toThrow();
     });
 
     it('locks slot row for update across concurrent transactions', async () => {
-      const slotId = await repo.create(prisma, {
-        date: new Date('2032-06-15T00:00:00.000Z'),
-        startTime: new Date('1970-01-01T12:00:00.000Z'),
-        endTime: new Date('1970-01-01T14:00:00.000Z'),
+      const slotId = await repo.create({
+        date: '2032-06-15',
+        startTime: '12:00',
+        endTime: '14:00',
       });
 
       const events: string[] = [];
       let firstHasLock!: () => void;
       const firstLocked = new Promise<void>((resolve) => (firstHasLock = resolve));
 
-      const tx1 = prisma.$transaction(async (tx) => {
-        expect(await repo.lock(tx, slotId)).toBe(true);
+      const tx1 = uow.run(async () => {
+        expect(await repo.lock(slotId)).toBe(true);
         events.push('tx1 locked');
         firstHasLock();
         await sleep(250);
@@ -101,8 +101,8 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
 
       await firstLocked;
 
-      const tx2 = prisma.$transaction(async (tx) => {
-        expect(await repo.lock(tx, slotId)).toBe(true);
+      const tx2 = uow.run(async () => {
+        expect(await repo.lock(slotId)).toBe(true);
         events.push('tx2 locked');
       });
 

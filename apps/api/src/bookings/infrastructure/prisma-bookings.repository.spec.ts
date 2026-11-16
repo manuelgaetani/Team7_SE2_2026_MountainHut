@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Prisma } from '../generated/prisma/client.js';
-import { BookingsRepository } from './bookings.repository.js';
+import type { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
+import { PrismaBookingsRepository } from './prisma-bookings.repository.js';
 
-describe('BookingsRepository', () => {
-  const repository = new BookingsRepository();
+describe('PrismaBookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
     booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     bookingTable: { createMany: vi.fn() },
   };
-  const tx = client as unknown as Prisma.TransactionClient;
+  // Outside a unit of work the context gives the plain client.
+  const repository = new PrismaBookingsRepository(
+    new TransactionContext(client as unknown as PrismaService),
+  );
 
   // $queryRaw is a tagged template: the SQL text comes first, then the bound values.
   const queryText = () => (client.$queryRaw.mock.calls[0][0] as string[]).join('?');
@@ -35,7 +38,7 @@ describe('BookingsRepository', () => {
           free_seats: 5,
         },
       ]);
-      await expect(repository.findUpcomingSlots(tx, 'Europe/Rome', now)).resolves.toEqual([
+      await expect(repository.findUpcomingSlots('Europe/Rome', now)).resolves.toEqual([
         {
           id: 3,
           date: '2026-11-01',
@@ -49,7 +52,7 @@ describe('BookingsRepository', () => {
 
     it('counts confirmed and pending bookings and binds the values', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.findUpcomingSlots(tx, 'Europe/Rome', now);
+      await repository.findUpcomingSlots('Europe/Rome', now);
       expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
       expect(queryValues()).toEqual(['Europe/Rome', 'Europe/Rome', now]);
     });
@@ -61,12 +64,12 @@ describe('BookingsRepository', () => {
       [0, false],
     ])('with %d bookings returns %s', async (count, expected) => {
       client.booking.count.mockResolvedValue(count);
-      await expect(repository.hasActiveBooking(tx, 7, 3)).resolves.toBe(expected);
+      await expect(repository.hasActiveBooking(7, 3)).resolves.toBe(expected);
     });
 
     it('ignores the rejected bookings', async () => {
       client.booking.count.mockResolvedValue(0);
-      await repository.hasActiveBooking(tx, 7, 3);
+      await repository.hasActiveBooking(7, 3);
       expect(client.booking.count).toHaveBeenCalledWith({
         where: { hikerId: 7, slotId: 3, status: { not: 'REJECTED' } },
       });
@@ -77,17 +80,17 @@ describe('BookingsRepository', () => {
     it('returns the start of the slot', async () => {
       const startsAt = new Date('2026-11-01T12:00:00Z');
       client.$queryRaw.mockResolvedValue([{ starts_at: startsAt }]);
-      await expect(repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome')).resolves.toBe(startsAt);
+      await expect(repository.lockSlotAndGetStart(3, 'Europe/Rome')).resolves.toBe(startsAt);
     });
 
     it('returns null when the slot does not exist', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await expect(repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome')).resolves.toBeNull();
+      await expect(repository.lockSlotAndGetStart(3, 'Europe/Rome')).resolves.toBeNull();
     });
 
     it('locks the row and binds the values instead of concatenating them', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.lockSlotAndGetStart(tx, 3, 'Europe/Rome');
+      await repository.lockSlotAndGetStart(3, 'Europe/Rome');
       expect(queryText()).toContain('FOR UPDATE');
       expect(queryValues()).toEqual(['Europe/Rome', 3]);
     });
@@ -99,7 +102,7 @@ describe('BookingsRepository', () => {
         { table_number: 1, free_seats: 4 },
         { table_number: 2, free_seats: 0 },
       ]);
-      await expect(repository.findFreeSeatsByTable(tx, 3)).resolves.toEqual([
+      await expect(repository.findFreeSeatsByTable(3)).resolves.toEqual([
         { tableNumber: 1, freeSeats: 4 },
         { tableNumber: 2, freeSeats: 0 },
       ]);
@@ -107,12 +110,12 @@ describe('BookingsRepository', () => {
 
     it('returns an empty list for a slot without tables', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await expect(repository.findFreeSeatsByTable(tx, 3)).resolves.toEqual([]);
+      await expect(repository.findFreeSeatsByTable(3)).resolves.toEqual([]);
     });
 
     it('counts the confirmed and pending bookings of the requested slot', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.findFreeSeatsByTable(tx, 3);
+      await repository.findFreeSeatsByTable(3);
       expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
       expect(queryValues()).toEqual([3]);
     });
@@ -121,7 +124,7 @@ describe('BookingsRepository', () => {
   describe('findHikerIdByUserId', () => {
     it('returns the hiker id', async () => {
       client.hiker.findUnique.mockResolvedValue({ id: 7 });
-      await expect(repository.findHikerIdByUserId(tx, 1)).resolves.toBe(7);
+      await expect(repository.findHikerIdByUserId(1)).resolves.toBe(7);
       expect(client.hiker.findUnique).toHaveBeenCalledWith({
         where: { userId: 1 },
         select: { id: true },
@@ -130,14 +133,14 @@ describe('BookingsRepository', () => {
 
     it('returns null when the user has no hiker profile', async () => {
       client.hiker.findUnique.mockResolvedValue(null);
-      await expect(repository.findHikerIdByUserId(tx, 1)).resolves.toBeNull();
+      await expect(repository.findHikerIdByUserId(1)).resolves.toBeNull();
     });
   });
 
   describe('confirmBooking', () => {
     it('confirms the booking only while it is still pending', async () => {
       client.booking.updateMany.mockResolvedValue({ count: 1 });
-      await repository.confirmBooking(tx, 9);
+      await repository.confirmBooking(9);
       expect(client.booking.updateMany).toHaveBeenCalledWith({
         where: { id: 9, status: 'PENDING' },
         data: { status: 'CONFIRMED' },
@@ -146,10 +149,10 @@ describe('BookingsRepository', () => {
 
     it('tells whether the booking was confirmed', async () => {
       client.booking.updateMany.mockResolvedValue({ count: 1 });
-      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(true);
+      await expect(repository.confirmBooking(9)).resolves.toBe(true);
       // Rejected or already confirmed in the meantime.
       client.booking.updateMany.mockResolvedValue({ count: 0 });
-      await expect(repository.confirmBooking(tx, 9)).resolves.toBe(false);
+      await expect(repository.confirmBooking(9)).resolves.toBe(false);
     });
   });
 
@@ -158,7 +161,7 @@ describe('BookingsRepository', () => {
 
     it('stores the booking as pending', async () => {
       client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
-      await repository.createBooking(tx, data);
+      await repository.createBooking(data);
       expect(client.booking.create).toHaveBeenCalledWith({
         data: { ...data, status: 'PENDING' },
       });
@@ -166,7 +169,7 @@ describe('BookingsRepository', () => {
 
     it('does not expose the hiker id in the result', async () => {
       client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
-      await expect(repository.createBooking(tx, data)).resolves.toEqual({
+      await expect(repository.createBooking(data)).resolves.toEqual({
         id: 9,
         slotId: 3,
         partySize: 2,
@@ -190,7 +193,7 @@ describe('BookingsRepository', () => {
 
     it('maps the booking, its hiker and its slot', async () => {
       client.booking.findUnique.mockResolvedValue(row);
-      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toEqual({
+      await expect(repository.findBookingConfirmation(9)).resolves.toEqual({
         recipient: { userId: 1, email: 'anna@example.com' },
         booking: {
           ...slot,
@@ -207,19 +210,19 @@ describe('BookingsRepository', () => {
         ...row,
         hiker: { fullName: 'Anna Rossi', userId: null, user: null },
       });
-      const found = await repository.findBookingConfirmation(tx, 9);
+      const found = await repository.findBookingConfirmation(9);
       expect(found?.recipient).toEqual({ userId: null, email: null });
     });
 
     it('returns null when the booking does not exist', async () => {
       client.booking.findUnique.mockResolvedValue(null);
-      await expect(repository.findBookingConfirmation(tx, 9)).resolves.toBeNull();
+      await expect(repository.findBookingConfirmation(9)).resolves.toBeNull();
     });
   });
 
   describe('createBookingTables', () => {
     it('stores one row for each allocated table', async () => {
-      await repository.createBookingTables(tx, 9, 3, [
+      await repository.createBookingTables(9, 3, [
         { tableNumber: 1, assignedSeats: 4 },
         { tableNumber: 2, assignedSeats: 2 },
       ]);

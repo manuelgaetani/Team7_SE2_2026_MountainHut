@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { SlotsController } from './slots.controller.js';
-import { SlotsService } from './slots.service.js';
+import { SlotsService } from './application/slots.service.js';
 
 describe('SlotsController', () => {
   let app: INestApplication<App>;
