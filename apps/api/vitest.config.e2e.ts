@@ -9,6 +9,7 @@ export default defineConfig({
     include: ['test/**/*.e2e-spec.ts'],
     env: {
       JWT_SECRET: 'test-secret-only-for-e2e',
+      DATABASE_URL: 'postgresql://user:password@localhost:5432/e2e_unused',
     },
   },
 });
