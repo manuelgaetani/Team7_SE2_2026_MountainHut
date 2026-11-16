@@ -7,8 +7,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig } from '../config/app-config.js';
 import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
-import { AuthService } from './auth.service.js';
-import type { AuthSession } from './auth.service.js';
+import { GetCurrentUser } from './application/get-current-user.js';
+import { Login } from './application/login.js';
+import { Logout } from './application/logout.js';
+import { RefreshSession } from './application/refresh-session.js';
+import { RegisterUser } from './application/register-user.js';
+import type { AuthSession } from './application/session-issuer.js';
 
 const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const };
 const session: AuthSession = {
@@ -40,7 +44,11 @@ describe('AuthController', () => {
     const module = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: auth },
+        { provide: RegisterUser, useValue: { execute: auth.register } },
+        { provide: Login, useValue: { execute: auth.login } },
+        { provide: RefreshSession, useValue: { execute: auth.refresh } },
+        { provide: Logout, useValue: { execute: auth.logout } },
+        { provide: GetCurrentUser, useValue: { execute: auth.me } },
         { provide: AppConfig, useValue: config },
       ],
     })

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../generated/prisma/client.js';
 import { ConfigModule } from '../config/config.module.js';
 import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
+import { TransactionContext } from '../infrastructure/prisma/transaction-context.js';
 import { AuthModule } from './auth.module.js';
 
 const SECRET = 'flow-test-secret';
@@ -28,7 +29,7 @@ interface StoredToken {
   revokedAt: Date | null;
 }
 
-// Behaves like the database for the queries of AuthService, unique constraints included.
+// Behaves like the database for the queries of the auth repositories, unique constraints included.
 function createDatabase() {
   const users: StoredUser[] = [];
   const tokens: StoredToken[] = [];
@@ -95,6 +96,13 @@ describe('Authentication flow over HTTP', () => {
   };
   const credentials = { email: account.email, password: account.password };
 
+  // The repositories reach the in-memory database through the transaction context.
+  const mockDatabase = (token: unknown) => {
+    if (token === PrismaService) return db;
+    if (token === TransactionContext) return new TransactionContext(db as unknown as PrismaService);
+    return undefined;
+  };
+
   const http = () => request(app.getHttpServer());
   const register = () => http().post('/auth/register').send(account);
   const login = (body: object = credentials) => http().post('/auth/login').send(body);
@@ -125,7 +133,7 @@ describe('Authentication flow over HTTP', () => {
       imports: [ConfigModule, AuthModule],
       providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
     })
-      .useMocker((token) => (token === PrismaService ? db : undefined))
+      .useMocker(mockDatabase)
       .compile();
     app = module.createNestApplication();
     await app.init();
@@ -399,7 +407,7 @@ describe('Authentication flow over HTTP', () => {
     it('refuses to start without JWT_SECRET', async () => {
       vi.stubEnv('JWT_SECRET', undefined);
       const compile = Test.createTestingModule({ imports: [ConfigModule, AuthModule] })
-        .useMocker((token) => (token === PrismaService ? db : undefined))
+        .useMocker(mockDatabase)
         .compile();
       await expect(compile).rejects.toThrow('JWT_SECRET is not defined');
     });

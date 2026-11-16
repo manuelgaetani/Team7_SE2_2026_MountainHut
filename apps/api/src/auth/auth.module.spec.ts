@@ -7,7 +7,7 @@ import { ConfigModule } from '../config/config.module.js';
 import { PrismaModule } from '../infrastructure/prisma/prisma.module.js';
 import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
-import { AuthService } from './auth.service.js';
+import { GetCurrentUser } from './application/get-current-user.js';
 
 describe('AuthModule', () => {
   const user = { id: 1, email: 'anna@example.it', role: 'HIKER' };
@@ -17,8 +17,8 @@ describe('AuthModule', () => {
     Test.createTestingModule({ imports: [ConfigModule, PrismaModule, AuthModule] })
       .overrideProvider(PrismaService)
       .useValue({})
-      .overrideProvider(AuthService)
-      .useValue(auth)
+      .overrideProvider(GetCurrentUser)
+      .useValue({ execute: auth.me })
       .compile();
 
   const tokenLifetime = async () => {
