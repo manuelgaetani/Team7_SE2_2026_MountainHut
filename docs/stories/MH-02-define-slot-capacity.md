@@ -160,14 +160,14 @@ The database refuses a slot whose end is not after its start (`slots_time_range_
 
 ## Code map
 
-| Path                                     | Content                                       |
-| ---------------------------------------- | --------------------------------------------- |
-| `packages/shared/src/slots.ts`           | Request schemas and response types            |
-| `apps/api/src/slots/slots.controller.ts` | The four endpoints                            |
-| `apps/api/src/slots/slots.service.ts`    | Transactions, copy and mapping to HTTP errors |
-| `apps/api/src/slots/slots.repository.ts` | Database queries and the slot lock            |
-| `apps/api/src/auth/roles.decorator.ts`   | `@Roles(...)`                                 |
-| `apps/api/src/auth/roles.guard.ts`       | Role check                                    |
+| Path                                                           | Content                                       |
+| -------------------------------------------------------------- | --------------------------------------------- |
+| `packages/shared/src/slots.ts`                                 | Request schemas and response types            |
+| `apps/api/src/slots/presentation/slots.controller.ts`          | The four endpoints                            |
+| `apps/api/src/slots/application/slots.service.ts`              | Transactions, copy and mapping to HTTP errors |
+| `apps/api/src/slots/infrastructure/prisma-slots.repository.ts` | Database queries and the slot lock            |
+| `apps/api/src/auth/presentation/roles.decorator.ts`            | `@Roles(...)`                                 |
+| `apps/api/src/auth/presentation/roles.guard.ts`                | Role check                                    |
 
 ## Testing
 
@@ -178,10 +178,10 @@ docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                    | Covers                                                                                                                                               |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/auth/roles.guard.spec.ts` | Role check: allowed and forbidden roles, method roles overriding controller roles                                                                    |
-| `e2e/tests/api/slots.spec.ts`           | Access by role, tables and total seats, flexible times, several slots a day, different tables per slot, copying, MH-19 boundary, validation, Swagger |
+| Spec                                                 | Covers                                                                                                                                               |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/auth/presentation/roles.guard.spec.ts` | Role check: allowed and forbidden roles, method roles overriding controller roles                                                                    |
+| `e2e/tests/api/slots.spec.ts`                        | Access by role, tables and total seats, flexible times, several slots a day, different tables per slot, copying, MH-19 boundary, validation, Swagger |
 
 The end-to-end tests get staff sessions through the `employeeRequest` and `wardenRequest` fixtures, which register a user and set its role with `setUserRole` in the database of the `docker compose` stack.
 
