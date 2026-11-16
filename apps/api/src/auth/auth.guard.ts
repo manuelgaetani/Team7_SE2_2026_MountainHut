@@ -2,14 +2,16 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import type { Role } from '@mountain-hut/shared';
+import type { AuthenticatedUser } from '../presentation/current-user.decorator.js';
+import { ACCESS_COOKIE } from './presentation/session-cookies.js';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly jwt: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<Request & { user?: unknown }>();
-    const token = (req.cookies as Record<string, string> | undefined)?.token;
+    const req = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
+    const token = (req.cookies as Record<string, string> | undefined)?.[ACCESS_COOKIE];
     if (!token) throw new UnauthorizedException('Not authenticated');
     try {
       const payload = await this.jwt.verifyAsync<{ sub: number; email: string; role: Role }>(

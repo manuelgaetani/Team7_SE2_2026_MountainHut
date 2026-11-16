@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { BookingStatus } from '@mountain-hut/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { Recipient } from '../notifications/notification.service.js';
 import type { BookingConfirmationData } from '../notifications/templates/booking-confirmation.js';
@@ -31,7 +32,7 @@ export interface StoredBooking {
   id: number;
   slotId: number;
   partySize: number;
-  status: 'CONFIRMED' | 'PENDING' | 'REJECTED';
+  status: BookingStatus;
 }
 
 // Riceve sempre "tx": la transazione aperta dal service.
