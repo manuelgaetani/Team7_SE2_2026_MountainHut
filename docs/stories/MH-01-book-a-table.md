@@ -177,25 +177,25 @@ The partial unique index `bookings_hiker_id_slot_id_active_key` allows one non-r
 
 ## Code map
 
-| Path                                            | Content                                      |
-| ----------------------------------------------- | -------------------------------------------- |
-| `packages/shared/src/bookings.ts`               | Request schema and response type             |
-| `apps/api/src/bookings/bookings.controller.ts`  | Booking endpoint                             |
-| `apps/api/src/bookings/slots.controller.ts`     | Slot list endpoint                           |
-| `apps/api/src/bookings/bookings.service.ts`     | Transaction and mapping to HTTP errors       |
-| `apps/api/src/bookings/booking-policy.ts`       | 2-hour rule and booking decision             |
-| `apps/api/src/bookings/seat-allocation.ts`      | Table assignment                             |
-| `apps/api/src/bookings/bookings.repository.ts`  | Database queries                             |
-| `apps/api/prisma/schema.prisma`                 | Data model                                   |
-| `apps/api/prisma/seed.ts`                       | Development seed script for slots and tables |
-| `apps/web/src/pages/BookingPage.tsx`            | Booking page flow and layout                 |
-| `apps/web/src/components/DayPicker.tsx`         | Date selection radio group                   |
-| `apps/web/src/components/GuestStepper.tsx`      | Guest counter with +/- stepper               |
-| `apps/web/src/components/TimeSlotPicker.tsx`    | Shift selection radio group                  |
-| `apps/web/src/components/BookingSummary.tsx`    | Summary sidebar with seat assignments        |
-| `apps/web/src/components/BookingSentDialog.tsx` | Confirmation dialog modal                    |
-| `apps/web/src/lib/dates.ts`                     | Date formatting and conversion utilities     |
-| `apps/web/src/api/bookings.ts`                  | Web client for the two endpoints             |
+| Path                                                                 | Content                                      |
+| -------------------------------------------------------------------- | -------------------------------------------- |
+| `packages/shared/src/bookings.ts`                                    | Request schema and response type             |
+| `apps/api/src/bookings/presentation/bookings.controller.ts`          | Booking endpoint                             |
+| `apps/api/src/slots/presentation/slots.controller.ts`                | Slot list endpoint                           |
+| `apps/api/src/bookings/application/bookings.service.ts`              | Transaction and mapping to HTTP errors       |
+| `apps/api/src/bookings/domain/booking-policy.ts`                     | 2-hour rule and booking decision             |
+| `apps/api/src/bookings/domain/seat-allocation.ts`                    | Table assignment                             |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | Database queries                             |
+| `apps/api/prisma/schema.prisma`                                      | Data model                                   |
+| `apps/api/prisma/seed.ts`                                            | Development seed script for slots and tables |
+| `apps/web/src/pages/BookingPage.tsx`                                 | Booking page flow and layout                 |
+| `apps/web/src/components/DayPicker.tsx`                              | Date selection radio group                   |
+| `apps/web/src/components/GuestStepper.tsx`                           | Guest counter with +/- stepper               |
+| `apps/web/src/components/TimeSlotPicker.tsx`                         | Shift selection radio group                  |
+| `apps/web/src/components/BookingSummary.tsx`                         | Summary sidebar with seat assignments        |
+| `apps/web/src/components/BookingSentDialog.tsx`                      | Confirmation dialog modal                    |
+| `apps/web/src/lib/dates.ts`                                          | Date formatting and conversion utilities     |
+| `apps/web/src/api/bookings.ts`                                       | Web client for the two endpoints             |
 
 ## Testing
 
@@ -221,19 +221,19 @@ docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                | Covers                                                                |
-| --------------------------------------------------- | --------------------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`              | Request validation limits                                             |
-| `apps/api/src/bookings/seat-allocation.spec.ts`     | Table assignment                                                      |
-| `apps/api/src/bookings/booking-policy.spec.ts`      | 2-hour rule, availability and booking decision                        |
-| `apps/api/src/bookings/bookings.service.spec.ts`    | Transaction flow, slot list and error mapping                         |
-| `apps/api/src/bookings/bookings.repository.spec.ts` | Database queries, with a mocked client                                |
-| `apps/api/src/bookings/bookings.controller.spec.ts` | Booking endpoint                                                      |
-| `apps/api/src/bookings/slots.controller.spec.ts`    | Slot list endpoint                                                    |
-| `apps/api/test/bookings.int-spec.ts`                | Database queries, constraints, locks and transactions with PostgreSQL |
-| `apps/web/src/pages/BookingPage.test.tsx`           | Booking page                                                          |
-| `e2e/tests/api/bookings.spec.ts`                    | API rules on the real stack, including concurrent bookings            |
-| `e2e/tests/web/booking.spec.ts`                     | Sign-in and booking in a real browser                                 |
+| Spec                                                                      | Covers                                                                |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`                                    | Request validation limits                                             |
+| `apps/api/src/bookings/domain/seat-allocation.spec.ts`                    | Table assignment                                                      |
+| `apps/api/src/bookings/domain/booking-policy.spec.ts`                     | 2-hour rule, availability and booking decision                        |
+| `apps/api/src/bookings/application/bookings.service.spec.ts`              | Transaction flow, slot list and error mapping                         |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | Database queries, with a mocked client                                |
+| `apps/api/src/bookings/presentation/bookings.controller.spec.ts`          | Booking endpoint                                                      |
+| `apps/api/src/slots/presentation/slots.controller.spec.ts`                | Slot list endpoint                                                    |
+| `apps/api/test/bookings.int-spec.ts`                                      | Database queries, constraints, locks and transactions with PostgreSQL |
+| `apps/web/src/pages/BookingPage.test.tsx`                                 | Booking page                                                          |
+| `e2e/tests/api/bookings.spec.ts`                                          | API rules on the real stack, including concurrent bookings            |
+| `e2e/tests/web/booking.spec.ts`                                           | Sign-in and booking in a real browser                                 |
 
 The end-to-end tests create their slots directly in the database of the `docker compose` stack and delete them afterwards.
 
