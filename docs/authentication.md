@@ -185,13 +185,13 @@ Cookies are read with `cookie-parser`, applied by `AuthModule` to all routes. It
 
 ## Code map
 
-| Path                                   | Content                                                                    |
-| -------------------------------------- | -------------------------------------------------------------------------- |
-| `packages/shared/src/auth.ts`          | `registerSchema`, `loginSchema`, `Role`, `AuthUser`, shared by api and web |
-| `apps/api/src/auth/auth.controller.ts` | Routes, status codes, input validation and cookies                         |
-| `apps/api/src/auth/auth.service.ts`    | Hashing, login, token issue and rotation, revocation                       |
-| `apps/api/src/auth/auth.guard.ts`      | Verification of the access token                                           |
-| `apps/api/src/auth/auth.module.ts`     | JWT configuration and `cookie-parser`                                      |
+| Path                                                | Content                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| `packages/shared/src/auth.ts`                       | `registerSchema`, `loginSchema`, `Role`, `AuthUser`, shared by api and web |
+| `apps/api/src/auth/presentation/auth.controller.ts` | Routes, status codes, input validation and cookies                         |
+| `apps/api/src/auth/application/*.ts`                | Hashing, login, token issue and rotation, revocation                       |
+| `apps/api/src/auth/presentation/auth.guard.ts`      | Verification of the access token                                           |
+| `apps/api/src/auth/auth.module.ts`                  | JWT configuration and `cookie-parser`                                      |
 
 ## Testing
 
@@ -200,14 +200,14 @@ npm run test -w @mountain-hut/shared
 npm run test -w @mountain-hut/api
 ```
 
-| Spec                                        | Covers                                                                                             |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/auth.spec.ts`          | Validation limits                                                                                  |
-| `apps/api/src/auth/auth.service.spec.ts`    | Business rules, with a mocked database and JWT service                                             |
-| `apps/api/src/auth/auth.controller.spec.ts` | Cookie attributes, route protection, only the user in the body                                     |
-| `apps/api/src/auth/auth.guard.spec.ts`      | Forged, expired, tampered, `alg: none` and wrong algorithm tokens                                  |
-| `apps/api/src/auth/auth.module.spec.ts`     | Startup configuration and token lifetime                                                           |
-| `apps/api/src/auth/auth.flow.spec.ts`       | The whole flow over HTTP with an in-memory database: registration, login, rotation, replay, logout |
+| Spec                                                     | Covers                                                                                             |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/auth.spec.ts`                       | Validation limits                                                                                  |
+| `apps/api/src/auth/application/*.spec.ts`                | Business rules, with a mocked database and JWT service                                             |
+| `apps/api/src/auth/presentation/auth.controller.spec.ts` | Cookie attributes, route protection, only the user in the body                                     |
+| `apps/api/src/auth/presentation/auth.guard.spec.ts`      | Forged, expired, tampered, `alg: none` and wrong algorithm tokens                                  |
+| `apps/api/src/auth/auth.module.spec.ts`                  | Startup configuration and token lifetime                                                           |
+| `apps/api/src/auth/auth.flow.spec.ts`                    | The whole flow over HTTP with an in-memory database: registration, login, rotation, replay, logout |
 
 ## Open points
 

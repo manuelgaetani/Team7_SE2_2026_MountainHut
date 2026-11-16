@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
@@ -77,7 +78,6 @@ function SlotsManager() {
 // MH-02: the staff define the time slots and the tables and seats of each one.
 export function SlotsPage() {
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let content = null;
   if (!isPending) {
@@ -87,7 +87,7 @@ export function SlotsPage() {
           <Link to="/login">Log in</Link> with a staff account to manage the time slots.
         </p>
       );
-    } else if (!isStaff) {
+    } else if (!isStaff(user)) {
       content = <p className="notice notice--ok">This page is for the hut staff.</p>;
     } else {
       content = <SlotsManager />;

@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { createBookingSchema } from '@mountain-hut/shared';
-import { createBooking, fetchSlots } from '../api/bookings.ts';
 import { ApiError } from '../api/client.ts';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
+import { useBookableSlots, useCreateBooking } from '../api/useBookings.ts';
 import { BookingSummary } from '../components/BookingSummary.tsx';
 import { DayPicker } from '../components/DayPicker.tsx';
 import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
@@ -15,8 +15,6 @@ import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
-
-const SLOTS_KEY = ['slots'] as const;
 
 const plural = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
@@ -30,12 +28,8 @@ function bookingError(e: unknown): string {
 }
 
 function BookingFlow() {
-  const queryClient = useQueryClient();
-  const slotsQuery = useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
-  const book = useMutation({
-    mutationFn: createBooking,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
-  });
+  const slotsQuery = useBookableSlots();
+  const book = useCreateBooking();
 
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [requestedGuests, setRequestedGuests] = useState(2);
@@ -186,7 +180,6 @@ function BookingFlow() {
 
 export function BookingPage() {
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
   let content = null;
   if (!isPending) {
@@ -196,7 +189,7 @@ export function BookingPage() {
           <Link to="/login">Log in</Link> to book a table.
         </p>
       );
-    } else if (isStaff) {
+    } else if (isStaff(user)) {
       content = <p className="notice notice--ok">Staff accounts cannot book a table.</p>;
     } else {
       content = <BookingFlow />;
