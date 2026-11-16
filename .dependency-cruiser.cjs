@@ -47,6 +47,64 @@ module.exports = {
       to: { path: '^apps/', pathNot: '^apps/$1/' },
     },
     {
+      name: 'bookings-not-to-notifications',
+      severity: 'error',
+      comment:
+        'Bookings send their confirmation through the BookingConfirmationNotifier port: only the notifications module knows about emails. The Nest module that wires the two together is the one exception.',
+      from: {
+        path: '^apps/api/src/bookings/',
+        pathNot: '\\.(spec|test)\\.tsx?$|^apps/api/src/bookings/bookings\\.module\\.ts$',
+      },
+      to: { path: '^apps/api/src/notifications/' },
+    },
+    {
+      name: 'domain-is-pure',
+      severity: 'error',
+      comment:
+        'The domain layer holds plain business rules: no framework, database, mail or crypto libraries, no config, and no outer layers.',
+      from: { path: '^apps/api/src/[^/]+/domain/', pathNot: '\\.(spec|int-spec)\\.ts$' },
+      to: {
+        path: [
+          'node_modules/@nestjs/',
+          'generated/prisma',
+          'node_modules/(@types/)?express/',
+          'node_modules/(@types/)?nodemailer/',
+          'node_modules/(@types/)?bcrypt/',
+          '^(node:)?crypto$',
+          '/(application|infrastructure|presentation)/',
+          '^apps/api/src/config/',
+        ],
+      },
+    },
+    {
+      name: 'application-not-to-infra',
+      severity: 'error',
+      comment:
+        'Use cases depend on ports, not on adapters: no infrastructure, presentation, database, mail, crypto or framework packages (only @nestjs/common is allowed).',
+      from: { path: '^apps/api/src/[^/]+/application/', pathNot: '\\.(spec|int-spec)\\.ts$' },
+      to: {
+        path: [
+          '/(infrastructure|presentation)/',
+          'generated/prisma',
+          'node_modules/(@types/)?express/',
+          'node_modules/(@types/)?nodemailer/',
+          'node_modules/(@types/)?bcrypt/',
+          'node_modules/@nestjs/(?!common/)',
+          '^(node:)?crypto$',
+        ],
+      },
+    },
+    {
+      name: 'presentation-not-to-infra',
+      severity: 'error',
+      comment: 'Presentation talks to use cases, never directly to infrastructure adapters.',
+      from: {
+        path: '^apps/api/src/(presentation|[^/]+/presentation)/',
+        pathNot: '\\.(spec|int-spec)\\.ts$',
+      },
+      to: { path: '/infrastructure/' },
+    },
+    {
       name: 'shared-does-not-depend-on-apps',
       severity: 'error',
       comment:
@@ -56,8 +114,9 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: { path: '(^|/)(dist|coverage|node_modules)/|^apps/api/src/generated/' },
+    doNotFollow: { path: 'node_modules|^apps/api/src/generated/' },
+    // node_modules and generated Prisma code are not excluded (only not followed) so layer rules can see imports of them
+    exclude: { path: '^(apps|packages)/[^/]+/(dist|coverage)/|^(dist|coverage)/' },
     tsPreCompilationDeps: true,
     combinedDependencies: true,
     enhancedResolveOptions: {
