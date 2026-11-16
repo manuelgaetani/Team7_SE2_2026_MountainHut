@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
 import type {
-  BookingConfirmation,
   NewBooking,
   StoredBooking,
   UpcomingSlot,
@@ -146,34 +145,6 @@ export class PrismaBookingsRepository extends BookingsRepository {
       data: { status: 'CONFIRMED' },
     });
     return count > 0;
-  }
-
-  // What the confirmation email needs. null if the booking does not exist.
-  async findBookingConfirmation(bookingId: number): Promise<BookingConfirmation | null> {
-    const row = await this.db().booking.findUnique({
-      where: { id: bookingId },
-      select: {
-        partySize: true,
-        requirements: true,
-        hiker: {
-          select: { fullName: true, userId: true, user: { select: { email: true } } },
-        },
-        slot: { select: { date: true, startTime: true, endTime: true } },
-      },
-    });
-    if (!row) return null;
-    return {
-      recipient: { userId: row.hiker.userId, email: row.hiker.user?.email ?? null },
-      booking: {
-        bookingId,
-        fullName: row.hiker.fullName,
-        date: row.slot.date,
-        startTime: row.slot.startTime,
-        endTime: row.slot.endTime,
-        partySize: row.partySize,
-        requirements: row.requirements,
-      },
-    };
   }
 
   async createBookingTables(

@@ -178,48 +178,6 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  describe('findBookingConfirmation', () => {
-    const slot = {
-      date: new Date('2026-11-14T00:00:00.000Z'),
-      startTime: new Date('1970-01-01T12:30:00.000Z'),
-      endTime: new Date('1970-01-01T13:30:00.000Z'),
-    };
-    const row = {
-      partySize: 2,
-      requirements: 'no nuts',
-      hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
-      slot,
-    };
-
-    it('maps the booking, its hiker and its slot', async () => {
-      client.booking.findUnique.mockResolvedValue(row);
-      await expect(repository.findBookingConfirmation(9)).resolves.toEqual({
-        recipient: { userId: 1, email: 'anna@example.com' },
-        booking: {
-          ...slot,
-          bookingId: 9,
-          fullName: 'Anna Rossi',
-          partySize: 2,
-          requirements: 'no nuts',
-        },
-      });
-    });
-
-    it('has no email for a hiker without an account', async () => {
-      client.booking.findUnique.mockResolvedValue({
-        ...row,
-        hiker: { fullName: 'Anna Rossi', userId: null, user: null },
-      });
-      const found = await repository.findBookingConfirmation(9);
-      expect(found?.recipient).toEqual({ userId: null, email: null });
-    });
-
-    it('returns null when the booking does not exist', async () => {
-      client.booking.findUnique.mockResolvedValue(null);
-      await expect(repository.findBookingConfirmation(9)).resolves.toBeNull();
-    });
-  });
-
   describe('createBookingTables', () => {
     it('stores one row for each allocated table', async () => {
       await repository.createBookingTables(9, 3, [

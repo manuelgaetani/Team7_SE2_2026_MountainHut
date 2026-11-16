@@ -1,6 +1,4 @@
 import type { BookingStatus } from '@mountain-hut/shared';
-import type { Recipient } from '../../notifications/notification.service.js';
-import type { BookingConfirmationData } from '../../notifications/templates/booking-confirmation.js';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
 export interface NewBooking {
@@ -8,11 +6,6 @@ export interface NewBooking {
   slotId: number;
   partySize: number;
   requirements: string | null;
-}
-
-export interface BookingConfirmation {
-  recipient: Recipient;
-  booking: BookingConfirmationData;
 }
 
 export interface UpcomingSlot {
@@ -56,9 +49,6 @@ export abstract class BookingsRepository {
 
   // Confirms a booking that is still pending. False if it is not pending any more.
   abstract confirmBooking(bookingId: number): Promise<boolean>;
-
-  // What the confirmation email needs. null if the booking does not exist.
-  abstract findBookingConfirmation(bookingId: number): Promise<BookingConfirmation | null>;
 
   abstract createBookingTables(
     bookingId: number,
