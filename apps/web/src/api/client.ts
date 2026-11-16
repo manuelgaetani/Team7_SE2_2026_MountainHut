@@ -20,32 +20,21 @@ async function toApiError(response: Response, method: string, path: string): Pro
   return new ApiError(response.status, message);
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+async function send<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+  const isGet = method === 'GET';
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: 'application/json' },
+    ...(isGet ? {} : { method }),
+    headers: isGet
+      ? { Accept: 'application/json' }
+      : { Accept: 'application/json', 'Content-Type': 'application/json' },
+    ...(isGet ? {} : { body: body === undefined ? undefined : JSON.stringify(body) }),
   });
-  if (!response.ok) {
-    throw await toApiError(response, 'GET', path);
-  }
+  if (!response.ok) throw await toApiError(response, method, path);
   return (await response.json()) as T;
 }
 
-export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!response.ok) throw await toApiError(response, 'POST', path);
-  return (await response.json()) as T;
-}
+export const apiGet = <T>(path: string): Promise<T> => send<T>('GET', path);
 
-export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'PUT',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!response.ok) throw await toApiError(response, 'PUT', path);
-  return (await response.json()) as T;
-}
+export const apiPost = <T>(path: string, body?: unknown): Promise<T> => send<T>('POST', path, body);
+
+export const apiPut = <T>(path: string, body?: unknown): Promise<T> => send<T>('PUT', path, body);
