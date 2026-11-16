@@ -1,46 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import type { BookingStatus } from '@mountain-hut/shared';
-import type { Prisma } from '../generated/prisma/client.js';
-import type { Recipient } from '../notifications/notification.service.js';
-import type { BookingConfirmationData } from '../notifications/templates/booking-confirmation.js';
-import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
+import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
+import { BookingsRepository } from '../application/bookings.repository.port.js';
+import type {
+  BookingConfirmation,
+  NewBooking,
+  StoredBooking,
+  UpcomingSlot,
+} from '../application/bookings.repository.port.js';
+import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
-type Tx = Prisma.TransactionClient;
-
-export interface NewBooking {
-  hikerId: number;
-  slotId: number;
-  partySize: number;
-  requirements: string | null;
-}
-
-export interface BookingConfirmation {
-  recipient: Recipient;
-  booking: BookingConfirmationData;
-}
-
-export interface UpcomingSlot {
-  id: number;
-  date: string;
-  startTime: string;
-  endTime: string;
-  startsAt: Date;
-  freeSeats: number;
-}
-
-export interface StoredBooking {
-  id: number;
-  slotId: number;
-  partySize: number;
-  status: BookingStatus;
-}
-
-// Riceve sempre "tx": la transazione aperta dal service.
+// Uses the transaction of the current unit of work, or the plain client outside one.
 @Injectable()
-export class BookingsRepository {
+export class PrismaBookingsRepository extends BookingsRepository {
+  constructor(private readonly context: TransactionContext) {
+    super();
+  }
+
+  private db() {
+    return this.context.client();
+  }
+
   // Slots that have not started yet, with the seats left over all their tables.
-  async findUpcomingSlots(tx: Tx, timeZone: string, now: Date): Promise<UpcomingSlot[]> {
-    const rows = await tx.$queryRaw<
+  async findUpcomingSlots(timeZone: string, now: Date): Promise<UpcomingSlot[]> {
+    const rows = await this.db().$queryRaw<
       {
         id: number;
         date: string;
@@ -86,8 +68,8 @@ export class BookingsRepository {
 
   // Blocca la riga dello slot (le altre prenotazioni dello stesso slot aspettano)
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
-  async lockSlotAndGetStart(tx: Tx, slotId: number, timeZone: string): Promise<Date | null> {
-    const rows = await tx.$queryRaw<{ starts_at: Date }[]>`
+  async lockSlotAndGetStart(slotId: number, timeZone: string): Promise<Date | null> {
+    const rows = await this.db().$queryRaw<{ starts_at: Date }[]>`
       SELECT ((s_target.date + s_target.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
       FROM slots s_target
       JOIN slots s_other
@@ -113,8 +95,8 @@ export class BookingsRepository {
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
-  async findFreeSeatsByTable(tx: Tx, slotId: number): Promise<TableFreeSeats[]> {
-    const rows = await tx.$queryRaw<{ table_number: number; free_seats: number }[]>`
+  async findFreeSeatsByTable(slotId: number): Promise<TableFreeSeats[]> {
+    const rows = await this.db().$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
              (st.seats - COALESCE((
                SELECT SUM(bt.assigned_seats)
@@ -134,21 +116,21 @@ export class BookingsRepository {
     return rows.map((r) => ({ tableNumber: r.table_number, freeSeats: r.free_seats }));
   }
   // hiker profile of the logged user. null if user doesnt have one
-  async findHikerIdByUserId(tx: Tx, userId: number): Promise<number | null> {
-    const hiker = await tx.hiker.findUnique({ where: { userId }, select: { id: true } });
+  async findHikerIdByUserId(userId: number): Promise<number | null> {
+    const hiker = await this.db().hiker.findUnique({ where: { userId }, select: { id: true } });
     return hiker?.id ?? null;
   }
 
   // A rejected booking does not stop the hiker from trying again.
-  async hasActiveBooking(tx: Tx, hikerId: number, slotId: number): Promise<boolean> {
-    const count = await tx.booking.count({
+  async hasActiveBooking(hikerId: number, slotId: number): Promise<boolean> {
+    const count = await this.db().booking.count({
       where: { hikerId, slotId, status: { not: 'REJECTED' } },
     });
     return count > 0;
   }
 
-  async createBooking(tx: Tx, data: NewBooking): Promise<StoredBooking> {
-    const booking = await tx.booking.create({ data: { ...data, status: 'PENDING' } });
+  async createBooking(data: NewBooking): Promise<StoredBooking> {
+    const booking = await this.db().booking.create({ data: { ...data, status: 'PENDING' } });
     return {
       id: booking.id,
       slotId: booking.slotId,
@@ -158,8 +140,8 @@ export class BookingsRepository {
   }
 
   // Confirms a booking whose confirmation email has been sent.
-  async confirmBooking(client: Tx, bookingId: number): Promise<boolean> {
-    const { count } = await client.booking.updateMany({
+  async confirmBooking(bookingId: number): Promise<boolean> {
+    const { count } = await this.db().booking.updateMany({
       where: { id: bookingId, status: 'PENDING' },
       data: { status: 'CONFIRMED' },
     });
@@ -167,11 +149,8 @@ export class BookingsRepository {
   }
 
   // What the confirmation email needs. null if the booking does not exist.
-  async findBookingConfirmation(
-    client: Tx,
-    bookingId: number,
-  ): Promise<BookingConfirmation | null> {
-    const row = await client.booking.findUnique({
+  async findBookingConfirmation(bookingId: number): Promise<BookingConfirmation | null> {
+    const row = await this.db().booking.findUnique({
       where: { id: bookingId },
       select: {
         partySize: true,
@@ -198,12 +177,11 @@ export class BookingsRepository {
   }
 
   async createBookingTables(
-    tx: Tx,
     bookingId: number,
     slotId: number,
     allocation: SeatAllocation[],
   ): Promise<void> {
-    await tx.bookingTable.createMany({
+    await this.db().bookingTable.createMany({
       data: allocation.map((a) => ({
         bookingId,
         slotId,

@@ -10,7 +10,7 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { ROLES_KEY } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { BookingsController } from './bookings.controller.js';
-import { BookingsService } from './bookings.service.js';
+import { BookingsService } from './application/bookings.service.js';
 
 const result = {
   id: 9,

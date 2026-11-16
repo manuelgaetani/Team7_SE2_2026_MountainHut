@@ -1,5 +1,7 @@
-import { BookingsRepository } from '../src/bookings/bookings.repository.js';
-import { BookingsService } from '../src/bookings/bookings.service.js';
+import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import { PrismaBookingsRepository } from '../src/bookings/infrastructure/prisma-bookings.repository.js';
+import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
 import type { NotificationService } from '../src/notifications/notification.service.js';
 import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
@@ -31,12 +33,14 @@ async function createSlotWithTables(
 describe('Bookings with PostgreSQL (integration)', () => {
   const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
   const prisma = new PrismaService(config);
-  const repo = new BookingsRepository();
+  const context = new TransactionContext(prisma);
+  const uow = new PrismaUnitOfWork(prisma, context);
+  const repo = new PrismaBookingsRepository(context);
 
   const notifications = {
     sendBookingConfirmation: () => Promise.resolve('SKIPPED'),
   } as unknown as NotificationService;
-  const service = new BookingsService(prisma, repo, notifications, config);
+  const service = new BookingsService(uow, repo, notifications, config);
 
   // A and B overlap and share table 2. C overlaps both but has its own table 3.
   const diningRoom = async () => ({
@@ -72,7 +76,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 3 },
       ]);
 
-      await expect(repo.findFreeSeatsByTable(prisma, slotId)).resolves.toEqual([
+      await expect(repo.findFreeSeatsByTable(slotId)).resolves.toEqual([
         { tableNumber: 1, freeSeats: 4 },
         { tableNumber: 2, freeSeats: 2 },
         { tableNumber: 3, freeSeats: 2 },
@@ -81,7 +85,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
     it('returns no tables for a slot without tables', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', []);
-      await expect(repo.findFreeSeatsByTable(prisma, slotId)).resolves.toEqual([]);
+      await expect(repo.findFreeSeatsByTable(slotId)).resolves.toEqual([]);
     });
   });
 
@@ -97,7 +101,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 3 },
       ]);
 
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       expect(slots.map((s) => s.id)).toEqual([dinner, lunch]);
       expect(slots.map((s) => s.id)).not.toContain(started);
       expect(slots[0]).toMatchObject({
@@ -114,7 +118,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await createSlot(prisma, '2031-07-15', '19:00', '21:00', [4]);
       await createSlot(prisma, '2031-12-15', '19:00', '21:00', [4]);
 
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       expect(slots.map((s) => s.startsAt.toISOString())).toEqual([
         '2031-07-15T17:00:00.000Z',
         '2031-12-15T18:00:00.000Z',
@@ -125,10 +129,10 @@ describe('Bookings with PostgreSQL (integration)', () => {
   describe('slot lock', () => {
     it('returns the start instant, or null for a slot that does not exist', async () => {
       const slotId = await createSlot(prisma, '2031-12-15', '19:00', '21:00', [4]);
-      await prisma.$transaction(async (tx) => {
-        const startsAt = await repo.lockSlotAndGetStart(tx, slotId, TIME_ZONE);
+      await uow.run(async () => {
+        const startsAt = await repo.lockSlotAndGetStart(slotId, TIME_ZONE);
         expect(startsAt?.toISOString()).toBe('2031-12-15T18:00:00.000Z');
-        await expect(repo.lockSlotAndGetStart(tx, slotId + 1, TIME_ZONE)).resolves.toBeNull();
+        await expect(repo.lockSlotAndGetStart(slotId + 1, TIME_ZONE)).resolves.toBeNull();
       });
     });
 
@@ -138,16 +142,16 @@ describe('Bookings with PostgreSQL (integration)', () => {
       let firstHasLock!: () => void;
       const firstLocked = new Promise<void>((resolve) => (firstHasLock = resolve));
 
-      const first = prisma.$transaction(async (tx) => {
-        await repo.lockSlotAndGetStart(tx, slotId, TIME_ZONE);
+      const first = uow.run(async () => {
+        await repo.lockSlotAndGetStart(slotId, TIME_ZONE);
         events.push('first locked');
         firstHasLock();
         await sleep(300);
         events.push('first done');
       });
       await firstLocked;
-      const second = prisma.$transaction(async (tx) => {
-        await repo.lockSlotAndGetStart(tx, slotId, TIME_ZONE);
+      const second = uow.run(async () => {
+        await repo.lockSlotAndGetStart(slotId, TIME_ZONE);
         events.push('second locked');
       });
       await Promise.all([first, second]);
@@ -161,13 +165,13 @@ describe('Bookings with PostgreSQL (integration)', () => {
       let aHasLock!: () => void;
       const aLocked = new Promise<void>((resolve) => (aHasLock = resolve));
       const lock = (slotId: number, event: string) =>
-        prisma.$transaction(async (tx) => {
-          await repo.lockSlotAndGetStart(tx, slotId, TIME_ZONE);
+        uow.run(async () => {
+          await repo.lockSlotAndGetStart(slotId, TIME_ZONE);
           events.push(event);
         });
 
-      const first = prisma.$transaction(async (tx) => {
-        await repo.lockSlotAndGetStart(tx, a, TIME_ZONE);
+      const first = uow.run(async () => {
+        await repo.lockSlotAndGetStart(a, TIME_ZONE);
         aHasLock();
         await sleep(500);
         events.push('A done');
@@ -186,8 +190,8 @@ describe('Bookings with PostgreSQL (integration)', () => {
       const staff = await prisma.user.create({
         data: { email: 'staff@example.test', password: 'not-used', role: 'EMPLOYEE' },
       });
-      await expect(repo.findHikerIdByUserId(prisma, userId)).resolves.toBe(hikerId);
-      await expect(repo.findHikerIdByUserId(prisma, staff.id)).resolves.toBeNull();
+      await expect(repo.findHikerIdByUserId(userId)).resolves.toBe(hikerId);
+      await expect(repo.findHikerIdByUserId(staff.id)).resolves.toBeNull();
     });
 
     it('does not count a rejected booking as active', async () => {
@@ -196,12 +200,12 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await createBooking(prisma, hikerId, slotId, 'REJECTED', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
-      await expect(repo.hasActiveBooking(prisma, hikerId, slotId)).resolves.toBe(false);
+      await expect(repo.hasActiveBooking(hikerId, slotId)).resolves.toBe(false);
 
       await createBooking(prisma, hikerId, slotId, 'CONFIRMED', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
-      await expect(repo.hasActiveBooking(prisma, hikerId, slotId)).resolves.toBe(true);
+      await expect(repo.hasActiveBooking(hikerId, slotId)).resolves.toBe(true);
     });
   });
 
@@ -213,7 +217,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      await expect(repo.confirmBooking(prisma, bookingId)).resolves.toBe(true);
+      await expect(repo.confirmBooking(bookingId)).resolves.toBe(true);
       const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
       expect(booking.status).toBe('CONFIRMED');
     });
@@ -225,7 +229,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      await expect(repo.confirmBooking(prisma, bookingId)).resolves.toBe(false);
+      await expect(repo.confirmBooking(bookingId)).resolves.toBe(false);
       const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
       expect(booking.status).toBe('REJECTED');
     });
@@ -323,6 +327,36 @@ describe('Bookings with PostgreSQL (integration)', () => {
       expect(seats._sum.assignedSeats).toBe(3);
     });
 
+    // Review focus: the slot lock must be taken in the transaction of the unit of work, or both
+    // bookings read the same free seats and both get the last ones.
+    it('gives the last free seats to only one of two parallel bookings', async () => {
+      const seats = 4;
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      // At 19:00 on the day after tomorrow at the latest: always more than 3 hours from now.
+      const date = new Date(Date.now() + 27 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const slotId = await createSlot(prisma, date, '19:00', '21:00', [seats]);
+
+      const results = await Promise.allSettled([
+        service.create(anna.userId, { slotId, partySize: seats }),
+        service.create(bruno.userId, { slotId, partySize: seats }),
+      ]);
+
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0].reason).toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
+      await expect(prisma.booking.count({ where: { slotId } })).resolves.toBe(1);
+      const taken = await prisma.bookingTable.aggregate({
+        where: { slotId },
+        _sum: { assignedSeats: true },
+      });
+      expect(taken._sum.assignedSeats).toBe(seats);
+    });
+
     it('does not take seats from the other slots of the day', async () => {
       const anna = await createHiker(prisma, 'anna@example.test');
       const bruno = await createHiker(prisma, 'bruno@example.test');
@@ -332,7 +366,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await service.create(anna.userId, { slotId: later, partySize: 4 });
 
       const now = new Date('2031-07-01T08:00:00Z');
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       expect(slots.find((s) => s.id === lunch)?.freeSeats).toBe(24);
       expect(slots.find((s) => s.id === later)?.freeSeats).toBe(20);
 
@@ -350,7 +384,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
       // 24 seats in all, 15 taken during the overlap: 9 are left in both slots.
       const now = new Date('2031-07-01T08:00:00Z');
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       expect(slots.find((s) => s.id === a)?.freeSeats).toBe(9);
       expect(slots.find((s) => s.id === b)?.freeSeats).toBe(9);
 
@@ -374,7 +408,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await service.create(anna.userId, { slotId: next, partySize: 4 });
 
       const now = new Date('2031-07-01T08:00:00Z');
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       expect(slots.find((s) => s.id === lunch)?.freeSeats).toBe(24);
       expect(slots.find((s) => s.id === next)?.freeSeats).toBe(20);
 
@@ -437,7 +471,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await service.create(anna.userId, { slotId: a, partySize: 5 });
 
       const now = new Date('2031-07-01T08:00:00Z');
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       const freeSeats = (id: number) => slots.find((s) => s.id === id)?.freeSeats;
       expect(freeSeats(a)).toBe(5);
       expect(freeSeats(b)).toBe(1);
@@ -459,7 +493,7 @@ describe('Bookings with PostgreSQL (integration)', () => {
       await service.create(anna.userId, { slotId: a, partySize: 3 });
 
       const now = new Date('2031-07-01T08:00:00Z');
-      const slots = await repo.findUpcomingSlots(prisma, TIME_ZONE, now);
+      const slots = await repo.findUpcomingSlots(TIME_ZONE, now);
       const freeSeats = (id: number) => slots.find((s) => s.id === id)?.freeSeats;
       expect(freeSeats(a)).toBe(7);
       expect(freeSeats(b)).toBe(6);

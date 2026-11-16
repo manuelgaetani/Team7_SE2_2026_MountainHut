@@ -1,7 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthGuard } from '../auth/auth.guard.js';
-import type { BookingsService } from './bookings.service.js';
+import type { BookingsService } from './application/bookings.service.js';
 import { SlotsController } from './slots.controller.js';
 
 describe('SlotsController', () => {

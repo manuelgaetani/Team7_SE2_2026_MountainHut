@@ -1,10 +1,11 @@
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NotificationService } from '../notifications/notification.service.js';
-import { AppConfig } from '../config/app-config.js';
-import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
-import { MIN_LEAD_MS } from './booking-policy.js';
-import { BookingsRepository } from './bookings.repository.js';
+import type { Mock } from 'vitest';
+import { AppConfig } from '../../config/app-config.js';
+import { NotificationService } from '../../notifications/notification.service.js';
+import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
+import { MIN_LEAD_MS } from '../domain/booking-policy.js';
+import { BookingsRepository } from './bookings.repository.port.js';
 import { BookingsService } from './bookings.service.js';
 
 const NOW = new Date('2026-11-01T10:00:00Z');
@@ -15,8 +16,16 @@ const storedBooking = { id: 9, slotId: 3, partySize: 2, status: 'PENDING' as con
 
 describe('BookingsService', () => {
   let service: BookingsService;
-  const tx = { marker: 'tx' };
-  const prisma = { $transaction: vi.fn() };
+  const uow = { run: vi.fn() };
+  // Called when the unit of work starts and ends, to tell which repository calls ran inside it.
+  const runStarted = vi.fn();
+  const runEnded = vi.fn();
+  const calledInRun = (fn: Mock) => {
+    const order = fn.mock.invocationCallOrder[0];
+    return (
+      order > runStarted.mock.invocationCallOrder[0] && order < runEnded.mock.invocationCallOrder[0]
+    );
+  };
   const repo = {
     lockSlotAndGetStart: vi.fn(),
     findFreeSeatsByTable: vi.fn(),
@@ -40,7 +49,14 @@ describe('BookingsService', () => {
     vi.resetAllMocks();
     config.bookingTimeZone = 'Europe/Rome';
     vi.setSystemTime(NOW);
-    prisma.$transaction.mockImplementation((work: (client: typeof tx) => unknown) => work(tx));
+    uow.run.mockImplementation(async (work: () => Promise<unknown>) => {
+      runStarted();
+      try {
+        return await work();
+      } finally {
+        runEnded();
+      }
+    });
     repo.findHikerIdByUserId.mockResolvedValue(7);
     repo.lockSlotAndGetStart.mockResolvedValue(slotStart);
     repo.hasActiveBooking.mockResolvedValue(false);
@@ -50,7 +66,7 @@ describe('BookingsService', () => {
     const module = await Test.createTestingModule({
       providers: [
         BookingsService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: UnitOfWork, useValue: uow },
         { provide: BookingsRepository, useValue: repo },
         { provide: NotificationService, useValue: notifications },
         { provide: AppConfig, useValue: config },
@@ -79,8 +95,8 @@ describe('BookingsService', () => {
 
     it('stores the booking for the hiker of the user, not for the user id', async () => {
       await service.create(1, input);
-      expect(repo.findHikerIdByUserId).toHaveBeenCalledWith(tx, 1);
-      expect(repo.createBooking).toHaveBeenCalledWith(tx, {
+      expect(repo.findHikerIdByUserId).toHaveBeenCalledWith(1);
+      expect(repo.createBooking).toHaveBeenCalledWith({
         hikerId: 7,
         slotId: 3,
         partySize: 2,
@@ -91,7 +107,6 @@ describe('BookingsService', () => {
     it('stores the requirements of the party', async () => {
       await service.create(1, { ...input, requirements: 'no nuts' });
       expect(repo.createBooking).toHaveBeenCalledWith(
-        tx,
         expect.objectContaining({ requirements: 'no nuts' }),
       );
     });
@@ -99,22 +114,31 @@ describe('BookingsService', () => {
     it('stores empty requirements as none', async () => {
       await service.create(1, { ...input, requirements: '' });
       expect(repo.createBooking).toHaveBeenCalledWith(
-        tx,
         expect.objectContaining({ requirements: null }),
       );
     });
 
     it('stores the table assignments on the new booking', async () => {
       await service.create(1, input);
-      expect(repo.createBookingTables).toHaveBeenCalledWith(tx, 9, 3, [
+      expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
     });
 
     it('runs every step in one transaction', async () => {
       await service.create(1, input);
-      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(tx, 3);
+      expect(uow.run).toHaveBeenCalledTimes(1);
+      expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3);
+      for (const step of [
+        repo.findHikerIdByUserId,
+        repo.lockSlotAndGetStart,
+        repo.hasActiveBooking,
+        repo.findFreeSeatsByTable,
+        repo.createBooking,
+        repo.createBookingTables,
+      ]) {
+        expect(calledInRun(step)).toBe(true);
+      }
     });
 
     it('locks the slot before reading the free seats', async () => {
@@ -133,13 +157,13 @@ describe('BookingsService', () => {
 
     it('uses Europe/Rome as the default booking time zone', async () => {
       await service.create(1, input);
-      expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'Europe/Rome');
+      expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(3, 'Europe/Rome');
     });
 
     it('uses the configured booking time zone', async () => {
       config.bookingTimeZone = 'UTC';
       await service.create(1, input);
-      expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'UTC');
+      expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(3, 'UTC');
     });
   });
 
@@ -151,22 +175,15 @@ describe('BookingsService', () => {
       await vi.waitFor(() =>
         expect(sent()).toHaveBeenCalledWith(confirmation.recipient, confirmation.booking),
       );
-      expect(repo.findBookingConfirmation).toHaveBeenCalledWith(prisma, 9);
+      expect(repo.findBookingConfirmation).toHaveBeenCalledWith(9);
     });
 
     it('is read outside the transaction, once it has been committed', async () => {
-      let committed = false;
-      prisma.$transaction.mockImplementation(async (work: (client: typeof tx) => unknown) => {
-        const result = await work(tx);
-        committed = true;
-        return result;
-      });
-      repo.findBookingConfirmation.mockImplementation(() => {
-        expect(committed).toBe(true);
-        return Promise.resolve(confirmation);
-      });
       await service.create(1, input);
       await vi.waitFor(() => expect(sent()).toHaveBeenCalledOnce());
+      expect(repo.findBookingConfirmation.mock.invocationCallOrder[0]).toBeGreaterThan(
+        runEnded.mock.invocationCallOrder[0],
+      );
     });
 
     it('does not make the answer wait for the SMTP server', async () => {
@@ -204,7 +221,7 @@ describe('BookingsService', () => {
     it('confirms the booking once its email is sent', async () => {
       sent().mockResolvedValue('SENT');
       await service.create(1, input);
-      await vi.waitFor(() => expect(repo.confirmBooking).toHaveBeenCalledWith(prisma, 9));
+      await vi.waitFor(() => expect(repo.confirmBooking).toHaveBeenCalledWith(9));
       expect(sent()).toHaveBeenCalledOnce();
     });
 
@@ -236,7 +253,7 @@ describe('BookingsService', () => {
       await service.create(1, input);
       await vi.advanceTimersByTimeAsync(1_000);
       expect(sent()).toHaveBeenCalledTimes(2);
-      expect(repo.confirmBooking).toHaveBeenCalledWith(prisma, 9);
+      expect(repo.confirmBooking).toHaveBeenCalledWith(9);
     });
 
     it('leaves the booking pending after four failed attempts', async () => {
@@ -305,7 +322,7 @@ describe('BookingsService', () => {
         code: 'CONFLICT',
         message: 'You already have a booking for this slot',
       });
-      expect(repo.hasActiveBooking).toHaveBeenCalledWith(tx, 7, input.slotId);
+      expect(repo.hasActiveBooking).toHaveBeenCalledWith(7, input.slotId);
       expect(repo.lockSlotAndGetStart.mock.invocationCallOrder[0]).toBeLessThan(
         repo.hasActiveBooking.mock.invocationCallOrder[0]!,
       );
@@ -326,7 +343,8 @@ describe('BookingsService', () => {
     it('reads the slots in the booking time zone', async () => {
       repo.findUpcomingSlots.mockResolvedValue([]);
       await expect(service.listSlots()).resolves.toEqual([]);
-      expect(repo.findUpcomingSlots).toHaveBeenCalledWith(prisma, 'Europe/Rome', NOW);
+      expect(repo.findUpcomingSlots).toHaveBeenCalledWith('Europe/Rome', NOW);
+      expect(uow.run).not.toHaveBeenCalled();
     });
 
     it('marks each slot with its availability and hides the raw start', async () => {

@@ -2,7 +2,7 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { SlotSummary } from '@mountain-hut/shared';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { BookingsService } from './bookings.service.js';
+import { BookingsService } from './application/bookings.service.js';
 
 @ApiTags('bookings')
 @ApiCookieAuth()

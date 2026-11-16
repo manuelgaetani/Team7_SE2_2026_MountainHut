@@ -1,9 +1,11 @@
 import { vi } from 'vitest';
-import { BookingsRepository } from '../../src/bookings/bookings.repository.js';
 import {
   BookingsService,
   CONFIRMATION_RETRY_DELAYS_MS,
-} from '../../src/bookings/bookings.service.js';
+} from '../../src/bookings/application/bookings.service.js';
+import { PrismaBookingsRepository } from '../../src/bookings/infrastructure/prisma-bookings.repository.js';
+import { PrismaUnitOfWork } from '../../src/infrastructure/prisma/prisma-unit-of-work.js';
+import { TransactionContext } from '../../src/infrastructure/prisma/transaction-context.js';
 import { Mailer } from '../../src/notifications/mailer.js';
 import type { MailMessage } from '../../src/notifications/mailer.js';
 import { NotificationService } from '../../src/notifications/notification.service.js';
@@ -38,10 +40,12 @@ class FakeMailer extends Mailer {
 describe('Booking confirmation with PostgreSQL (integration)', () => {
   const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
   const prisma = new PrismaService(config);
-  const repo = new BookingsRepository();
+  const context = new TransactionContext(prisma);
+  const uow = new PrismaUnitOfWork(prisma, context);
+  const repo = new PrismaBookingsRepository(context);
   const mailer = new FakeMailer();
   const notifications = new NotificationService(mailer, prisma);
-  const service = new BookingsService(prisma, repo, notifications, config);
+  const service = new BookingsService(uow, repo, notifications, config);
 
   const originalDelays = [...CONFIRMATION_RETRY_DELAYS_MS];
 
@@ -254,7 +258,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
 
   describe('findBookingConfirmation', () => {
     it('returns null for a booking that does not exist', async () => {
-      await expect(repo.findBookingConfirmation(prisma, 999)).resolves.toBeNull();
+      await expect(repo.findBookingConfirmation(999)).resolves.toBeNull();
     });
 
     it('returns the account and the email of the hiker who booked', async () => {
@@ -264,7 +268,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      const confirmation = await repo.findBookingConfirmation(prisma, bookingId);
+      const confirmation = await repo.findBookingConfirmation(bookingId);
       expect(confirmation?.recipient).toMatchObject({
         userId: anna.userId,
         email: 'anna@example.test',
@@ -281,7 +285,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      const confirmation = await repo.findBookingConfirmation(prisma, bookingId);
+      const confirmation = await repo.findBookingConfirmation(bookingId);
       expect(confirmation?.recipient).toMatchObject({ userId: null, email: null });
     });
   });
