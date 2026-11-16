@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { bookingConfirmationEmail } from './booking-confirmation.js';
 import type { BookingConfirmationData } from './booking-confirmation.js';
 
-// Same shape Prisma returns for `@db.Date` and `@db.Time` columns: UTC-based dates.
 const booking: BookingConfirmationData = {
   fullName: 'Anna Rossi',
   bookingId: 42,
-  date: new Date('2026-11-14T00:00:00.000Z'),
-  startTime: new Date('1970-01-01T12:30:00.000Z'),
-  endTime: new Date('1970-01-01T13:30:00.000Z'),
+  date: '2026-11-14',
+  startTime: '12:30',
+  endTime: '13:30',
   partySize: 4,
   requirements: [],
 };
@@ -37,9 +36,9 @@ describe('bookingConfirmationEmail', () => {
   it('shows the times of the slot without shifting them to another time zone', () => {
     const { text } = bookingConfirmationEmail({
       ...booking,
-      date: new Date('2026-12-31T00:00:00.000Z'),
-      startTime: new Date('1970-01-01T23:00:00.000Z'),
-      endTime: new Date('1970-01-01T23:59:00.000Z'),
+      date: '2026-12-31',
+      startTime: '23:00',
+      endTime: '23:59',
     });
     expect(text).toContain('Thursday, 31 December 2026');
     expect(text).toContain('23:00 - 23:59');
