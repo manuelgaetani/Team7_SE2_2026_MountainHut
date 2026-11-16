@@ -14,7 +14,9 @@ const TEXT = {
   submit: 'Create booking',
   time: 'Time *',
   people: 'Number of people *',
-  requirements: 'Dietary requirements (optional)',
+  addRequirement: 'Add a requirement',
+  addAnotherRequirement: 'Add another requirement',
+  emptyRequirement: 'Describe each requirement or remove it.',
   done: 'Booking created',
   selectHiker: 'Select a hiker, or add a new one with Quick entry or Full profile.',
   noSlots: 'No time slots can be booked on this day.',
@@ -118,6 +120,16 @@ const type = (label: string, value: string) =>
 
 async function waitForSlots() {
   await screen.findByRole('option', { name: '12:30–14:00' });
+}
+
+// Adds a requirement row of the MH-05 editor and fills it.
+function addRequirement(n: number, description: string, allergies: boolean) {
+  const add = screen.queryByRole('button', { name: TEXT.addRequirement });
+  fireEvent.click(add ?? screen.getByRole('button', { name: TEXT.addAnotherRequirement }));
+  type(`Requirement ${n}`, description);
+  if (allergies) {
+    fireEvent.click(screen.getByRole('checkbox', { name: `Allergies, requirement ${n}` }));
+  }
 }
 
 async function selectLuca() {
@@ -231,7 +243,13 @@ describe('StaffBookingPage (MH-07)', () => {
 
     await selectLuca();
     type(TEXT.people, '4');
-    type(TEXT.requirements, '2 vegetarians');
+    addRequirement(1, '1 vegan, peanut allergy', true);
+    addRequirement(2, '1 shellfish allergy', true);
+    addRequirement(3, '2 vegetarians', false);
+
+    const recap = screen.getByRole('list', { name: 'Requirements of the party' });
+    expect(within(recap).getAllByText('Allergies')).toHaveLength(2);
+
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
     const dialog = await screen.findByRole('dialog', { name: TEXT.done });
@@ -239,9 +257,27 @@ describe('StaffBookingPage (MH-07)', () => {
     expect(sentBooking(fetchMock)).toEqual({
       slotId: 1,
       partySize: 4,
-      requirements: '2 vegetarians',
+      requirements: [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
       hiker: { kind: 'EXISTING', hikerId: 7 },
     });
+  });
+
+  it('asks to describe each requirement before sending', async () => {
+    const fetchMock = stubApi();
+    renderPage();
+    await waitForSlots();
+
+    await selectLuca();
+    addRequirement(1, '2 vegetarians', false);
+    fireEvent.click(screen.getByRole('button', { name: TEXT.addAnotherRequirement }));
+    fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+
+    expect(await screen.findByText(TEXT.emptyRequirement)).toBeVisible();
+    expect(bookCalls(fetchMock)).toHaveLength(0);
   });
 
   it('books for a temporary hiker with only the name', async () => {

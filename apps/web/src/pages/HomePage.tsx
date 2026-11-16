@@ -33,14 +33,17 @@ export function HomePage() {
                   Define the time slots and the tables of each day, and enter the bookings made by
                   phone or at the hut.
                 </p>
-                <Link to="/staff/slots" className="button-primary button-primary--inline">
-                  <span>Manage time slots</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
-                <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
-                  <span>New booking</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
+                {/* One above the other, with the same width. */}
+                <div className="home-hero__actions">
+                  <Link to="/staff/slots" className="button-primary button-primary--inline">
+                    <span>Manage time slots</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
+                    <span>Reserve for an hiker</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
               </>
             ) : (
               <>

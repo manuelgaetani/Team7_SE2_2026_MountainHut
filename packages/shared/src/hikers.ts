@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { registerSchema } from './auth.js';
-import { createBookingSchema, type BookingResult } from './bookings.js';
+import {
+  createBookingSchema,
+  MAX_REQUIREMENTS_COUNT,
+  partyRequirementSchema,
+  type BookingResult,
+} from './bookings.js';
 
 // Maximum value of a Postgres INTEGER: larger ids would fail in the database.
 const MAX_DB_INT = 2_147_483_647;
@@ -43,7 +48,10 @@ export const staffBookingHikerSchema = z.discriminatedUnion('kind', [
 export type StaffBookingHiker = z.infer<typeof staffBookingHikerSchema>;
 
 // The only time limit for the staff is the start of the slot, checked by the API.
+// The requirements are the list of MH-05: one entry per subset of the party, with its own
+// allergies flag. Omitted when there are none.
 export const createStaffBookingSchema = createBookingSchema.extend({
+  requirements: z.array(partyRequirementSchema).max(MAX_REQUIREMENTS_COUNT).optional(),
   hiker: staffBookingHikerSchema,
 });
 export type CreateStaffBookingInput = z.infer<typeof createStaffBookingSchema>;

@@ -6,6 +6,7 @@ import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SlotsPage } from './pages/SlotsPage.tsx';
+import { StaffBookingPage } from './pages/StaffBookingPage.tsx';
 import { UnauthorizedPage } from './pages/UnauthorizedPage.tsx';
 
 export const routes = [
@@ -18,6 +19,7 @@ export const routes = [
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'staff/slots', element: <SlotsPage /> },
+      { path: 'staff/bookings/new', element: <StaffBookingPage /> },
       { path: 'unauthorized', element: <UnauthorizedPage /> },
       { path: 'forbidden', element: <UnauthorizedPage /> },
       { path: '*', element: <NotFoundPage /> },

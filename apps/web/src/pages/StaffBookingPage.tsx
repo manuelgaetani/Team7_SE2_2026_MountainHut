@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import {
   createStaffBookingSchema,
   MAX_REQUIREMENTS_LENGTH,
+  type PartyRequirement,
   type StaffBookingHiker,
   type StaffBookingResult,
 } from '@mountain-hut/shared';
@@ -13,6 +14,7 @@ import { useSchedule } from '../api/useSlots.ts';
 import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
 import { FormField } from '../components/FormField.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
+import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
 import { dateLong, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import {
@@ -35,10 +37,16 @@ const FIELD_MESSAGES: FieldErrors = {
   slotId: 'Choose a time slot.',
   partySize: 'Enter at least 1 person.',
   email: 'Enter a valid email address.',
-  requirements: `Use at most ${MAX_REQUIREMENTS_LENGTH} characters.`,
+  requirements: `Describe each requirement in at most ${MAX_REQUIREMENTS_LENGTH} characters.`,
 };
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
+
+// MH-05: one entry per subset of the party. The list is left out when there are no needs.
+const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] | undefined =>
+  rows.length === 0
+    ? undefined
+    : rows.map(({ allergies, description }) => ({ allergies, description }));
 
 // Empty optional fields are left out of the request.
 const optional = (s: string): string | undefined => (s.trim() === '' ? undefined : s);
@@ -90,7 +98,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const [date, setDate] = useState(() => toIsoDate(new Date()));
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState('2');
-  const [requirements, setRequirements] = useState('');
+  const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState<{ summary: string; result: StaffBookingResult } | null>(null);
@@ -113,17 +121,22 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
       setErrors({ hikerId: 'Select a hiker, or add a new one with Quick entry or Full profile.' });
       return;
     }
+    if (requirements.some((r) => r.description.trim() === '')) {
+      setErrors({ requirements: 'Describe each requirement or remove it.' });
+      return;
+    }
 
     const parsed = createStaffBookingSchema.safeParse({
       slotId: slot?.id,
       partySize: guests,
-      requirements: optional(requirements),
+      requirements: toRequirements(requirements),
       hiker: chosenHiker,
     });
     if (!parsed.success) {
       const found: FieldErrors = {};
       for (const issue of parsed.error.issues) {
-        const field = String(issue.path.at(-1));
+        // Hiker fields are under "hiker"; a requirement error belongs to the whole list.
+        const field = String(issue.path[0] === 'hiker' ? issue.path[1] : issue.path[0]);
         found[field] ??= FIELD_MESSAGES[field] ?? issue.message;
       }
       setErrors(found);
@@ -207,26 +220,28 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             <p className="notice notice--ok">No time slots can be booked on this day.</p>
           )}
 
-          <div className="field">
-            <label htmlFor="booking-requirements">Dietary requirements (optional)</label>
-            <textarea
-              id="booking-requirements"
-              placeholder="e.g. 2 vegetarians"
-              maxLength={MAX_REQUIREMENTS_LENGTH}
-              value={requirements}
-              aria-invalid={errors.requirements ? true : undefined}
-              onChange={(e) => setRequirements(e.target.value)}
-            />
-            {errors.requirements && (
-              <p role="alert" className="field-error">
-                {errors.requirements}
-              </p>
-            )}
-          </div>
+          <RequirementsEditor value={requirements} onChange={setRequirements} />
+          {errors.requirements && (
+            <p role="alert" className="field-error">
+              {errors.requirements}
+            </p>
+          )}
 
           <div className="card__recap">
             {summary && <strong>{summary}</strong>}
             {guests >= 1 && <strong>{people(guests)}</strong>}
+            {requirements.some((r) => r.description.trim() !== '') && (
+              <ul className="card__requirements" aria-label="Requirements of the party">
+                {requirements
+                  .filter((r) => r.description.trim() !== '')
+                  .map((r) => (
+                    <li key={r.key}>
+                      {r.allergies && <span className="allergy-badge">Allergies</span>}
+                      {r.description}
+                    </li>
+                  ))}
+              </ul>
+            )}
           </div>
           <p className="card__hint">* Required fields</p>
         </section>
@@ -278,6 +293,7 @@ export function StaffBookingPage() {
       content = <StaffBookingForm key={formKey} onReset={() => setFormKey((k) => k + 1)} />;
     }
   }
+
   return (
     <div className="staff-page">
       <header className="staff-hero">

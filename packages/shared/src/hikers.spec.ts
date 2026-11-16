@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_REQUIREMENTS_COUNT, MAX_REQUIREMENTS_LENGTH } from './bookings.js';
 import {
   createStaffBookingSchema,
   hikerSearchQuerySchema,
@@ -83,13 +84,56 @@ describe('createStaffBookingSchema', () => {
     expect(createStaffBookingSchema.parse(input)).toEqual(input);
   });
 
-  it('accepts a booking for a temporary hiker with requirements', () => {
+  it('accepts a booking for a temporary hiker with several requirements', () => {
     const input = {
       ...booking,
-      requirements: '2 vegetarians',
+      requirements: [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
       hiker: { kind: 'TEMPORARY', fullName: 'Luca Bianchi' },
     };
     expect(createStaffBookingSchema.parse(input)).toEqual(input);
+  });
+
+  it('accepts an empty list of requirements', () => {
+    const input = { ...booking, requirements: [], hiker: { kind: 'EXISTING', hikerId: 7 } };
+    expect(createStaffBookingSchema.safeParse(input).success).toBe(true);
+  });
+
+  it('rejects the requirements as free text', () => {
+    const input = {
+      ...booking,
+      requirements: '2 vegetarians',
+      hiker: { kind: 'EXISTING', hikerId: 7 },
+    };
+    expect(createStaffBookingSchema.safeParse(input).success).toBe(false);
+  });
+
+  it.each([
+    ['without the allergies flag', { description: '2 vegetarians' }],
+    ['with an empty description', { allergies: false, description: '   ' }],
+    [
+      'with a too long description',
+      { allergies: false, description: 'x'.repeat(MAX_REQUIREMENTS_LENGTH + 1) },
+    ],
+  ])('rejects a requirement %s', (_, requirement) => {
+    const input = {
+      ...booking,
+      requirements: [requirement],
+      hiker: { kind: 'EXISTING', hikerId: 7 },
+    };
+    expect(createStaffBookingSchema.safeParse(input).success).toBe(false);
+  });
+
+  it('rejects more requirements than the maximum', () => {
+    const requirements = Array.from({ length: MAX_REQUIREMENTS_COUNT + 1 }, () => ({
+      allergies: false,
+      description: '1 vegetarian',
+    }));
+    const input = { ...booking, requirements, hiker: { kind: 'EXISTING', hikerId: 7 } };
+    expect(createStaffBookingSchema.safeParse(input).success).toBe(false);
   });
 
   it('accepts a booking that creates a regular hiker', () => {

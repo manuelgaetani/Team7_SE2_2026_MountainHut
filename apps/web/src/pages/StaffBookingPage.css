@@ -6,6 +6,7 @@
 }
 .staff-hero__inner {
   max-width: 1120px;
+  zoom: 1.15;
   margin: 0 auto;
   padding: 28px clamp(20px, 5vw, 64px) 24px;
 }
@@ -30,6 +31,8 @@
   max-width: 1120px;
   margin: 0 auto;
   padding: 28px clamp(20px, 5vw, 64px) 120px;
+  /* Same enlargement as the booking page of the hikers. */
+  zoom: 1.15;
 }
 
 .staff-booking__grid {
@@ -90,9 +93,86 @@
   font: inherit;
   font-size: 0.9rem;
 }
-.card select[aria-invalid='true'],
-.card textarea[aria-invalid='true'] {
+.card select[aria-invalid='true'] {
   border-color: var(--error);
+}
+
+/* MH-05 requirements: one row per subset of the party, with its allergies flag */
+.requirement {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.requirement__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.requirement__remove {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.requirement__remove:hover {
+  color: var(--green-dark);
+  text-decoration: underline;
+}
+.requirement__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.requirement__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+/* The editor sits in a .field: undo the full-width inputs and block labels of the forms. */
+.card .field .requirement__allergy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.card .field .requirement__allergy input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--green-dark);
+}
+.card__requirements {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.allergy-badge {
+  margin-right: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f8e6e1;
+  color: #8a2f1d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 /* Existing hiker / Quick entry / Full profile */
@@ -204,6 +284,7 @@
   border-top: 1px solid var(--line);
 }
 .action-bar__inner {
+  zoom: 1.15;
   display: flex;
   justify-content: space-between;
   align-items: center;
