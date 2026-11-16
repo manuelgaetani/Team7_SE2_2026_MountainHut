@@ -375,7 +375,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '13:00',
           copyTablesFromSlotId: 999_999,
         }),
-      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'The slot to copy the tables from does not exist',
+      });
 
       const empty = await service.create({
         date: '2033-09-03',
@@ -384,7 +387,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
       });
       await expect(
         service.defineTables(empty.id, { copyTablesFromSlotId: 999_999 }),
-      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'The slot to copy the tables from does not exist',
+      });
     });
 
     it('throws 422 when attempting to copy tables from a slot that has no tables', async () => {
@@ -401,7 +407,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '14:00',
           copyTablesFromSlotId: emptySource.id,
         }),
-      ).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
+      ).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+        message: 'The slot to copy the tables from has no tables',
+      });
 
       const target = await service.create({
         date: '2033-09-04',
@@ -410,7 +419,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
       });
       await expect(
         service.defineTables(target.id, { copyTablesFromSlotId: emptySource.id }),
-      ).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
+      ).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+        message: 'The slot to copy the tables from has no tables',
+      });
     });
   });
 
@@ -430,7 +442,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           endTime: '14:00',
           tables: [{ tableNumber: 2, seats: 6 }],
         }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'A slot with the same date, start and end already exists',
+      });
     });
 
     it('throws 409 when trying to define tables on a slot that already has tables', async () => {
@@ -445,7 +460,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         service.defineTables(slot.id, {
           tables: [{ tableNumber: 1, seats: 6 }],
         }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'This slot already has tables: changing them is MH-19',
+      });
     });
 
     it('throws 404 when defineTables or findOne is called on a non-existent slot id', async () => {
@@ -453,9 +471,12 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         service.defineTables(999_999, {
           tables: [{ tableNumber: 1, seats: 4 }],
         }),
-      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Slot not found' });
 
-      await expect(service.findOne(999_999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(service.findOne(999_999)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Slot not found',
+      });
     });
 
     it('prevents concurrent definitions on the same slot via database row locking', async () => {
@@ -475,7 +496,10 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
 
       expect(fulfilled).toHaveLength(1);
       expect(rejected).toHaveLength(1);
-      expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' });
+      expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+        code: 'CONFLICT',
+        message: 'This slot already has tables: changing them is MH-19',
+      });
 
       const finalSlot = await service.findOne(slot.id);
       expect(finalSlot.tables).toHaveLength(1);

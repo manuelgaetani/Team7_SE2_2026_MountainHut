@@ -312,7 +312,10 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       const failed = results.find((r) => r.status === 'rejected');
-      expect((failed as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' });
+      expect((failed as PromiseRejectedResult).reason).toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
       const seats = await prisma.bookingTable.aggregate({
         where: { slotId },
         _sum: { assignedSeats: true },
@@ -353,7 +356,10 @@ describe('Bookings with PostgreSQL (integration)', () => {
 
       await expect(
         service.create(bruno.userId, { slotId: b, partySize: 10 }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
       await expect(
         service.create(bruno.userId, { slotId: b, partySize: 9 }),
       ).resolves.toMatchObject({ slotId: b });
@@ -391,7 +397,10 @@ describe('Bookings with PostgreSQL (integration)', () => {
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       expect(rejected).toHaveLength(1);
       // A 409, not a deadlock or any other database error.
-      expect(rejected[0].reason).toMatchObject({ code: 'CONFLICT' });
+      expect(rejected[0].reason).toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
       const seats = await prisma.bookingTable.aggregate({ _sum: { assignedSeats: true } });
       expect(seats._sum.assignedSeats).toBe(15);
     });
@@ -410,7 +419,11 @@ describe('Bookings with PostgreSQL (integration)', () => {
         ]);
 
         for (const r of results) {
-          if (r.status === 'rejected') expect(r.reason).toMatchObject({ code: 'CONFLICT' });
+          if (r.status === 'rejected')
+            expect(r.reason).toMatchObject({
+              code: 'CONFLICT',
+              message: 'Insufficient seats available for this slot',
+            });
         }
       }
     }, 30_000);

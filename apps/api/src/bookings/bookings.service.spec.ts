@@ -190,7 +190,10 @@ describe('BookingsService', () => {
 
     it('is not sent when the booking is refused', async () => {
       repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
-      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
       expect(repo.findBookingConfirmation).not.toHaveBeenCalled();
     });
   });
@@ -274,7 +277,10 @@ describe('BookingsService', () => {
   describe('when the user has no hiker profile', () => {
     it('rejects the booking before touching the slot', async () => {
       repo.findHikerIdByUserId.mockResolvedValue(null);
-      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'A hiker profile is required to book a table',
+      });
       expect(repo.lockSlotAndGetStart).not.toHaveBeenCalled();
       expectNothingWritten();
     });
@@ -283,7 +289,10 @@ describe('BookingsService', () => {
   describe('when the slot does not exist', () => {
     it('rejects the booking before reading the seats', async () => {
       repo.lockSlotAndGetStart.mockResolvedValue(null);
-      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Slot not found',
+      });
       expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
       expectNothingWritten();
     });
@@ -337,7 +346,10 @@ describe('BookingsService', () => {
   describe('when the policy refuses the booking', () => {
     it('answers 422 when less than two hours remain', async () => {
       repo.lockSlotAndGetStart.mockResolvedValue(new Date(slotStart.getTime() - 1));
-      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+        message: 'Less than 2 hours remaining before the slot starts',
+      });
       expectNothingWritten();
     });
 
@@ -347,7 +359,10 @@ describe('BookingsService', () => {
 
     it('answers 409 when the seats are not enough', async () => {
       repo.findFreeSeatsByTable.mockResolvedValue([{ tableNumber: 1, freeSeats: 1 }]);
-      await expect(service.create(1, input)).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(service.create(1, input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
+      });
       expectNothingWritten();
     });
   });

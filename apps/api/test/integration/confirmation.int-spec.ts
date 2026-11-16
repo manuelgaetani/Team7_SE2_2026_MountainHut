@@ -203,6 +203,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
 
       await expect(service.create(anna.userId, { slotId, partySize: 5 })).rejects.toMatchObject({
         code: 'CONFLICT',
+        message: 'Insufficient seats available for this slot',
       });
       await sleep(100);
 
@@ -216,6 +217,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
 
       await expect(service.create(anna.userId, { slotId, partySize: 2 })).rejects.toMatchObject({
         code: 'UNPROCESSABLE',
+        message: 'Less than 2 hours remaining before the slot starts',
       });
       await sleep(100);
 
