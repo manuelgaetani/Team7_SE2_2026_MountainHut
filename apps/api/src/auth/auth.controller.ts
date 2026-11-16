@@ -18,11 +18,7 @@ import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { loginSchema, registerSchema } from '@mountain-hut/shared';
 import { ApiZodBody } from '../common/api-zod-body.decorator.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-
-const ACCESS_COOKIE = 'token';
-const REFRESH_COOKIE = 'refresh_token';
-// Il refresh cookie viene inviato solo alle rotte /api/auth/*
-const REFRESH_PATH = '/api/auth';
+import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_PATH } from './presentation/session-cookies.js';
 
 // cookie-parser turns a value starting with "j:" into an object: it is not a token.
 function readRefreshCookie(req: Request): string | undefined {

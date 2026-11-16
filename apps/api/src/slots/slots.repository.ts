@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MAX_DB_INT } from '@mountain-hut/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 
 type Tx = Prisma.TransactionClient;
@@ -27,7 +28,7 @@ const withTables = {
 } as const;
 
 // Range of a Postgres INTEGER key: an id outside it cannot exist, and Prisma would fail on it.
-const isDbId = (id: number): boolean => Number.isInteger(id) && id >= 1 && id <= 2_147_483_647;
+const isDbId = (id: number): boolean => Number.isInteger(id) && id >= 1 && id <= MAX_DB_INT;
 
 // Always receives "tx": the transaction opened by the service, or the plain client for reads.
 @Injectable()
