@@ -1,9 +1,9 @@
 # MH-05 — Provide party requirements
 
-|                |                                                                      |
-| -------------- | -------------------------------------------------------------------- |
-| **Status**     | Backend complete; E2E test suite defined (black-box); web UI pending |
-| **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation)  |
+|                |                                                                            |
+| -------------- | -------------------------------------------------------------------------- |
+| **Status**     | API complete with unit, integration and E2E API tests; web app in progress |
+| **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation)        |
 
 ## User story
 
@@ -26,41 +26,37 @@ So that the hut can prepare suitable meals safely.
 
 ## Requirements
 
-| #   | Requirement                                                                                           | Status      | Implemented in                                                                                                   |
-| --- | ----------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| R1  | Hiker can provide a list of dietary requirements and allergies when booking a table                   | In progress | `POST /api/bookings`, `BookingsService.create`, Booking page UI _(pending)_                                      |
-| R2  | Each requirement entry contains an allergies flag (`allergies: boolean`) and a description (`string`) | Done        | `partyRequirementSchema`, `PartyRequirement`                                                                     |
-| R3  | When allergies are present, the allergies flag indicates that special care is needed during food prep | Done        | `PartyRequirement.allergies`, `bookingConfirmationEmail` (`Allergies (special care needed)`)                     |
-| R4  | Multiple requirements can be specified for distinct subsets of the party                              | In progress | `BookingsRepository.createBooking`, `PartyRequirement[]`, dynamic web UI _(pending)_                             |
-| R5  | Dietary restrictions without allergies have the allergies flag unset (`allergies: false`)             | Done        | `PartyRequirement` with `allergies: false`                                                                       |
-| R6  | Party requirements are optional (a booking can be created with empty or no requirements)              | Done        | `createBookingSchema` optional requirements, `BookingsService.create`                                            |
-| R7  | Validation: each provided requirement must have a non-empty description within length limits          | Done        | `createBookingSchema` validation (`min(1)`, `max(500)`, `hasNoNulByte`, `max(20)` items)                         |
-| R8  | Requirements and allergy alerts are persisted and reflected in booking confirmations and emails       | In progress | `party_requirements` table, `findBookingConfirmation`, `bookingConfirmationEmail`, summary dialog UI _(pending)_ |
+| #   | Requirement                                                                                           | Status                    | Implemented in                                                                                                     |
+| --- | ----------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| R1  | Hiker can provide a list of dietary requirements and allergies when booking a table                   | API done; web in progress | `POST /api/bookings`, `BookingsService.create`; booking page _(MOU-107)_                                           |
+| R2  | Each requirement entry contains an allergies flag (`allergies: boolean`) and a description (`string`) | Done                      | `partyRequirementSchema`, `PartyRequirement`, `party_requirements` table                                           |
+| R3  | When allergies are present, the allergies flag indicates that special care is needed during food prep | Done                      | `PartyRequirement.allergies`, `bookingConfirmationEmail` (`Allergies (special care needed)`)                       |
+| R4  | Multiple requirements can be specified for distinct subsets of the party                              | API done; web in progress | `BookingsRepository.createBooking`; booking page _(MOU-107)_                                                       |
+| R5  | Dietary restrictions without allergies have the allergies flag unset (`allergies: false`)             | Done                      | `PartyRequirement` with `allergies: false`                                                                         |
+| R6  | Party requirements are optional (a booking can be created with empty or no requirements)              | Done                      | `createBookingSchema` (optional `requirements`), `BookingsService.create`                                          |
+| R7  | Validation: each provided requirement must have a non-empty description within length limits          | Done                      | `partyRequirementSchema` (`min(1)`, `max(500)`, no NUL byte), `createBookingSchema` (`max(20)` items)              |
+| R8  | Requirements and allergy alerts are persisted and reflected in booking confirmations and emails       | API done; web in progress | `party_requirements` table, `findBookingConfirmation`, `bookingConfirmationEmail`; confirmation dialog _(MOU-107)_ |
 
 ### Decisions
 
-- **Structured requirements array.** Instead of a single unstructured text note, requirements are modeled as a list of objects (`Array<{ allergies: boolean; description: string }>`) to cleanly separate distinct subsets of the party and explicitly track allergies requiring special care.
-- **Explicit allergy flag.** The `allergies: boolean` flag acts as an unambiguous safety signal for the hut kitchen. When `true`, special precautions against cross-contamination and allergen safety are highlighted.
-- **Free-text description per subset.** Each subset's dietary needs are described in human-readable text (e.g. "1 vegan, peanut allergy", "2 vegetarians") providing flexibility for diverse combinations of diets and allergies.
-- **Optional field & backwards compatibility.** Bookings without dietary restrictions can omit `requirements` or pass an empty array `[]`. Existing booking workflows remain fully operational.
-- **Input constraints.** Each requirement description must be a non-empty string trimmed of whitespace, with a maximum length of 500 characters, rejecting NUL bytes. A maximum of 20 requirement items per booking is enforced.
+- **Structured requirements list.** Instead of a single free-text note, requirements are a list of objects (`{ allergies: boolean; description: string }[]`), one per subset of the party, so allergies are tracked explicitly.
+- **Explicit allergy flag.** `allergies: true` is the safety signal for the kitchen: the confirmation email marks those lines with `Allergies (special care needed)`.
+- **Free-text description per subset.** Each entry describes the needs of a subset in words (e.g. "1 vegan, peanut allergy", "2 vegetarians"), which covers any combination of diets and allergies.
+- **Optional.** A booking without needs omits `requirements` or sends `[]`; the response then has `requirements: []`.
+- **Input limits.** Each description is trimmed, 1–500 characters, without NUL bytes; at most 20 entries per booking, only as a limit against abuse (one entry can cover several people).
+- **Own table, same transaction.** The entries are stored in `party_requirements` in the same transaction as the booking and its tables, with a single insert, so their ids follow the order the hiker entered. A refused booking (no seats, too late, missing slot, duplicate booking) stores no entry.
+- **Deleted with the booking.** `party_requirements.booking_id` has `ON DELETE CASCADE`.
+- **Existing data.** The migration turns each old free-text requirement into one entry and flags it as an allergy: the old text does not say whether it was one, and a wrong warning is safer for the kitchen than a missing one. The old `bookings.requirements` column is then dropped.
+- **Email.** One line per entry, in the order entered; no requirements line when there are none. Descriptions are HTML-escaped in the HTML version.
 - **Language.** All user interface labels, alerts, and API error messages are in English.
 
 ## How it works
 
-1. An authenticated hiker selects an available time slot and party size on `/book`.
-2. In the "Dietary requirements & allergies" section, the hiker can add one or more requirement items for subsets of their party.
-3. For each item:
-   - The hiker checks the "Allergies (special care needed)" checkbox if the subset has allergies.
-   - The hiker fills in the details in the text field (e.g. "1 vegan, peanut allergy").
-   - Additional items can be appended or removed dynamically.
-4. When submitting the booking (`POST /api/bookings`):
-   - The API validates the payload with `ZodValidationPipe`, ensuring each item has valid boolean `allergies` and valid `description`.
-   - The booking transaction creates the booking along with its party requirements.
-   - Seat allocation executes per the MH-01 policy.
-5. The API responds with `201 Created`, returning the booking summary including the assigned tables and party requirements.
-6. The confirmation email sent via SMTP (MH-03) includes the list of party requirements, prominently flagging items requiring allergy precautions with `Allergies (special care needed):`.
-7. The web app displays the confirmation dialog confirming the booking request and summarizing the party requirements.
+1. An authenticated hiker sends `POST /api/bookings` with the slot, the party size and, optionally, the list of requirements. In the web app this happens on `/book` (see [Web app](#web-app)).
+2. `ZodValidationPipe(createBookingSchema)` validates the body: every entry needs a boolean `allergies` and a valid `description`; unknown fields are removed and descriptions are trimmed.
+3. In one transaction (MH-01), `BookingsService.create` checks the hiker profile, locks the slot, checks the 2-hour cutoff and the seats, then stores the booking with its requirements and its table assignments.
+4. The API answers `201 Created` with the booking, its tables and its requirements.
+5. After the commit, the confirmation email (MH-03) lists the requirements read back from the database, marking the allergy ones.
 
 ## API
 
@@ -111,40 +107,36 @@ Response `201 Created`:
 
 ### Errors
 
-| Status | When                                                                                 | `message`                                        |
-| ------ | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `400`  | Body is invalid (missing description, invalid types, empty text, NUL bytes, >20 req) | `Invalid data`                                   |
-| `401`  | Missing or expired session cookie                                                    | `Unauthorized`                                   |
-| `403`  | Authenticated user is not a `HIKER` or lacks hiker profile                           | `A hiker profile is required to book a table`    |
-| `404`  | Requested time slot does not exist                                                   | `Slot not found`                                 |
-| `409`  | Hiker already has active booking, or insufficient free seats                         | `You already have a booking for this slot`       |
-| `422`  | Less than 2 hours before slot start time                                             | `Less than 2 hours remaining before the slot...` |
+| Status | When                                                                                   | `message`                                            |
+| ------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `400`  | Body is invalid (missing description, invalid types, empty text, NUL bytes, >20 items) | `Invalid data` (details in `issues`)                 |
+| `401`  | No valid session cookie                                                                | `Not authenticated`                                  |
+| `403`  | The user is not a `HIKER`                                                              | `Operation not allowed for your role`                |
+| `403`  | The user has no hiker profile                                                          | `A hiker profile is required to book a table`        |
+| `404`  | The slot does not exist                                                                | `Slot not found`                                     |
+| `409`  | The hiker already has an active booking for the slot                                   | `You already have a booking for this slot`           |
+| `409`  | Not enough free seats                                                                  | `Insufficient seats available for this slot`         |
+| `422`  | Less than 2 hours before the slot starts                                               | `Less than 2 hours remaining before the slot starts` |
 
 ## Web app
 
-- **Route:** `/book`
-- **Party Requirements Controls:**
-  - "Add requirement" button to append a new item row.
-  - "Allergies" checkbox for each item to flag special care needed.
-  - "Details" text field for each item with placeholder (e.g. `e.g. 1 vegan, peanut allergy`).
-  - "Remove" button per item to delete unnecessary rows.
-- **Booking Dialog & Feedback:**
-  - Confirmation dialog displays party requirements list.
-  - Allergy items display a distinctive warning badge / label ("Allergies - Special care").
-- **Accessibility:**
-  - Form fields associate labels with controls via `id`/`htmlFor`.
-  - Checkboxes expose explicit accessible names (`aria-label="Allergies (special care needed)"`).
+In progress (frontend integration, MOU-107, branch `feature/MH-05-UI`). Planned, as described by `e2e/tests/web/party-requirements.spec.ts`:
+
+- **Route:** `/book`.
+- **Party requirements controls:** "Add requirement" to append a row; per row an "Allergies" checkbox for special care, a "Details" text field (e.g. `1 vegan, peanut allergy`) and a "Remove" button.
+- **Feedback:** the confirmation dialog lists the requirements, with allergy items marked.
+- **Accessibility:** labels tied to controls via `id`/`htmlFor`; checkboxes with an explicit accessible name.
 
 ## Data model
 
-The party requirements are persisted in a dedicated relational table:
-
 | Table                | Column        | Type      | Description                                              |
 | -------------------- | ------------- | --------- | -------------------------------------------------------- |
-| `party_requirements` | `id`          | `SERIAL`  | Primary key                                              |
+| `party_requirements` | `id`          | `SERIAL`  | Primary key; follows the order the hiker entered         |
 | `party_requirements` | `booking_id`  | `INTEGER` | Foreign key referencing `bookings(id)` on delete cascade |
 | `party_requirements` | `allergies`   | `BOOLEAN` | Whether special care is needed for allergens             |
 | `party_requirements` | `description` | `TEXT`    | Dietary / allergy description for the subset             |
+
+The column `bookings.requirements` (free text, MH-03) is removed; its non-empty values are moved to `party_requirements` with `allergies = true`.
 
 Migrations:
 
@@ -158,21 +150,21 @@ No new environment variables required.
 
 | Path                                                                | Content                                                                                                                                           |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/stories/MH-05-provide-party-requirements.md`                  | Official living story documentation                                                                                                               |
-| `e2e/tests/api/party-requirements.spec.ts`                          | E2E black-box API tests for party requirements and allergies                                                                                      |
-| `e2e/tests/web/party-requirements.spec.ts`                          | E2E black-box Web UI tests for party requirements booking flow                                                                                    |
-| `packages/shared/src/bookings.ts`                                   | Party requirement Zod schema and types                                                                                                            |
+| `packages/shared/src/bookings.ts`                                   | `partyRequirementSchema`, `PartyRequirement`, `MAX_REQUIREMENTS_COUNT`, `requirements` in `createBookingSchema` and `BookingResult`               |
+| `apps/api/prisma/schema.prisma`                                     | `PartyRequirement` model and relation to `Booking`                                                                                                |
+| `apps/api/prisma/migrations/20261111095430_party_requirements`      | `party_requirements` table, move of the old free-text requirements                                                                                |
+| `apps/api/src/bookings/bookings.repository.ts`                      | Stores the requirements with the booking; reads them in order for the confirmation                                                                |
+| `apps/api/src/bookings/bookings.service.ts`                         | Passes the requirements to the repository and returns them                                                                                        |
+| `apps/api/src/notifications/templates/booking-confirmation.ts`      | Email lines for the requirements, with the allergy label                                                                                          |
 | `packages/shared/src/bookings.spec.ts`                              | Unit tests for party requirement schema validation                                                                                                |
-| `apps/api/prisma/schema.prisma`                                     | PartyRequirement entity and relation to Booking                                                                                                   |
-| `apps/api/src/bookings/bookings.repository.ts`                      | Database persistence for party requirements                                                                                                       |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository unit tests for party requirements persistence                                                                                          |
-| `apps/api/src/bookings/bookings.service.ts`                         | Booking service logic handling party requirements                                                                                                 |
 | `apps/api/src/bookings/bookings.controller.spec.ts`                 | `POST /api/bookings`: `400` without calling the service for invalid requirements; valid ones reach the service trimmed and without unknown fields |
 | `apps/api/src/bookings/bookings.service.spec.ts`                    | Service unit tests for party requirements orchestration                                                                                           |
-| `apps/api/src/notifications/templates/booking-confirmation.ts`      | Email template listing party requirements with allergy alerts                                                                                     |
+| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository unit tests for party requirements persistence                                                                                          |
 | `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template unit tests verifying allergy warnings & HTML                                                                                       |
 | `apps/api/test/integration/confirmation.int-spec.ts`                | Integration tests for DB persistence & email notifications                                                                                        |
-| `apps/web/src/pages/BookingPage.tsx`                                | _(Pending)_ Web booking form party requirements section                                                                                           |
+| `apps/api/test/party-requirements.int-spec.ts`                      | Integration tests for party requirements on PostgreSQL                                                                                            |
+| `e2e/tests/api/party-requirements.spec.ts`                          | E2E black-box API tests for party requirements and allergies                                                                                      |
+| `e2e/tests/web/party-requirements.spec.ts`                          | E2E black-box Web UI tests for party requirements booking flow (skipped until the web app is done)                                                |
 
 ## Testing
 
@@ -190,45 +182,38 @@ docker compose up -d db
 npm run test:int
 ```
 
-Run end-to-end tests:
+Run end-to-end tests, against the running Docker stack:
 
 ```bash
-# Run API E2E tests for MH-05
-npm run e2e:api -w @mountain-hut/e2e -- e2e/tests/api/party-requirements.spec.ts
-
-# Run Web E2E tests for MH-05
-npm run e2e:web -w @mountain-hut/e2e -- e2e/tests/web/party-requirements.spec.ts
-
-# Run entire E2E suite
-npm run test:e2e
+docker compose up --build -d --wait
+npm run e2e:api -w @mountain-hut/e2e -- tests/api/party-requirements.spec.ts
+npm run e2e:web -w @mountain-hut/e2e -- tests/web/party-requirements.spec.ts
 ```
 
-| Spec                                                                | Covers                                                                                                                                                                          |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/bookings.spec.ts`                              | Schema validation: allergies flag, description trimming, NUL byte rejection, max length 500, max count 20, missing fields, unknown fields removed, order kept                   |
-| `apps/api/src/bookings/bookings.service.spec.ts`                    | Service orchestration: stores party requirements, returns requirements array                                                                                                    |
-| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository persistence: creates party requirements in DB, finds confirmation with requirements in insert order, empty list when there are none                                  |
-| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template: allergy special care warnings (also on every line, as in the story example), HTML escaping, empty requirements omission                                         |
-| `apps/api/test/integration/confirmation.int-spec.ts`                | Integration: DB persistence of party_requirements, confirmation email dispatch                                                                                                  |
-| `e2e/tests/api/party-requirements.spec.ts`                          | Black-box API: multiple requirements, allergy flag, empty/omitted requirements, length/count boundaries, whitespace trimming, NUL bytes, HTML escaping in emails, RBAC and auth |
-| `e2e/tests/web/party-requirements.spec.ts`                          | Black-box Web: dynamic UI rows, allergy checkbox, add/remove, confirmation dialog, validation alerts, unauthenticated redirect                                                  |
+| Spec                                                                | Covers                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/bookings.spec.ts`                              | Schema validation: allergies flag, description trimming, NUL byte rejection, max length 500, max count 20, missing fields, unknown fields removed, order kept                                                                                                                                                                |
+| `apps/api/src/bookings/bookings.service.spec.ts`                    | Service orchestration: stores party requirements, returns requirements array                                                                                                                                                                                                                                                 |
+| `apps/api/src/bookings/bookings.repository.spec.ts`                 | Repository persistence: creates party requirements in DB, finds confirmation with requirements in insert order, empty list when there are none                                                                                                                                                                               |
+| `apps/api/src/notifications/templates/booking-confirmation.spec.ts` | Email template: allergy special care warnings (also on every line, as in the story example), HTML escaping, empty requirements omission                                                                                                                                                                                      |
+| `apps/api/test/integration/confirmation.int-spec.ts`                | Integration: DB persistence of party_requirements, confirmation email dispatch                                                                                                                                                                                                                                               |
+| `apps/api/test/party-requirements.int-spec.ts`                      | Integration: order kept and returned, 20 entries, 500 characters and non-ASCII text, bookings kept apart, cascade delete; refused bookings (seats, cutoff, missing slot, no hiker profile, duplicate, race for the last seats) leave no entry; email from the database with allergy label, HTML escaping, no line when empty |
+| `e2e/tests/api/party-requirements.spec.ts`                          | Black-box API: multiple requirements, allergy flag, empty/omitted requirements, length/count boundaries, whitespace trimming, NUL bytes, HTML escaping in emails, RBAC and auth                                                                                                                                              |
+| `e2e/tests/web/party-requirements.spec.ts`                          | Black-box Web (skipped until the web app is done): dynamic UI rows, allergy checkbox, add/remove, confirmation dialog, validation alerts, unauthenticated redirect                                                                                                                                                           |
 
 ### Try it manually
 
-1. Start stack with `docker compose up --build -d`.
-2. Log in as a registered hiker via `http://localhost:3000/login`.
-3. Navigate to `http://localhost:3000/book`.
-4. Choose an available slot and party size of 4.
-5. In the party requirements section, click "Add requirement".
-6. Check "Allergies" and type `"1 vegan, peanut allergy"`.
-7. Click "Add requirement" again, check "Allergies" and type `"1 shellfish allergy"`.
-8. Click "Add requirement" a third time, leave "Allergies" unchecked and type `"2 vegetarians"`.
-9. Click "Book your table".
-10. Verify confirmation dialog shows all 3 requirements with allergy tags.
-11. Inspect Mailpit at `http://localhost:8025` to verify confirmation email content.
+1. Start the stack with `docker compose up --build -d`.
+2. Log in as a hiker, for example from Swagger at http://localhost:3000/api/docs (`POST /api/auth/login`).
+3. Send `POST /api/bookings` with the example body above (use an existing future `slotId` from `GET /api/slots`): the answer lists the 3 requirements.
+4. Send a booking with `"requirements": []` or without the field: the answer has `requirements: []`.
+5. Open Mailpit at http://localhost:8025: the confirmation email lists the requirements in order, the allergy ones marked `Allergies (special care needed)`.
+6. When the web app is done: on `/book`, add the 3 requirements of the example and book; the confirmation dialog lists them.
 
 ## Open points
 
+- **Web app:** frontend integration in progress (MOU-107); then unskip `e2e/tests/web/party-requirements.spec.ts` and complete [Web app](#web-app).
+- **MH-06 (change a booking):** the change of a booking must accept the same list (the MH-06 frontend already sends it); `changeBookingSchema` still takes a single text.
 - Multiple requirements UI layout optimization for small mobile viewports.
 - Kitchen dashboard integration to summarize total allergen counts across all daily bookings.
 - **MH-04 Integration:** When merged with story MH-04 (Check availability), unskip availability test suites (`e2e/tests/api/availability.spec.ts`, `e2e/tests/web/availability.spec.ts`) and add end-to-end integration tests validating the user journey from `/availability` checks to booking with party requirements & allergies.
