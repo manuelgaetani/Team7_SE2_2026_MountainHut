@@ -1,9 +1,10 @@
 import { Link } from 'react-router';
+import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function UnauthorizedPage() {
   const { data: user, isPending } = useCurrentUser();
-  const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
+  const staff = isStaff(user);
 
   return (
     <section className="landing-status">
@@ -33,7 +34,7 @@ export function UnauthorizedPage() {
                 <span>Back to home</span>
                 <span aria-hidden="true">→</span>
               </Link>
-              {isStaff ? (
+              {staff ? (
                 <Link to="/staff/slots" className="pill">
                   Manage slots
                 </Link>
