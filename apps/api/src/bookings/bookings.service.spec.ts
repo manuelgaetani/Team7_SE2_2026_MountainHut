@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationService } from '../notifications/notification.service.js';
 import { AppConfig } from '../config/app-config.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { MIN_LEAD_MS } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
 import { BookingsService } from './bookings.service.js';

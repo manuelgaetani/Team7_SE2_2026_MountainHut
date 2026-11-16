@@ -2,7 +2,7 @@ import { BookingsRepository } from '../src/bookings/bookings.repository.js';
 import { BookingsService } from '../src/bookings/bookings.service.js';
 import type { NotificationService } from '../src/notifications/notification.service.js';
 import { loadAppConfig } from '../src/config/app-config.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
 const TIME_ZONE = 'Europe/Rome';

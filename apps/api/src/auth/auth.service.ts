@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import type { AuthUser, LoginInput, RegisterInput } from '@mountain-hut/shared';
 import { AppConfig } from '../config/app-config.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { DomainError } from '../shared-kernel/domain-error.js';
 import { isUniqueViolation } from '../infrastructure/prisma/prisma-errors.js';
 

@@ -1,5 +1,5 @@
 import { loadAppConfig } from '../src/config/app-config.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
 import { SlotsRepository } from '../src/slots/slots.repository.js';
 import { SlotsService } from '../src/slots/slots.service.js';
 import { resetDatabase } from './integration/database.js';

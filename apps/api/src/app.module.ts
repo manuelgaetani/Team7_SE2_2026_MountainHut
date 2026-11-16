@@ -6,7 +6,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
-import { PrismaModule } from './prisma/prisma.module.js';
+import { PrismaModule } from './infrastructure/prisma/prisma.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { SlotsModule } from './slots/slots.module.js';
 import { DomainExceptionFilter } from './presentation/domain-exception.filter.js';

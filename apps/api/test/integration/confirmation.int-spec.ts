@@ -8,7 +8,7 @@ import { Mailer } from '../../src/notifications/mailer.js';
 import type { MailMessage } from '../../src/notifications/mailer.js';
 import { NotificationService } from '../../src/notifications/notification.service.js';
 import { loadAppConfig } from '../../src/config/app-config.js';
-import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { PrismaService } from '../../src/infrastructure/prisma/prisma.service.js';
 import { createBooking, createSlot, resetDatabase } from './database.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

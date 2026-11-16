@@ -8,7 +8,7 @@ import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../generated/prisma/client.js';
 import { ConfigModule } from '../config/config.module.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
 
 const SECRET = 'flow-test-secret';
