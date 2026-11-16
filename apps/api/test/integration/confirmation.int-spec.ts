@@ -8,6 +8,7 @@ import {
 import { Mailer } from '../../src/notifications/mailer.js';
 import type { MailMessage } from '../../src/notifications/mailer.js';
 import { NotificationService } from '../../src/notifications/notification.service.js';
+import { loadAppConfig } from '../../src/config/app-config.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createBooking, createSlot, resetDatabase } from './database.js';
 
@@ -36,11 +37,12 @@ class FakeMailer extends Mailer {
 }
 
 describe('Booking confirmation with PostgreSQL (integration)', () => {
-  const prisma = new PrismaService();
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
   const repo = new BookingsRepository();
   const mailer = new FakeMailer();
   const notifications = new NotificationService(mailer, prisma);
-  const service = new BookingsService(prisma, repo, notifications);
+  const service = new BookingsService(prisma, repo, notifications, config);
 
   const originalDelays = [...CONFIRMATION_RETRY_DELAYS_MS];
 

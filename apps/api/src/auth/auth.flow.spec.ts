@@ -5,6 +5,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../generated/prisma/client.js';
+import { ConfigModule } from '../config/config.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthModule } from './auth.module.js';
 
@@ -116,9 +117,10 @@ describe('Authentication flow over HTTP', () => {
 
   beforeEach(async () => {
     vi.stubEnv('JWT_SECRET', SECRET);
+    vi.stubEnv('DATABASE_URL', 'postgresql://x');
     db = createDatabase();
     const module = await Test.createTestingModule({
-      imports: [AuthModule],
+      imports: [ConfigModule, AuthModule],
     })
       .useMocker((token) => (token === PrismaService ? db : undefined))
       .compile();
@@ -393,7 +395,7 @@ describe('Authentication flow over HTTP', () => {
   describe('configuration', () => {
     it('refuses to start without JWT_SECRET', async () => {
       vi.stubEnv('JWT_SECRET', undefined);
-      const compile = Test.createTestingModule({ imports: [AuthModule] })
+      const compile = Test.createTestingModule({ imports: [ConfigModule, AuthModule] })
         .useMocker((token) => (token === PrismaService ? db : undefined))
         .compile();
       await expect(compile).rejects.toThrow('JWT_SECRET is not defined');

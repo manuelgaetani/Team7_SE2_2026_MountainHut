@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { SlotsRepository } from '../src/slots/slots.repository.js';
 import { SlotsService } from '../src/slots/slots.service.js';
@@ -7,7 +8,8 @@ import { resetDatabase } from './integration/database.js';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Slots with PostgreSQL (integration) - MH-02', () => {
-  const prisma = new PrismaService();
+  const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
+  const prisma = new PrismaService(config);
   const repo = new SlotsRepository();
   const service = new SlotsService(prisma, repo);
 

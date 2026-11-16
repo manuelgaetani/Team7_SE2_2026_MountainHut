@@ -1,5 +1,6 @@
 import { JwtModule } from '@nestjs/jwt';
 import type { JwtModuleOptions } from '@nestjs/jwt';
+import { AppConfig } from '../config/app-config.js';
 import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
@@ -13,19 +14,14 @@ type SignOptions = NonNullable<JwtModuleOptions['signOptions']>;
   imports: [
     JwtModule.registerAsync({
       global: true,
-      useFactory: (): JwtModuleOptions => {
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-          throw new Error('JWT_SECRET is not defined');
-        }
-        return {
-          secret,
-          signOptions: {
-            expiresIn: (process.env.JWT_EXPIRES_IN ?? '15m') as SignOptions['expiresIn'],
-            algorithm: 'HS256',
-          },
-        };
-      },
+      inject: [AppConfig],
+      useFactory: (config: AppConfig): JwtModuleOptions => ({
+        secret: config.jwtSecret,
+        signOptions: {
+          expiresIn: config.jwtExpiresIn as SignOptions['expiresIn'],
+          algorithm: 'HS256',
+        },
+      }),
     }),
   ],
   controllers: [AuthController],

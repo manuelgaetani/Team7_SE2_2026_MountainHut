@@ -3,7 +3,8 @@ import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppConfig } from '../config/app-config.js';
 import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
@@ -31,20 +32,22 @@ describe('AuthController', () => {
     me: vi.fn(),
   };
 
+  const config = { secureCookies: false };
+
   beforeEach(async () => {
     vi.resetAllMocks();
+    config.secureCookies = false;
     const module = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{ provide: AuthService, useValue: auth }],
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: AppConfig, useValue: config },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
     controller = module.get(AuthController);
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   describe('route protection', () => {
@@ -111,7 +114,7 @@ describe('AuthController', () => {
     });
 
     it('marks both cookies as secure in production', async () => {
-      vi.stubEnv('NODE_ENV', 'production');
+      config.secureCookies = true;
       auth.login.mockResolvedValue(session);
       const res = fakeResponse();
       await controller.login(body, asResponse(res));

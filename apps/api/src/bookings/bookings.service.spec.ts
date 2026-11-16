@@ -7,6 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationService } from '../notifications/notification.service.js';
+import { AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MIN_LEAD_MS } from './booking-policy.js';
 import { BookingsRepository } from './bookings.repository.js';
@@ -39,8 +40,11 @@ describe('BookingsService', () => {
     booking: { bookingId: 9 },
   };
 
+  const config = { bookingTimeZone: 'Europe/Rome' };
+
   beforeEach(async () => {
     vi.resetAllMocks();
+    config.bookingTimeZone = 'Europe/Rome';
     vi.setSystemTime(NOW);
     prisma.$transaction.mockImplementation((work: (client: typeof tx) => unknown) => work(tx));
     repo.findHikerIdByUserId.mockResolvedValue(7);
@@ -55,6 +59,7 @@ describe('BookingsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: BookingsRepository, useValue: repo },
         { provide: NotificationService, useValue: notifications },
+        { provide: AppConfig, useValue: config },
       ],
     }).compile();
     service = module.get(BookingsService);
@@ -133,13 +138,12 @@ describe('BookingsService', () => {
     });
 
     it('uses Europe/Rome as the default booking time zone', async () => {
-      vi.stubEnv('BOOKING_TIMEZONE', undefined);
       await service.create(1, input);
       expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'Europe/Rome');
     });
 
     it('uses the configured booking time zone', async () => {
-      vi.stubEnv('BOOKING_TIMEZONE', 'UTC');
+      config.bookingTimeZone = 'UTC';
       await service.create(1, input);
       expect(repo.lockSlotAndGetStart).toHaveBeenCalledWith(tx, 3, 'UTC');
     });

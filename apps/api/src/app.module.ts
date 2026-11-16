@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -16,6 +17,14 @@ const staticModules = existsSync(webDistPath)
   : [];
 
 @Module({
-  imports: [PrismaModule, HealthModule, ...staticModules, AuthModule, BookingsModule, SlotsModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    HealthModule,
+    ...staticModules,
+    AuthModule,
+    BookingsModule,
+    SlotsModule,
+  ],
 })
 export class AppModule {}
