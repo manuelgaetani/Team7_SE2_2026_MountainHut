@@ -11,13 +11,10 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 - Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` is the start time of a slot. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
+- Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 - Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
+- Party requirements in the web app (MH-05): on the booking page the hiker can add, edit and remove requirement rows, each with an "Allergies" checkbox; the confirmation dialog lists them and marks the ones with allergies.
 - Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
-
-### Changed
-
-- Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
-- The seed creates three slots a day that do not overlap: 12:00–13:00, 13:00–14:00 and 19:00–20:30. A database seeded before keeps its old slots.
 
 ## [release-1] - 2026-11-06
 
@@ -53,7 +50,6 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 - Catch-all route `*` for missing or invalid URLs with quick return links to home and table booking.
 - Unit tests with 100% test coverage for `NotFoundPage` and `UnauthorizedPage`.
 - A `release-<n>` tag publishes the Docker image of the release on GitHub Container Registry, with the same tag.
-- Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 
 ### Changed
 
@@ -65,7 +61,6 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
 - The `split_user_hiker` migration drops columns of `users` and `bookings`: with local data, start again with `docker compose down -v`.
 - The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
-- `requirements` in `POST /api/bookings` is now a list of `{ allergies, description }` instead of a free text. Texts already stored are converted to one requirement flagged as allergies.
 
 ### Fixed
 

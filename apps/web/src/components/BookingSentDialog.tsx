@@ -1,12 +1,21 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import type { PartyRequirement } from '@mountain-hut/shared';
 
 interface BookingSentDialogProps {
   summary: string;
+  requirements?: PartyRequirement[];
   onClose: () => void;
 }
 
-export function BookingSentDialog({ summary, onClose }: BookingSentDialogProps) {
+// Same label as the confirmation email, so the hiker sees the same warning in both.
+const ALLERGY_LABEL = 'Allergies (special care needed)';
+
+// One text per entry: the allergy label and the description stay in a single element.
+const requirementText = (r: PartyRequirement): string =>
+  r.allergies ? `${ALLERGY_LABEL}: ${r.description}` : r.description;
+
+export function BookingSentDialog({ summary, requirements = [], onClose }: BookingSentDialogProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -66,6 +75,19 @@ export function BookingSentDialog({ summary, onClose }: BookingSentDialogProps) 
           <span>Your request</span>
           <strong>{summary}</strong>
         </div>
+
+        {requirements.length > 0 && (
+          <div className="dialog__requirements">
+            <h3 className="dialog__subtitle">Dietary requirements</h3>
+            <ul>
+              {requirements.map((r, i) => (
+                <li key={i} className={r.allergies ? 'dialog__allergy' : undefined}>
+                  {requirementText(r)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <button ref={buttonRef} type="button" className="cta cta--center" onClick={onClose}>
           Got it

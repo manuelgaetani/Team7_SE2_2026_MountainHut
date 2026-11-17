@@ -1,15 +1,22 @@
-import type { BookingResult } from '@mountain-hut/shared';
+import type { BookingResult, PartyRequirement } from '@mountain-hut/shared';
 
 interface BookingSummaryProps {
   dateLabel: string;
   time: string | null;
   guests: number;
   tables: BookingResult['tables'] | null;
+  requirements?: PartyRequirement[];
 }
 
 const POLICY = 'You can book up to 2 hours before the shift starts';
 
-export function BookingSummary({ dateLabel, time, guests, tables }: BookingSummaryProps) {
+export function BookingSummary({
+  dateLabel,
+  time,
+  guests,
+  tables,
+  requirements = [],
+}: BookingSummaryProps) {
   return (
     <aside className="summary" aria-label="Booking Summary">
       <h3 className="summary__title">Quick Booking</h3>
@@ -47,6 +54,19 @@ export function BookingSummary({ dateLabel, time, guests, tables }: BookingSumma
           <dd className="summary__policy">{POLICY}</dd>
         </div>
       </dl>
+      {requirements.length > 0 && (
+        <div className="summary__requirements">
+          <h4 className="summary__requirements-title">Requirements:</h4>
+          <ul>
+            {requirements.map((r, i) => (
+              <li key={i}>
+                {r.description}
+                {r.allergies && ' (allergies)'}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </aside>
   );
 }

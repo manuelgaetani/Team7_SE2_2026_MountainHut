@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { createBookingSchema } from '@mountain-hut/shared';
+import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
+import type { PartyRequirement } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -10,6 +11,8 @@ import { DayPicker } from '../components/DayPicker.tsx';
 import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
+import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
+import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
@@ -32,8 +35,12 @@ function BookingFlow() {
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [requestedGuests, setRequestedGuests] = useState(2);
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
+  const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sentSummary, setSentSummary] = useState<string | null>(null);
+  const [sent, setSent] = useState<{
+    summary: string;
+    requirements: PartyRequirement[];
+  } | null>(null);
 
   const slots = slotsQuery.data;
   const dates = useMemo(
@@ -69,14 +76,32 @@ function BookingFlow() {
   function handleSubmit() {
     if (!slot) return;
     setError(null);
-    const parsed = createBookingSchema.safeParse({ slotId: slot.id, partySize: guests });
+    if (requirements.some((r) => r.description.trim() === '')) {
+      setError('Describe each requirement or remove it.');
+      return;
+    }
+    if (requirements.some((r) => r.description.trim().length > MAX_REQUIREMENTS_LENGTH)) {
+      setError(`Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`);
+      return;
+    }
+    const parsed = createBookingSchema.safeParse({
+      slotId: slot.id,
+      partySize: guests,
+      ...(requirements.length > 0 && {
+        requirements: requirements.map(({ allergies, description }) => ({
+          allergies,
+          description,
+        })),
+      }),
+    });
     if (!parsed.success) {
       setError('Choose a date, time, and number of people.');
       return;
     }
     const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
     book.mutate(parsed.data, {
-      onSuccess: () => setSentSummary(summary),
+      // The API stores and returns the requirements as sent (trimmed by the schema).
+      onSuccess: () => setSent({ summary, requirements: parsed.data.requirements ?? [] }),
       onError: (e) => setError(bookingError(e)),
     });
   }
@@ -104,6 +129,7 @@ function BookingFlow() {
           value={slot?.id ?? null}
           onChange={handle(setChosenSlotId)}
         />
+        <RequirementsEditor value={requirements} onChange={handle(setRequirements)} />
 
         {slot && (
           <p className="recap">
@@ -137,6 +163,9 @@ function BookingFlow() {
           time={slot?.startTime ?? null}
           guests={guests}
           tables={book.isSuccess ? book.data.tables : null}
+          requirements={requirements
+            .filter((r) => r.description.trim() !== '')
+            .map(({ allergies, description }) => ({ allergies, description: description.trim() }))}
         />
         <aside className="experience">
           <h3>An Alpine Experience</h3>
@@ -144,12 +173,14 @@ function BookingFlow() {
         </aside>
       </div>
 
-      {sentSummary && (
+      {sent && (
         <BookingSentDialog
-          summary={sentSummary}
+          summary={sent.summary}
+          requirements={sent.requirements}
           onClose={() => {
-            setSentSummary(null);
+            setSent(null);
             setChosenSlotId(null);
+            setRequirements([]);
           }}
         />
       )}
