@@ -7,6 +7,16 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
+- Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
+- Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
+
+### Changed
+
+- `requirements` in `POST /api/bookings` is now a list of `{ allergies, description }` instead of a free text. Texts already stored are converted to one requirement flagged as allergies.
+
 ## [release-1] - 2026-11-06
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).

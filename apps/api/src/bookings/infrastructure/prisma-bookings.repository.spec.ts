@@ -163,18 +163,35 @@ describe('PrismaBookingsRepository', () => {
   });
 
   describe('createBooking', () => {
-    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: null };
+    const fields = { hikerId: 7, slotId: 3, partySize: 2 };
+    const data = { ...fields, requirements: [] };
 
     it('stores the booking as pending', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await repository.createBooking(data);
       expect(client.booking.create).toHaveBeenCalledWith({
-        data: { ...data, status: 'PENDING' },
+        data: { ...fields, status: 'PENDING', requirements: { createMany: { data: [] } } },
+      });
+    });
+
+    it('stores the requirements of the party with the booking', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
+      await repository.createBooking({ ...fields, requirements });
+      expect(client.booking.create).toHaveBeenCalledWith({
+        data: {
+          ...fields,
+          status: 'PENDING',
+          requirements: { createMany: { data: requirements } },
+        },
       });
     });
 
     it('does not expose the hiker id in the result', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await expect(repository.createBooking(data)).resolves.toEqual({
         id: 9,
         slotId: 3,
