@@ -160,6 +160,66 @@ describe('AvailabilityService', () => {
     }
   });
 
+  // White-box: tables, breakdown and breakdownText are all built from the same allocation.
+  describe('how it builds the seating (white-box)', () => {
+    const mixed = [
+      { tableNumber: 1, freeSeats: 2 },
+      { tableNumber: 2, freeSeats: 3 },
+      { tableNumber: 3, freeSeats: 1 },
+    ];
+
+    it('keeps tables and breakdown aligned, in the order of the allocation', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      const result = await service.check(query);
+      expect(result.tables).toEqual([
+        { tableNumber: 2, seats: 3 },
+        { tableNumber: 1, seats: 2 },
+        { tableNumber: 3, seats: 1 },
+      ]);
+      expect(result.breakdown).toEqual(result.tables?.map((t) => t.seats));
+      expect(result.breakdownText).toBe('3 + 2 + 1 seats');
+    });
+
+    it('seats a small party at one table, the smallest that fits', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      await expect(service.check({ ...query, partySize: 1 })).resolves.toMatchObject({
+        available: true,
+        tables: [{ tableNumber: 3, seats: 1 }],
+        breakdown: [1],
+        breakdownText: '1 seat',
+      });
+    });
+
+    it('gives the same seating when it is too late, with table numbers too', async () => {
+      repo.findSlotStartingAt.mockResolvedValue({ id: 9, startsAt: new Date(NOW.getTime()) });
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      await expect(service.check(query)).resolves.toEqual({
+        ...asked,
+        reason: 'TOO_LATE',
+        totalFreeSeats: 6,
+        tables: [
+          { tableNumber: 2, seats: 3 },
+          { tableNumber: 1, seats: 2 },
+          { tableNumber: 3, seats: 1 },
+        ],
+        breakdown: [3, 2, 1],
+        breakdownText: '3 + 2 + 1 seats',
+      });
+    });
+
+    it('does not count the seats of overbooked tables in the free seats', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue([
+        { tableNumber: 1, freeSeats: -2 },
+        { tableNumber: 2, freeSeats: 4 },
+      ]);
+      await expect(service.check({ ...query, partySize: 3 })).resolves.toMatchObject({
+        available: true,
+        totalFreeSeats: 4,
+        tables: [{ tableNumber: 2, seats: 3 }],
+      });
+    });
+  });
+
   describe('how it reads the data', () => {
     it('looks for the slot with the date and time asked, from now', async () => {
       await service.check(query);
