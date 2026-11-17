@@ -176,6 +176,52 @@ describe('checkAvailability', () => {
     const req = { ...request, partySize };
     expect(checkAvailability(req).status === 'AVAILABLE').toBe(decideBooking(req).ok);
   });
+
+  // White-box: the result depends on two decisions, "in time?" and "does the party fit?".
+  // The table covers all four combinations, so each decision is shown to change the status alone.
+  describe('decision table (white-box)', () => {
+    const inTime = after(MIN_LEAD_MS);
+    const late = after(MIN_LEAD_MS - 1);
+
+    it.each([
+      ['in time', 'fits', inTime, 6, 'AVAILABLE', true],
+      ['in time', 'does not fit', inTime, 7, 'INSUFFICIENT_SEATS', false],
+      ['too late', 'fits', late, 6, 'TOO_LATE', true],
+      ['too late', 'does not fit', late, 7, 'TOO_LATE', false],
+    ] as const)('%s and %s -> %s', (_time, _fit, startsAt, partySize, status, hasAllocation) => {
+      const check = checkAvailability({ ...request, startsAt, partySize });
+      expect(check.status).toBe(status);
+      expect(check.allocation !== null).toBe(hasAllocation);
+      expect(check.freeSeats).toBe(6);
+    });
+  });
+
+  // White-box: freeSeats sums Math.max(freeSeats, 0), so both sides of the max are taken.
+  it('counts a full table as zero and an overbooked table as zero, not as negative', () => {
+    const tablesMix = [
+      { tableNumber: 1, freeSeats: 0 },
+      { tableNumber: 2, freeSeats: -3 },
+      { tableNumber: 3, freeSeats: 4 },
+    ];
+    expect(checkAvailability({ ...request, tables: tablesMix, partySize: 5 })).toEqual({
+      status: 'INSUFFICIENT_SEATS',
+      freeSeats: 4,
+      allocation: null,
+    });
+  });
+
+  it('gives the seats in the order of the allocation, not of the table numbers', () => {
+    const mixed = [
+      { tableNumber: 1, freeSeats: 2 },
+      { tableNumber: 2, freeSeats: 3 },
+      { tableNumber: 3, freeSeats: 1 },
+    ];
+    expect(checkAvailability({ ...request, tables: mixed }).allocation).toEqual([
+      { tableNumber: 2, assignedSeats: 3 },
+      { tableNumber: 1, assignedSeats: 2 },
+      { tableNumber: 3, assignedSeats: 1 },
+    ]);
+  });
 });
 
 describe('formatBreakdown', () => {
@@ -193,5 +239,19 @@ describe('formatBreakdown', () => {
 
   it('writes "seat" for a single seat', () => {
     expect(formatBreakdown([1])).toBe('1 seat');
+  });
+
+  // White-box: the singular depends on the total of the seats, not on the number of tables
+  // or on the size of one table.
+  it('writes "seats" for two tables of one seat each, since the total is 2', () => {
+    expect(formatBreakdown([1, 1])).toBe('1 + 1 seats');
+  });
+
+  it('writes "seats" when the last table has a single seat', () => {
+    expect(formatBreakdown([3, 1])).toBe('3 + 1 seats');
+  });
+
+  it('keeps the order of the seats it is given', () => {
+    expect(formatBreakdown([1, 3, 2])).toBe('1 + 3 + 2 seats');
   });
 });

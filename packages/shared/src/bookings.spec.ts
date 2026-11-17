@@ -180,4 +180,37 @@ describe('checkAvailabilityQuerySchema', () => {
     const parsed = checkAvailabilityQuerySchema.parse({ ...validQuery, slotId: '3' });
     expect(parsed).toEqual({ date: '2026-11-02', time: '12:00', partySize: 6 });
   });
+
+  // White-box: partySize goes through three stages, regex -> Number -> number checks.
+  // Each case is stopped by a different stage, or passes all of them.
+  describe('partySize pipeline (white-box)', () => {
+    const partySizeIssue = (partySize: string) =>
+      checkAvailabilityQuerySchema
+        .safeParse({ ...validQuery, partySize })
+        .error?.issues.find((issue) => issue.path[0] === 'partySize');
+
+    it('stops at the regex, before the conversion, for a string that is not digits', () => {
+      expect(partySizeIssue('1.5')?.message).toBe('Expected a whole number');
+    });
+
+    it('stops at positive() for a string of zeros, which the regex lets through', () => {
+      expect(partySizeIssue('0')?.code).toBe('too_small');
+      expect(partySizeIssue('000')?.code).toBe('too_small');
+    });
+
+    it('stops at max() for digits above the largest database integer', () => {
+      expect(partySizeIssue(String(MAX_DB_INT + 1))?.code).toBe('too_big');
+    });
+
+    it('stops at max() for digits beyond the precision of a JavaScript number', () => {
+      expect(partySizeIssue('99999999999999999999')?.code).toBe('too_big');
+    });
+
+    it('passes every stage with leading zeros, as Number ignores them', () => {
+      expect(checkAvailabilityQuerySchema.parse({ ...validQuery, partySize: '007' })).toEqual({
+        ...validQuery,
+        partySize: 7,
+      });
+    });
+  });
 });
