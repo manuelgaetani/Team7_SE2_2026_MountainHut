@@ -130,7 +130,7 @@ Response `200 OK`:
 | -------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `packages/shared/src/bookings.ts`                                    | `checkAvailabilityQuerySchema`, `AvailabilityResult` definitions |
 | `apps/api/src/bookings/presentation/availability.controller.ts`      | Public REST controller for `/api/availability`                   |
-| `apps/api/src/bookings/application/check-availability.ts`            | Use case orchestrating slot search, availability, and breakdown  |
+| `apps/api/src/bookings/application/availability.service.ts`          | Service orchestrating slot search, availability, and breakdown   |
 | `apps/api/src/bookings/domain/booking-policy.ts`                     | Core `checkAvailability` and `formatBreakdown` logic             |
 | `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | `findSlotStartingAt` and `findFreeSeatsByTable` raw queries      |
 | `e2e/tests/api/availability.spec.ts`                                 | Black-Box, Gray-Box, and White-Box Playwright E2E API tests      |

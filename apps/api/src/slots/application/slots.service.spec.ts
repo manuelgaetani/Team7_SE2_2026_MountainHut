@@ -114,6 +114,34 @@ describe('SlotsService', () => {
       expect(repo.createTables).toHaveBeenCalledWith(8, source.tables);
     });
 
+    it('locks the day before looking for an overlapping slot, inside the transaction', async () => {
+      const calls: string[] = [];
+      repo.lockDay.mockImplementation(() => {
+        calls.push(`lockDay:${inRun}`);
+        return Promise.resolve();
+      });
+      repo.findOverlapping.mockImplementation(() => {
+        calls.push(`findOverlapping:${inRun}`);
+        return Promise.resolve(null);
+      });
+      repo.create.mockResolvedValue(7);
+      repo.findById.mockResolvedValue(slotRow({ id: 7 }));
+      await service.create(input);
+      expect(repo.lockDay).toHaveBeenCalledWith('2026-11-02');
+      expect(repo.findOverlapping).toHaveBeenCalledWith(input);
+      expect(calls).toEqual(['lockDay:true', 'findOverlapping:true']);
+    });
+
+    it('refuses a slot that overlaps another slot of the same day, writing nothing', async () => {
+      repo.findOverlapping.mockResolvedValue(slotRow({ startTime: '11:30', endTime: '12:30' }));
+      await expect(service.create(input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'This slot overlaps the slot 11:30–12:30 of the same day',
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.createTables).not.toHaveBeenCalled();
+    });
+
     it('throws NotFound, creating nothing, when the slot to copy from does not exist', async () => {
       repo.findById.mockResolvedValue(null);
       await expect(service.create({ ...input, copyTablesFromSlotId: 99 })).rejects.toMatchObject({

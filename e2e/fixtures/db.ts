@@ -58,6 +58,15 @@ export function createPastSlot(seats: number[]): number {
   return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
 }
 
+// The hut-local date (YYYY-MM-DD) and start time (HH:MM) of a slot, as the API expects them.
+export function slotStart(slotId: number): { date: string; time: string } {
+  const [date = '', time = ''] = sql(
+    `SELECT to_char(date, 'YYYY-MM-DD') || '|' || to_char(start_time, 'HH24:MI')
+     FROM slots WHERE id = ${Number(slotId)};`,
+  ).split('|');
+  return { date, time };
+}
+
 export function bookingStatus(bookingId: number): string {
   return sql(`SELECT status FROM bookings WHERE id = ${Number(bookingId)};`);
 }

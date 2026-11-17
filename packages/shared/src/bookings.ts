@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { MAX_DB_INT } from './db-limits.js';
-import { localDateSchema, localTimeSchema } from './slots.js';
+import { MAX_DB_INT, localDateSchema, localTimeSchema } from './primitives.js';
 
 export const MAX_REQUIREMENTS_LENGTH = 500;
 
