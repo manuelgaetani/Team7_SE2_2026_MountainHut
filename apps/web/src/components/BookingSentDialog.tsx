@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { PartyRequirement } from '@mountain-hut/shared';
+import type { RequirementDraft } from './RequirementsEditor.tsx';
 
 interface BookingSentDialogProps {
   summary: string;
-  requirements?: PartyRequirement[];
+  requirements?: RequirementDraft[];
   onClose: () => void;
 }
 
@@ -12,7 +12,7 @@ interface BookingSentDialogProps {
 const ALLERGY_LABEL = 'Allergies (special care needed)';
 
 // One text per entry: the allergy label and the description stay in a single element.
-const requirementText = (r: PartyRequirement): string =>
+const requirementText = (r: RequirementDraft): string =>
   r.allergies ? `${ALLERGY_LABEL}: ${r.description}` : r.description;
 
 export function BookingSentDialog({ summary, requirements = [], onClose }: BookingSentDialogProps) {
@@ -80,8 +80,8 @@ export function BookingSentDialog({ summary, requirements = [], onClose }: Booki
           <div className="dialog__requirements">
             <h3 className="dialog__subtitle">Dietary requirements</h3>
             <ul>
-              {requirements.map((r, i) => (
-                <li key={i} className={r.allergies ? 'dialog__allergy' : undefined}>
+              {requirements.map((r) => (
+                <li key={r.key} className={r.allergies ? 'dialog__allergy' : undefined}>
                   {requirementText(r)}
                 </li>
               ))}

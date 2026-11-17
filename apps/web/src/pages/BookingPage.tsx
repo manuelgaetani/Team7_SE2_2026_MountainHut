@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
-import type { PartyRequirement } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -28,6 +27,13 @@ function bookingError(e: unknown): string {
   return 'Booking failed. Please try again.';
 }
 
+// The rows with a description, trimmed as the API stores them. The key of each row is
+// kept: it identifies the requirement in the lists of the summary and of the dialog.
+const filledRequirements = (rows: RequirementDraft[]): RequirementDraft[] =>
+  rows
+    .filter((r) => r.description.trim() !== '')
+    .map((r) => ({ ...r, description: r.description.trim() }));
+
 function BookingFlow() {
   const slotsQuery = useBookableSlots();
   const book = useCreateBooking();
@@ -39,7 +45,7 @@ function BookingFlow() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{
     summary: string;
-    requirements: PartyRequirement[];
+    requirements: RequirementDraft[];
   } | null>(null);
 
   const slots = slotsQuery.data;
@@ -98,10 +104,11 @@ function BookingFlow() {
       setError('Choose a date, time, and number of people.');
       return;
     }
+    const filled = filledRequirements(requirements);
     const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
     book.mutate(parsed.data, {
-      // The API stores and returns the requirements as sent (trimmed by the schema).
-      onSuccess: () => setSent({ summary, requirements: parsed.data.requirements ?? [] }),
+      // The API stores the requirements as sent, trimmed: the dialog shows the same rows.
+      onSuccess: () => setSent({ summary, requirements: filled }),
       onError: (e) => setError(bookingError(e)),
     });
   }
@@ -163,9 +170,7 @@ function BookingFlow() {
           time={slot?.startTime ?? null}
           guests={guests}
           tables={book.isSuccess ? book.data.tables : null}
-          requirements={requirements
-            .filter((r) => r.description.trim() !== '')
-            .map(({ allergies, description }) => ({ allergies, description: description.trim() }))}
+          requirements={filledRequirements(requirements)}
         />
         <aside className="experience">
           <h3>An Alpine Experience</h3>
