@@ -1,9 +1,3 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
 import { vi } from 'vitest';
 import { MAX_REQUIREMENTS_COUNT, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import type { BookingResult, PartyRequirement } from '@mountain-hut/shared';
@@ -176,7 +170,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
 
       await expect(
         service.create(anna.userId, { slotId, partySize: 5, requirements: [SHELLFISH] }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
 
       expect(await prisma.partyRequirement.count()).toBe(0);
       expect(await prisma.booking.count()).toBe(0);
@@ -188,7 +182,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
 
       await expect(
         service.create(anna.userId, { slotId, partySize: 2, requirements: [SHELLFISH] }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      ).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
 
       expect(await prisma.partyRequirement.count()).toBe(0);
     });
@@ -198,7 +192,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
 
       await expect(
         service.create(anna.userId, { slotId: 999, partySize: 2, requirements: [SHELLFISH] }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
       expect(await prisma.partyRequirement.count()).toBe(0);
     });
@@ -211,7 +205,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
 
       await expect(
         service.create(staff.id, { slotId, partySize: 2, requirements: [SHELLFISH] }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
       expect(await prisma.partyRequirement.count()).toBe(0);
     });
@@ -228,7 +222,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
 
       await expect(
         service.create(anna.userId, { slotId, partySize: 2, requirements: [SHELLFISH] }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
 
       expect(await prisma.partyRequirement.findMany({ select: { description: true } })).toEqual([
         { description: VEGETARIANS.description },
@@ -251,7 +245,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
       const lost = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
       expect(won).toHaveLength(1);
       expect(lost).toHaveLength(1);
-      expect(lost[0].reason).toBeInstanceOf(ConflictException);
+      expect(lost[0].reason).toMatchObject({ code: 'CONFLICT' });
 
       const winner = won[0].value;
       await untilEmailed(winner.id);
