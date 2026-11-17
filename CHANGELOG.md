@@ -11,6 +11,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 - Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 - Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
+- Party requirements in the web app (MH-05): on the booking page the hiker can add, edit and remove requirement rows, each with an "Allergies" checkbox; the confirmation dialog lists them and marks the ones with allergies.
 - Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
 
 ### Changed
