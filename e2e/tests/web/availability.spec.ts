@@ -50,8 +50,7 @@ async function chooseDay(page: Page, slots: ListedSlot[], date: string): Promise
 const dateOf = (slots: ListedSlot[], slotId: number): string =>
   slots.find((s) => s.id === slotId)!.date;
 
-// TODO(MH-04): Web UI availability page not yet implemented in apps/web; tests skipped until frontend is built
-test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
+test('MH-04 Black-Box Web UI: Check availability', () => {
   test('R1 & R4: Anonymous visitor checks availability for a party fitting at a single table', async ({
     page,
     employeeUser,
