@@ -50,8 +50,7 @@ async function chooseDayOf(page: Page, slots: ListedSlot[], slotId: number): Pro
 }
 
 test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => {
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R1, R2, R4 & R5: Hiker enters multiple party requirements for subsets of party', async ({
+  test('R1, R2, R4 & R5: Hiker enters multiple party requirements for subsets of party', async ({
     page,
     registeredUser,
   }) => {
@@ -110,8 +109,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog).toHaveCount(0);
   });
 
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R3: Hiker specifies a single requirement with allergy flag checked (special care needed)', async ({
+  test('R3: Hiker specifies a single requirement with allergy flag checked (special care needed)', async ({
     page,
     registeredUser,
   }) => {
@@ -140,8 +138,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog.getByText(/Allerg|Special care/i)).toBeVisible();
   });
 
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R5: Requirement without allergies does not display allergy warning badge in confirmation dialog', async ({
+  test('R5: Requirement without allergies does not display allergy warning badge in confirmation dialog', async ({
     page,
     registeredUser,
   }) => {
@@ -167,8 +164,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog.getByText(/Special care/i)).toHaveCount(0);
   });
 
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R4: Hiker can remove a requirement row before submitting booking', async ({
+  test('R4: Hiker can remove a requirement row before submitting booking', async ({
     page,
     registeredUser,
   }) => {
@@ -227,8 +223,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog).toHaveCount(0);
   });
 
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R7: Submitting an added requirement row with empty description displays inline validation feedback', async ({
+  test('R7: Submitting an added requirement row with empty description displays inline validation feedback', async ({
     page,
     registeredUser,
   }) => {
@@ -252,8 +247,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(feedback.first()).toBeVisible();
   });
 
-  // TODO(MH-05): Pending web UI implementation for party requirements in BookingPage
-  test.skip('R7: Entering requirement description exceeding 500 characters displays validation error', async ({
+  test('R7: Entering requirement description exceeding 500 characters displays validation error', async ({
     page,
     registeredUser,
   }) => {

@@ -158,7 +158,13 @@
   line-height: 1;
 }
 .stepper__btn--plus {
-  background: var(--tint);
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.stepper__btn--plus:hover:not(:disabled) {
+  background: var(--green-dark);
+  border-color: var(--green-dark);
 }
 .stepper__btn:disabled {
   opacity: 0.4;
@@ -392,20 +398,49 @@
   }
 }
 
-/* Append to BookingPage.css */
+/* Party requirements (MH-05) */
 .requirement {
   display: grid;
   gap: 8px;
+  min-width: 0;
   margin: 0 0 10px;
   padding: 12px 14px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-.requirement__head {
+.requirement__legend {
+  padding: 0 4px;
+}
+.requirement .requirement__row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+.requirement .requirement__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+}
+/* Overrides the generic ".field label" and ".field input" styles. */
+.requirement .requirement__allergy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+.requirement .requirement__allergy input {
+  width: auto;
+  padding: 0;
 }
 .requirement__remove {
   border: 0;
@@ -418,35 +453,70 @@
   color: var(--green-dark);
   text-decoration: underline;
 }
-.requirement__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.requirement__input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  font-size: 12px;
-}
-.requirement__allergy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 .summary__requirements {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--green);
+  border-radius: 8px;
+  color: #fff;
+}
+.summary__requirements-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.summary__requirements ul {
   display: grid;
   gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 13px;
+}
+/* Title and hint on the left, add button on the right while there are no entries */
+.requirements__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.requirements__head .pill {
+  flex-shrink: 0;
+}
+/* Larger texts in the requirement rows */
+.requirements .field__label {
+  font-size: 14px;
+}
+.requirements .field__hint {
+  font-size: 12px;
+}
+.requirements .requirement > label {
+  font-size: 11px;
+}
+.requirements .requirement .requirement__input,
+.requirements .requirement .requirement__allergy,
+.requirements .requirement__remove {
+  font-size: 14px;
+}
+.requirements .pill {
+  font-size: 14px;
+}
+.dialog__requirements {
+  margin-bottom: 20px;
+}
+.dialog__subtitle {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.dialog__requirements ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.dialog__allergy {
+  font-weight: 600;
 }

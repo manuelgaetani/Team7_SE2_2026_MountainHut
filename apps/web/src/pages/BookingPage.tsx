@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { createBookingSchema } from '@mountain-hut/shared';
+import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
+import type { PartyRequirement } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -36,7 +37,10 @@ function BookingFlow() {
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sentSummary, setSentSummary] = useState<string | null>(null);
+  const [sent, setSent] = useState<{
+    summary: string;
+    requirements: PartyRequirement[];
+  } | null>(null);
 
   const slots = slotsQuery.data;
   const dates = useMemo(
@@ -76,6 +80,10 @@ function BookingFlow() {
       setError('Describe each requirement or remove it.');
       return;
     }
+    if (requirements.some((r) => r.description.trim().length > MAX_REQUIREMENTS_LENGTH)) {
+      setError(`Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`);
+      return;
+    }
     const parsed = createBookingSchema.safeParse({
       slotId: slot.id,
       partySize: guests,
@@ -92,7 +100,8 @@ function BookingFlow() {
     }
     const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
     book.mutate(parsed.data, {
-      onSuccess: () => setSentSummary(summary),
+      // The API stores and returns the requirements as sent (trimmed by the schema).
+      onSuccess: () => setSent({ summary, requirements: parsed.data.requirements ?? [] }),
       onError: (e) => setError(bookingError(e)),
     });
   }
@@ -164,11 +173,12 @@ function BookingFlow() {
         </aside>
       </div>
 
-      {sentSummary && (
+      {sent && (
         <BookingSentDialog
-          summary={sentSummary}
+          summary={sent.summary}
+          requirements={sent.requirements}
           onClose={() => {
-            setSentSummary(null);
+            setSent(null);
             setChosenSlotId(null);
             setRequirements([]);
           }}

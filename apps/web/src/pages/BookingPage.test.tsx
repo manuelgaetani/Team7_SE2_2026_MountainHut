@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBookingSchema } from '@mountain-hut/shared';
+import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import type { SlotSummary } from '@mountain-hut/shared';
 import { routes } from '../router.tsx';
 
@@ -92,6 +92,16 @@ async function fillForm(guests = 3) {
 }
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+
+// Each requirement is a group named "Requirement n" with a "Details" field and an "Allergies" checkbox.
+const requirementRow = (n: number) =>
+  within(screen.getByRole('group', { name: `Requirement ${n}` }));
+const typeRequirement = (n: number, value: string) =>
+  fireEvent.change(requirementRow(n).getByRole('textbox', { name: 'Details' }), {
+    target: { value },
+  });
+const tickAllergies = (n: number) =>
+  fireEvent.click(requirementRow(n).getByRole('checkbox', { name: 'Allergies' }));
 
 describe('BookingPage', () => {
   afterEach(() => {
@@ -277,15 +287,11 @@ describe('BookingPage', () => {
     await fillForm();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
-      target: { value: '  1 vegan, peanut allergy ' },
-    });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Allergies, requirement 1' }));
+    typeRequirement(1, '  1 vegan, peanut allergy ');
+    tickAllergies(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add another requirement' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 2' }), {
-      target: { value: '2 vegetarians' },
-    });
+    typeRequirement(2, '2 vegetarians');
 
     submit();
     await screen.findByRole('dialog');
@@ -308,12 +314,11 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
-      target: { value: '1 shellfish allergy' },
-    });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Allergies, requirement 1' }));
-    expect(screen.getByText('1 requirement · 1 with allergies')).toBeInTheDocument();
-    expect(screen.getByText('Allergies · 1 shellfish allergy')).toBeInTheDocument();
+    typeRequirement(1, '1 shellfish allergy');
+    tickAllergies(1);
+    const summary = within(screen.getByRole('complementary', { name: 'Booking Summary' }));
+    expect(summary.getByText('Requirements:')).toBeInTheDocument();
+    expect(summary.getByText('1 shellfish allergy (allergies)')).toBeInTheDocument();
   });
 
   it('does not send the booking when a requirement is empty', async () => {
@@ -333,12 +338,51 @@ describe('BookingPage', () => {
     renderPage();
     await fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Requirement 1' }), {
-      target: { value: 'vegan' },
-    });
+    typeRequirement(1, 'vegan');
     submit();
     await screen.findByRole('dialog');
     fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+  it('lists the requirements in the confirmation dialog, marking the allergies', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    typeRequirement(1, ' 1 shellfish allergy ');
+    tickAllergies(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Add another requirement' }));
+    typeRequirement(2, '2 vegetarians');
+    submit();
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Allergies (special care needed): 1 shellfish allergy', '2 vegetarians']);
+  });
+
+  it('does not send the booking when a requirement is too long', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    typeRequirement(1, 'a'.repeat(MAX_REQUIREMENTS_LENGTH + 1));
+    submit();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`,
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
+  });
+
+  it('accepts a requirement of exactly the maximum length', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    typeRequirement(1, 'a'.repeat(MAX_REQUIREMENTS_LENGTH));
+    submit();
+    await screen.findByRole('dialog');
+    expect(fetchMock).toHaveBeenCalledWith('/api/bookings', expect.anything());
   });
 });
