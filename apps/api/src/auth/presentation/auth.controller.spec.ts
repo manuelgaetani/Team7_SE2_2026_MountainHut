@@ -8,6 +8,7 @@ import { AppConfig } from '../../config/app-config.js';
 import { AuthController } from './auth.controller.js';
 import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
 import { AuthGuard } from './auth.guard.js';
+import { ChangePassword } from '../application/change-password.js';
 import { GetCurrentUser } from '../application/get-current-user.js';
 import { Login } from '../application/login.js';
 import { Logout } from '../application/logout.js';
@@ -15,7 +16,7 @@ import { RefreshSession } from '../application/refresh-session.js';
 import { RegisterUser } from '../application/register-user.js';
 import type { AuthSession } from '../application/session-issuer.js';
 
-const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const };
+const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const, mustChangePassword: false };
 const session: AuthSession = {
   token: 'access-token',
   refreshToken: 'refresh-token',
@@ -35,6 +36,7 @@ describe('AuthController', () => {
     refresh: vi.fn(),
     logout: vi.fn(),
     me: vi.fn(),
+    changePassword: vi.fn(),
   };
 
   const config = { secureCookies: false };
@@ -50,6 +52,7 @@ describe('AuthController', () => {
         { provide: RefreshSession, useValue: { execute: auth.refresh } },
         { provide: Logout, useValue: { execute: auth.logout } },
         { provide: GetCurrentUser, useValue: { execute: auth.me } },
+        { provide: ChangePassword, useValue: { execute: auth.changePassword } },
         { provide: AppConfig, useValue: config },
       ],
     })

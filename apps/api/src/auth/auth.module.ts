@@ -3,6 +3,7 @@ import type { JwtModuleOptions } from '@nestjs/jwt';
 import { AppConfig } from '../config/app-config.js';
 import { AuthController } from './presentation/auth.controller.js';
 import { AuthGuard } from './presentation/auth.guard.js';
+import { ChangePassword } from './application/change-password.js';
 import { GetCurrentUser } from './application/get-current-user.js';
 import { Login } from './application/login.js';
 import { Logout } from './application/logout.js';
@@ -48,6 +49,7 @@ type SignOptions = NonNullable<JwtModuleOptions['signOptions']>;
     RefreshSession,
     Logout,
     GetCurrentUser,
+    ChangePassword,
     SessionIssuer,
     { provide: UsersRepository, useClass: PrismaUsersRepository },
     { provide: RefreshTokenRepository, useClass: PrismaRefreshTokenRepository },

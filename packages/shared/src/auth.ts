@@ -67,4 +67,7 @@ export interface AuthUser {
   id: number;
   email: string;
   role: Role;
+  // true for an account created by the staff until the hiker sets their own password.
+  // The web app then sends the user to the change password page.
+  mustChangePassword: boolean;
 }

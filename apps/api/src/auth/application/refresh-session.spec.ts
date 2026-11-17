@@ -3,7 +3,7 @@ import type { RefreshTokenGenerator, RefreshTokenRepository } from './ports.js';
 import { RefreshSession } from './refresh-session.js';
 import type { AuthSession, SessionIssuer } from './session-issuer.js';
 
-const user = { id: 1, email: 'a@b.it', role: 'HIKER' as const };
+const user = { id: 1, email: 'a@b.it', role: 'HIKER' as const, mustChangePassword: false };
 const session: AuthSession = {
   token: 'nuovo-access',
   refreshToken: 'nuovo-refresh',
@@ -123,6 +123,11 @@ describe('RefreshSession', () => {
     tokens.revokeIfActive.mockResolvedValue(true);
     sessions.issue.mockResolvedValue(session);
     await refresh.execute('valido');
-    expect(sessions.issue).toHaveBeenCalledWith({ id: 1, email: 'a@b.it', role: 'EMPLOYEE' });
+    expect(sessions.issue).toHaveBeenCalledWith({
+      id: 1,
+      email: 'a@b.it',
+      role: 'EMPLOYEE',
+      mustChangePassword: false,
+    });
   });
 });

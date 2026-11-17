@@ -6,6 +6,7 @@ export interface UserRecord {
   email: string;
   role: Role;
   passwordHash: string;
+  mustChangePassword: boolean;
 }
 
 export interface StoredRefreshToken {
@@ -26,6 +27,9 @@ export abstract class UsersRepository {
   // Creates the account with its hiker profile; the role is the database default.
   // Throws DomainError CONFLICT when the email is already taken.
   abstract createWithHiker(input: RegisterInput, passwordHash: string): Promise<AuthUser>;
+
+  // Replaces the password and ends the forced change (MH-07).
+  abstract updatePassword(id: number, passwordHash: string): Promise<void>;
 }
 
 // Refresh tokens are stored only as their hash.

@@ -35,6 +35,7 @@ export class RefreshSession {
       id: stored.user.id,
       email: stored.user.email,
       role: stored.user.role,
+      mustChangePassword: stored.user.mustChangePassword,
     });
   }
 }
