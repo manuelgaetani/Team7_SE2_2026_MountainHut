@@ -1,11 +1,11 @@
-import type { BookingStatus } from '@mountain-hut/shared';
+import type { BookingStatus, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
 export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
-  requirements: string | null;
+  requirements: PartyRequirement[];
 }
 
 export interface UpcomingSlot {

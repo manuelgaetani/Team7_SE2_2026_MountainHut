@@ -148,7 +148,15 @@ export class PrismaBookingsRepository extends BookingsRepository {
   }
 
   async createBooking(data: NewBooking): Promise<StoredBooking> {
-    const booking = await this.db().booking.create({ data: { ...data, status: 'PENDING' } });
+    const { requirements, ...fields } = data;
+    const booking = await this.db().booking.create({
+      data: {
+        ...fields,
+        status: 'PENDING',
+        // One insert: the ids follow the order in which the hiker entered the requirements.
+        requirements: { createMany: { data: requirements } },
+      },
+    });
     return {
       id: booking.id,
       slotId: booking.slotId,
