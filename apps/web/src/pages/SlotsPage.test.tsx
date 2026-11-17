@@ -562,4 +562,54 @@ describe('SlotsPage', () => {
       'This slot already has tables: changing them is MH-19',
     );
   });
+
+  it('loads the slots of another day to copy from and resets the chosen slot', async () => {
+    stubSlotsApi({
+      schedule: { '2026-11-04': [slotWithTables, emptySlot], '2026-11-05': [emptySlot] },
+    });
+    renderSlotsPage();
+    await screen.findByText('12:00–13:00');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Copy tables from another slot' }));
+    const select = await screen.findByLabelText('Copy the tables of');
+    fireEvent.change(select, { target: { value: '1' } });
+    expect(select).toHaveValue('1');
+
+    // A day with only slots without tables: nothing to copy, and the choice is cleared.
+    fireEvent.change(screen.getByLabelText('Day of the slot to copy'), {
+      target: { value: '2026-11-05' },
+    });
+    expect(screen.getByText('Loading the slots of the day…')).toBeInTheDocument();
+    expect(await screen.findByText('No slot with tables on this day.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Copy the tables of')).not.toBeInTheDocument();
+
+    // Back to the first day: the previous choice is gone.
+    fireEvent.change(screen.getByLabelText('Day of the slot to copy'), {
+      target: { value: '2026-11-04' },
+    });
+    expect(await screen.findByLabelText('Copy the tables of')).toHaveValue('');
+  });
+
+  it('clears the slot to copy when "Choose a slot" is picked again', async () => {
+    const fetchMock = stubSlotsApi();
+    renderSlotsPage();
+    await screen.findByText('12:00–13:00');
+    fireEvent.change(screen.getByLabelText('Start'), { target: { value: '13:00' } });
+    fireEvent.change(screen.getByLabelText('End'), { target: { value: '14:00' } });
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Copy tables from another slot' }));
+    const select = await screen.findByLabelText('Copy the tables of');
+    fireEvent.change(select, { target: { value: '1' } });
+    fireEvent.change(select, { target: { value: '' } });
+    expect(select).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: /Create the slot/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose the slot to copy the tables from.',
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/slots',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });

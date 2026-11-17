@@ -256,4 +256,12 @@ describe('BookingPage', () => {
     expect(await screen.findByRole('radio', { name: '12:00' })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: '19:00' })).not.toBeInTheDocument();
   });
+
+  it.each(['EMPLOYEE', 'WARDEN'])('tells a %s that staff accounts cannot book', async (role) => {
+    const fetchMock = stubApi({ me: () => json({ ...user, role }) });
+    renderPage();
+    expect(await screen.findByText('Staff accounts cannot book a table.')).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/slots', expect.anything());
+  });
 });

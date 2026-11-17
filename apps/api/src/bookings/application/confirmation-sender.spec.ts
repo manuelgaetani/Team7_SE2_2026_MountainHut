@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingConfirmationNotifier } from './booking-confirmation.port.js';
 import { BookingsRepository } from './bookings.repository.port.js';
-import { ConfirmationSender, Sleeper } from './confirmation-sender.js';
+import { ConfirmationSender, Sleeper, TimerSleeper } from './confirmation-sender.js';
 
 describe('ConfirmationSender', () => {
   let sender: ConfirmationSender;
@@ -82,5 +82,24 @@ describe('ConfirmationSender', () => {
     notifier.notify.mockRejectedValue(new Error('database down'));
     await expect(sender.send(9)).resolves.toBeUndefined();
     expect(repo.confirmBooking).not.toHaveBeenCalled();
+  });
+});
+
+describe('TimerSleeper', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resolves only after the given number of milliseconds', async () => {
+    vi.useFakeTimers();
+    const resolved = vi.fn();
+    const done = new TimerSleeper().sleep(1_000).then(resolved);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(resolved).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(resolved).toHaveBeenCalledOnce();
   });
 });
