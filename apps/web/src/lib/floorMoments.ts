@@ -45,7 +45,9 @@ export function floorMoments(plan: FloorPlan): FloorMoment[] {
   const inside = others
     .flatMap((g) => [g.startTime, g.endTime])
     .filter((t) => t > slot.startTime && t < slot.endTime);
-  const bounds = [...new Set([slot.startTime, ...inside, slot.endTime])].sort();
+  const bounds = [...new Set([slot.startTime, ...inside, slot.endTime])].sort((a, b) =>
+    a.localeCompare(b),
+  );
 
   return bounds.slice(0, -1).map((startTime, i) => {
     const endTime = bounds[i + 1]!;
@@ -69,7 +71,7 @@ export function floorMoments(plan: FloorPlan): FloorMoment[] {
     return {
       startTime,
       endTime,
-      otherSlots: [...new Set(here.map(slotTime))].sort(),
+      otherSlots: [...new Set(here.map(slotTime))].sort((a, b) => a.localeCompare(b)),
       tables,
       occupiedSeats: tables.reduce((sum, t) => sum + t.capacity - t.freeSeats, 0),
       capacity: tables.reduce((sum, t) => sum + t.capacity, 0),
