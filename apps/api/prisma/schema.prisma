@@ -156,6 +156,8 @@ model BookingTable {
 enum NotificationType {
   BOOKING_CONFIRMATION
 
+  PASSWORD_RESET
+
   @@map("notification_type")
 }
 

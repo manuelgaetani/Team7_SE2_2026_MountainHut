@@ -16,6 +16,8 @@ export abstract class AppConfig {
   abstract readonly databaseUrl: string;
   abstract readonly smtp: SMTPTransport.Options;
   abstract readonly mailFrom: string;
+  // Address of the web app, used in the links sent by email (MH-07 password reset).
+  abstract readonly webUrl: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -32,6 +34,7 @@ const configSchema = z.object({
   bookingTimeZone: z.string(),
   databaseUrl: z.string().min(1, 'DATABASE_URL is not defined'),
   mailFrom: z.string(),
+  webUrl: z.url('WEB_URL must be a URL').transform((url) => url.replace(/\/+$/, '')),
 });
 
 // SMTP connection read from the environment. Without configuration every email goes to
@@ -68,6 +71,8 @@ export function loadAppConfig(env: Env): AppConfig {
     bookingTimeZone: env.BOOKING_TIMEZONE ?? 'Europe/Rome',
     databaseUrl: env.DATABASE_URL ?? '',
     mailFrom: env.MAIL_FROM || DEFAULT_MAIL_FROM,
+    // The API serves the web app on the same address (docker compose up).
+    webUrl: env.WEB_URL || 'http://localhost:3000',
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0].message);
   return { ...parsed.data, smtp: smtpOptions(env) };

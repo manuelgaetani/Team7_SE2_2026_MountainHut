@@ -5,6 +5,8 @@ import { Mailer } from './mailer.js';
 import type { EmailContent } from './templates/booking-confirmation.js';
 import { bookingConfirmationEmail } from './templates/booking-confirmation.js';
 import type { BookingConfirmationData } from './templates/booking-confirmation.js';
+import { passwordResetEmail } from './templates/password-reset.js';
+import type { PasswordResetData } from './templates/password-reset.js';
 
 export interface Recipient {
   userId: number | null;
@@ -51,6 +53,11 @@ export class NotificationService {
       bookingConfirmationEmail(booking),
       booking.bookingId,
     );
+  }
+
+  // MH-07: the link is not recorded, only the attempt.
+  sendPasswordReset(recipient: Recipient, data: PasswordResetData): Promise<DeliveryStatus> {
+    return this.deliver('PASSWORD_RESET', recipient, passwordResetEmail(data), null);
   }
 
   private async deliver(
