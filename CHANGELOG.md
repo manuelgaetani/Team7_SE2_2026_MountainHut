@@ -9,8 +9,13 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Added
 
+- Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 - Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
 - Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
+
+### Changed
+
+- `requirements` in `POST /api/bookings` is now a list of `{ allergies, description }` instead of a free text. Texts already stored are converted to one requirement flagged as allergies.
 
 ## [release-1] - 2026-11-06
 
@@ -45,7 +50,6 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 - Catch-all route `*` for missing or invalid URLs with quick return links to home and table booking.
 - Unit tests with 100% test coverage for `NotFoundPage` and `UnauthorizedPage`.
 - A `release-<n>` tag publishes the Docker image of the release on GitHub Container Registry, with the same tag.
-- Party requirements (MH-05): `POST /api/bookings` accepts a list of requirements, each with an allergies flag and a description, stores them in the new `party_requirements` table and returns them. The confirmation email lists them and marks the ones with allergies.
 
 ### Changed
 
@@ -57,7 +61,6 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 - The `one_booking_per_slot` migration fails if a local database contains duplicate bookings for a hiker and slot: reset it with `docker compose down -v`.
 - The `split_user_hiker` migration drops columns of `users` and `bookings`: with local data, start again with `docker compose down -v`.
 - The register form explains the rules of the schema in each error message: a password with a letter and a digit, a phone number with 7 to 15 digits, and a full name with a letter.
-- `requirements` in `POST /api/bookings` is now a list of `{ allergies, description }` instead of a free text. Texts already stored are converted to one requirement flagged as allergies.
 
 ### Fixed
 
