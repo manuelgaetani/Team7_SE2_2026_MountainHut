@@ -1,11 +1,12 @@
-import type { BookingResult, PartyRequirement } from '@mountain-hut/shared';
+import type { BookingResult } from '@mountain-hut/shared';
+import type { RequirementDraft } from './RequirementsEditor.tsx';
 
 interface BookingSummaryProps {
   dateLabel: string;
   time: string | null;
   guests: number;
   tables: BookingResult['tables'] | null;
-  requirements?: PartyRequirement[];
+  requirements?: RequirementDraft[];
 }
 
 const POLICY = 'You can book up to 2 hours before the shift starts';
@@ -58,8 +59,8 @@ export function BookingSummary({
         <div className="summary__requirements">
           <h4 className="summary__requirements-title">Requirements:</h4>
           <ul>
-            {requirements.map((r, i) => (
-              <li key={i}>
+            {requirements.map((r) => (
+              <li key={r.key}>
                 {r.description}
                 {r.allergies && ' (allergies)'}
               </li>

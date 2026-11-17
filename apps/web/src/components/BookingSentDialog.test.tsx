@@ -26,8 +26,8 @@ describe('BookingSentDialog', () => {
       <BookingSentDialog
         summary="Test"
         requirements={[
-          { allergies: true, description: '1 vegan, peanut allergy' },
-          { allergies: false, description: '2 vegetarians' },
+          { key: 1, allergies: true, description: '1 vegan, peanut allergy' },
+          { key: 2, allergies: false, description: '2 vegetarians' },
         ]}
         onClose={vi.fn()}
       />,
