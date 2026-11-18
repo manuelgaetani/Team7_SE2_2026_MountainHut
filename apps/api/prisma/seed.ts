@@ -23,7 +23,6 @@ const SEED_EMPLOYEES = [
 ];
 
 const DAYS = 14;
-
 // Two contiguous lunch services and one dinner: slots of a day never overlap (MH-02, issue #31).
 const TIMES = [
   ['12:00', '13:00'],
