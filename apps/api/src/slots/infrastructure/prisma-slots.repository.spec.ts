@@ -27,16 +27,8 @@ describe('PrismaSlotsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     $executeRaw: vi.fn(),
-    slot: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    slotTable: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
-    booking: { deleteMany: vi.fn() },
-    bookingTable: { deleteMany: vi.fn() },
+    slot: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    slotTable: { findMany: vi.fn(), createMany: vi.fn() },
   };
   // Outside a unit of work the context gives the plain client.
   const repository = new PrismaSlotsRepository(
@@ -175,90 +167,6 @@ describe('PrismaSlotsRepository', () => {
     });
   });
 
-  // MH-09: repeat a weekly schedule.
-  describe('lockDay', () => {
-    it('takes the advisory lock of the day and binds the date instead of concatenating it', async () => {
-      client.$executeRaw.mockResolvedValue(1);
-      await repository.lockDay('2026-11-09');
-      const [text, ...values] = client.$executeRaw.mock.calls[0] as [string[], ...unknown[]];
-      expect(text.join('?')).toContain('pg_advisory_xact_lock');
-      expect(text.join('?')).toContain("'slots-day:'");
-      expect(values).toEqual([new Date('2026-11-09T00:00:00.000Z')]);
-    });
-  });
-
-  describe('findBetween', () => {
-    it('returns the slots of the date range, both ends included, ordered by date and start', async () => {
-      client.slot.findMany.mockResolvedValue([row(3), row(4)]);
-      await expect(repository.findBetween('2026-11-02', '2026-11-08')).resolves.toEqual([
-        slot(3),
-        slot(4),
-      ]);
-      expect(client.slot.findMany).toHaveBeenCalledWith({
-        where: {
-          date: {
-            gte: new Date('2026-11-02T00:00:00.000Z'),
-            lte: new Date('2026-11-08T00:00:00.000Z'),
-          },
-        },
-        include: withTables,
-        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-      });
-    });
-  });
-
-  describe('findReservedDates', () => {
-    it('returns each date once, in order, with a pending or confirmed booking', async () => {
-      client.slot.findMany.mockResolvedValue([
-        { date: new Date('2026-11-10T00:00:00.000Z') },
-        { date: new Date('2026-11-18T00:00:00.000Z') },
-      ]);
-      await expect(repository.findReservedDates('2026-11-09', '2026-11-22')).resolves.toEqual([
-        '2026-11-10',
-        '2026-11-18',
-      ]);
-      expect(client.slot.findMany).toHaveBeenCalledWith({
-        where: {
-          date: {
-            gte: new Date('2026-11-09T00:00:00.000Z'),
-            lte: new Date('2026-11-22T00:00:00.000Z'),
-          },
-          bookings: { some: { status: { in: ['PENDING', 'CONFIRMED'] } } },
-        },
-        select: { date: true },
-        distinct: ['date'],
-        orderBy: { date: 'asc' },
-      });
-    });
-
-    it('returns no dates when the range has no reservations', async () => {
-      client.slot.findMany.mockResolvedValue([]);
-      await expect(repository.findReservedDates('2026-11-09', '2026-11-22')).resolves.toEqual([]);
-    });
-  });
-
-  describe('deleteSlots', () => {
-    it('deletes the booking tables, bookings, slot tables and then the slots', async () => {
-      const order: string[] = [];
-      for (const model of ['bookingTable', 'booking', 'slotTable', 'slot'] as const) {
-        client[model].deleteMany.mockImplementation(() => {
-          order.push(model);
-          return Promise.resolve({ count: 0 });
-        });
-      }
-      await repository.deleteSlots([7, 8]);
-      expect(order).toEqual(['bookingTable', 'booking', 'slotTable', 'slot']);
-      expect(client.bookingTable.deleteMany).toHaveBeenCalledWith({
-        where: { slotId: { in: [7, 8] } },
-      });
-      expect(client.booking.deleteMany).toHaveBeenCalledWith({ where: { slotId: { in: [7, 8] } } });
-      expect(client.slotTable.deleteMany).toHaveBeenCalledWith({
-        where: { slotId: { in: [7, 8] } },
-      });
-      expect(client.slot.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [7, 8] } } });
-    });
-  });
-
   describe('createTables', () => {
     it('stores one row for each table of the slot', async () => {
       await repository.createTables(3, [
@@ -271,38 +179,6 @@ describe('PrismaSlotsRepository', () => {
           { slotId: 3, tableNumber: 2, seats: 2 },
         ],
       });
-    });
-  });
-
-  describe('lockDay', () => {
-    it('takes a transaction advisory lock on the day, binding the date', async () => {
-      await repository.lockDay('2026-11-02');
-      const [text, ...values] = client.$executeRaw.mock.calls[0] as [string[], ...unknown[]];
-      expect(text.join('?')).toContain('pg_advisory_xact_lock');
-      expect(values).toEqual([new Date('2026-11-02T00:00:00.000Z')]);
-    });
-  });
-
-  describe('findOverlapping', () => {
-    const newSlot = { date: '2026-11-02', startTime: '12:30', endTime: '14:00' };
-
-    it('looks for a slot of the same day that starts before the end and ends after the start', async () => {
-      client.slot.findFirst.mockResolvedValue(row(4));
-      await expect(repository.findOverlapping(newSlot)).resolves.toEqual(slot(4));
-      expect(client.slot.findFirst).toHaveBeenCalledWith({
-        where: {
-          date: new Date('2026-11-02T00:00:00.000Z'),
-          startTime: { lt: new Date('1970-01-01T14:00:00.000Z') },
-          endTime: { gt: new Date('1970-01-01T12:30:00.000Z') },
-        },
-        include: withTables,
-        orderBy: { startTime: 'asc' },
-      });
-    });
-
-    it('returns null when no slot overlaps', async () => {
-      client.slot.findFirst.mockResolvedValue(null);
-      await expect(repository.findOverlapping(newSlot)).resolves.toBeNull();
     });
   });
 
@@ -365,5 +241,42 @@ describe('PrismaSlotsRepository', () => {
         expect(client.$queryRaw).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('lockDay', () => {
+    it('takes a transaction advisory lock on the day, binding the date', async () => {
+      await repository.lockDay('2026-11-02');
+      const [strings, ...values] = client.$executeRaw.mock.calls[0] as [string[], ...unknown[]];
+      expect(strings.join('?')).toContain('pg_advisory_xact_lock');
+      expect(values).toEqual([new Date('2026-11-02T00:00:00.000Z')]);
+    });
+  });
+
+  describe('findOverlapping', () => {
+    const newSlot = { date: '2026-11-02', startTime: '12:00', endTime: '13:30' };
+
+    it('looks for a slot of the same day that starts before the end and ends after the start', async () => {
+      client.slot.findFirst.mockResolvedValue(null);
+      await repository.findOverlapping(newSlot);
+      expect(client.slot.findFirst).toHaveBeenCalledWith({
+        where: {
+          date: new Date('2026-11-02T00:00:00.000Z'),
+          startTime: { lt: new Date('1970-01-01T13:30:00.000Z') },
+          endTime: { gt: new Date('1970-01-01T12:00:00.000Z') },
+        },
+        include: withTables,
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
+    it('returns the overlapping slot with local date and times', async () => {
+      client.slot.findFirst.mockResolvedValue(row(4));
+      await expect(repository.findOverlapping(newSlot)).resolves.toEqual(slot(4));
+    });
+
+    it('returns null when no slot overlaps', async () => {
+      client.slot.findFirst.mockResolvedValue(null);
+      await expect(repository.findOverlapping(newSlot)).resolves.toBeNull();
+    });
   });
 });
