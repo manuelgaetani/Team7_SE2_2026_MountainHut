@@ -32,6 +32,9 @@ const toProfile = (row: HikerRow): HikerProfile => ({
   temporary: row.user === null,
 });
 
+// `contains` becomes a SQL LIKE: escape its wildcards so % and _ are matched as plain characters.
+const escapeLike = (text: string): string => text.replace(/[\\%_]/g, '\\$&');
+
 // Uses the transaction of the current unit of work, or the plain client outside one.
 @Injectable()
 export class PrismaHikersRepository extends HikersRepository {
@@ -44,12 +47,13 @@ export class PrismaHikersRepository extends HikersRepository {
   }
 
   async search(text: string, limit: number): Promise<HikerProfile[]> {
+    const pattern = escapeLike(text);
     const rows = await this.db().hiker.findMany({
       where: {
         OR: [
-          { fullName: { contains: text, mode: 'insensitive' } },
-          { phone: { contains: text } },
-          { user: { email: { contains: text, mode: 'insensitive' } } },
+          { fullName: { contains: pattern, mode: 'insensitive' } },
+          { phone: { contains: pattern } },
+          { user: { email: { contains: pattern, mode: 'insensitive' } } },
         ],
       },
       select: profileFields,

@@ -155,10 +155,7 @@ describe('Reserve for a hiker with PostgreSQL (integration) - MH-07', () => {
       expect(await searchHikers.execute('gialli')).toHaveLength(MAX_HIKER_SEARCH_RESULTS);
     });
 
-    // TODO(MH-07): the search passes the text to Prisma `contains` (SQL LIKE) without escaping
-    // `%` and `_`, so "%%" lists every hiker. Escape `\`, `%` and `_` in the repository, then
-    // remove the skip.
-    it.skip('treats % and _ as plain characters, not as wildcards', async () => {
+    it('treats % and _ as plain characters, not as wildcards', async () => {
       await temporaryHiker('Anna Rossi');
       await temporaryHiker('Bruno Bianchi');
 
