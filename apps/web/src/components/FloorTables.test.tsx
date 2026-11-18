@@ -1,22 +1,15 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { FloorTable } from '@mountain-hut/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { MomentTable } from '../lib/floorMoments.ts';
 import { FloorTables } from './FloorTables.tsx';
 
 const table = (
   tableNumber: number,
   capacity: number,
   groups: { label: string; seats: number }[] = [],
-  otherSeats = 0,
-): MomentTable => {
-  const own = groups.reduce((sum, g) => sum + g.seats, 0);
-  return {
-    tableNumber,
-    capacity,
-    groups,
-    otherSeats,
-    freeSeats: Math.max(capacity - own - otherSeats, 0),
-  };
+): FloorTable => {
+  const occupiedSeats = groups.reduce((sum, g) => sum + g.seats, 0);
+  return { tableNumber, capacity, groups, occupiedSeats, freeSeats: capacity - occupiedSeats };
 };
 
 const tables = [
@@ -28,8 +21,7 @@ const tables = [
 const tableCard = (n: number) => screen.getByText(`Table ${n}`).closest('li') as HTMLElement;
 
 interface Props {
-  tables?: MomentTable[];
-  otherSlots?: string[];
+  tables?: FloorTable[];
   selected?: string | null;
   showAll?: boolean;
   onSelect?: (label: string | null) => void;
@@ -37,20 +29,11 @@ interface Props {
 
 const renderTables = ({
   tables: list = tables,
-  otherSlots = [],
   selected = null,
   showAll = false,
   onSelect = () => {},
 }: Props = {}) =>
-  render(
-    <FloorTables
-      tables={list}
-      otherSlots={otherSlots}
-      selected={selected}
-      showAll={showAll}
-      onSelect={onSelect}
-    />,
-  );
+  render(<FloorTables tables={list} selected={selected} showAll={showAll} onSelect={onSelect} />);
 
 describe('FloorTables', () => {
   it('orders the tables by number, whatever the order it receives', () => {
@@ -68,7 +51,7 @@ describe('FloorTables', () => {
   });
 
   it('says how many seats are taken at each table', () => {
-    renderTables({ tables: [...tables, table(2, 4), table(3, 4, [], 3)] });
+    renderTables({ tables: [...tables, table(2, 4), table(3, 4, [{ label: 'C', seats: 3 }])] });
     expect(within(tableCard(1)).getByText('full')).toBeInTheDocument();
     expect(within(tableCard(5)).getByText('2 / 6 taken')).toBeInTheDocument();
     expect(within(tableCard(2)).getByText('0 / 4 taken')).toBeInTheDocument();
@@ -114,22 +97,10 @@ describe('FloorTables', () => {
     expect(screen.getAllByRole('button', { name: /^Group A/ })[0]).toHaveTextContent('A');
   });
 
-  it('hatches the seats taken by an overlapping slot and says which slot holds them', () => {
-    const { container } = renderTables({
-      tables: [table(2, 4, [{ label: 'A', seats: 1 }], 2)],
-      otherSlots: ['12:00–13:00'],
-    });
-    expect(container.querySelectorAll('.floor-seat--other')).toHaveLength(2);
-    expect(container.querySelectorAll('.floor-seat--free')).toHaveLength(1);
-    expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(within(tableCard(2)).getByText('2 seats for the slot 12:00–13:00')).toBeInTheDocument();
-  });
-
   it('writes the capacity of the table and its free seats', () => {
     renderTables();
     expect(within(tableCard(1)).getByText('4 seats in total')).toBeInTheDocument();
     expect(within(tableCard(5)).getByText('6 seats in total, 4 free')).toBeInTheDocument();
-    expect(screen.queryByText(/ for the slot/)).not.toBeInTheDocument();
   });
 
   it('highlights the tables of the selected group only', () => {

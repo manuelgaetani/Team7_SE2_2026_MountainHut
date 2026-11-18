@@ -26,8 +26,7 @@ const hikerUser = { id: 1, email: 'hiker@example.test', role: 'HIKER' };
 
 const slot = { id: 5, date: '2026-11-14', startTime: '12:30', endTime: '13:30' };
 
-// Three groups of the slot (one split over two tables, one pending) and Verdi, who booked
-// the overlapping slot 12:00–13:00 and shares table 5 until 13:00.
+// Three groups of the slot: Ferrari is split over two tables, Bianchi is pending.
 const fullPlan: FloorPlan = {
   slot,
   tables: [
@@ -55,12 +54,9 @@ const fullPlan: FloorPlan = {
     {
       tableNumber: 5,
       capacity: 6,
-      occupiedSeats: 4,
-      freeSeats: 2,
-      groups: [
-        { label: 'B', seats: 2 },
-        { label: 'D', seats: 2 },
-      ],
+      occupiedSeats: 2,
+      freeSeats: 4,
+      groups: [{ label: 'B', seats: 2 }],
     },
   ],
   groups: [
@@ -97,18 +93,8 @@ const fullPlan: FloorPlan = {
       endTime: '13:30',
       tables: [{ tableNumber: 2, seats: 2 }],
     },
-    {
-      label: 'D',
-      bookingId: 4,
-      fullName: 'Verdi',
-      partySize: 2,
-      status: 'CONFIRMED',
-      startTime: '12:00',
-      endTime: '13:00',
-      tables: [{ tableNumber: 5, seats: 2 }],
-    },
   ],
-  totals: { capacity: 20, occupiedSeats: 16, freeSeats: 4, confirmedGroups: 3, splitGroups: 1 },
+  totals: { capacity: 20, occupiedSeats: 14, freeSeats: 6, confirmedGroups: 2, splitGroups: 1 },
 };
 
 const emptyPlan: FloorPlan = {
@@ -156,7 +142,6 @@ function renderFloorPage(
 const floorRequests = (fetchMock: ReturnType<typeof stubApi>) =>
   fetchMock.mock.calls.filter(([url]) => String(url).includes('/floor'));
 
-const moment = (time: RegExp) => screen.getByRole('button', { name: time });
 const tableCard = (n: number) => screen.getByText(`Table ${n}`).closest('li') as HTMLElement;
 
 describe('FloorPlanPage', () => {
@@ -254,17 +239,6 @@ describe('FloorPlanPage', () => {
       expect(screen.queryByLabelText('Tables of the slot')).not.toBeInTheDocument();
     });
 
-    it('does not call the seats free when only an overlapping slot has bookings', async () => {
-      const othersOnly = { ...fullPlan, groups: fullPlan.groups.filter((g) => g.label === 'D') };
-      stubApi({ floor: () => json(othersOnly) });
-      renderFloorPage();
-
-      expect(await screen.findByText(TEXT.noBookings)).toBeInTheDocument();
-      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(2);
-      expect(screen.getByLabelText('Legend')).not.toHaveTextContent('Booked in this slot');
-      expect(screen.getByLabelText('Legend')).toHaveTextContent('Taken by the slot 12:00–13:00');
-    });
-
     it('shows every seat free when nobody has booked', async () => {
       stubApi({ floor: () => json(emptyPlan) });
       renderFloorPage();
@@ -308,7 +282,15 @@ describe('FloorPlanPage', () => {
       ]);
       expect(within(tableCard(1)).getByText('full')).toBeInTheDocument();
       expect(within(tableCard(2)).getByText('2 / 4 taken')).toBeInTheDocument();
-      expect(within(tableCard(5)).getByText('4 / 6 taken')).toBeInTheDocument();
+      expect(within(tableCard(5)).getByText('2 / 6 taken')).toBeInTheDocument();
+    });
+
+    it('says how many tables the slot has and how many seats are taken', async () => {
+      stubApi();
+      renderFloorPage();
+      await screen.findByLabelText('Tables of the slot');
+
+      expect(screen.getByText('4 tables · 14 / 20 seats taken')).toBeInTheDocument();
     });
 
     it('shows a group on two tables with the same letter on both', async () => {
@@ -325,10 +307,10 @@ describe('FloorPlanPage', () => {
       expect(atTable4).toHaveLength(6);
       expect(atTable5).toHaveLength(2);
       for (const seat of [...atTable4, ...atTable5]) expect(seat).toHaveTextContent('B');
-      expect(within(tableCard(5)).getByText('6 seats in total, 2 free')).toBeInTheDocument();
+      expect(within(tableCard(5)).getByText('6 seats in total, 4 free')).toBeInTheDocument();
     });
 
-    it('lists only the groups of the slot, with their people and tables', async () => {
+    it('lists the groups of the slot, with their people and tables', async () => {
       stubApi();
       renderFloorPage();
       await screen.findByLabelText('Groups of the slot');
@@ -340,7 +322,6 @@ describe('FloorPlanPage', () => {
       expect(screen.getByRole('button', { name: 'Group A, Rossi' })).toHaveTextContent(
         'Rossi · 4 people',
       );
-      expect(screen.queryByRole('button', { name: /Verdi/ })).not.toBeInTheDocument();
       expect(screen.getByText('3 groups · 14 guests')).toBeInTheDocument();
     });
 
@@ -354,56 +335,6 @@ describe('FloorPlanPage', () => {
         'pending',
       );
       expect(within(tableCard(2)).getAllByRole('button', { name: /^Group C/ })).toHaveLength(2);
-    });
-  });
-
-  describe('overlapping slots', () => {
-    it('splits the slot into moments, each with its own seats taken', async () => {
-      stubApi();
-      renderFloorPage();
-      await screen.findByLabelText('Tables of the slot');
-
-      const first = moment(/^12:30–13:00/);
-      const second = moment(/^13:00–13:30/);
-      expect(first).toHaveTextContent('12:30–13:00 · 16 / 20 seats taken');
-      expect(first).toHaveTextContent('Shared with the slot 12:00–13:00');
-      expect(second).toHaveTextContent('13:00–13:30 · 14 / 20 seats taken');
-      expect(second).toHaveTextContent('Not shared with other slots');
-      expect(first).toHaveAttribute('aria-pressed', 'true');
-      expect(second).toHaveAttribute('aria-pressed', 'false');
-    });
-
-    it('hatches the seats of the overlapping slot, apart from the groups of the slot', async () => {
-      stubApi();
-      renderFloorPage();
-      await screen.findByLabelText('Tables of the slot');
-
-      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(2);
-      expect(within(tableCard(5)).getByText('2 seats for the slot 12:00–13:00')).toBeVisible();
-      expect(screen.getByLabelText('Legend')).toHaveTextContent('Taken by the slot 12:00–13:00');
-    });
-
-    it('frees the seats of the overlapping slot once it is over', async () => {
-      stubApi();
-      renderFloorPage();
-      await screen.findByLabelText('Tables of the slot');
-
-      fireEvent.click(moment(/^13:00–13:30/));
-
-      expect(moment(/^13:00–13:30/)).toHaveAttribute('aria-pressed', 'true');
-      expect(tableCard(5).querySelectorAll('.floor-seat--other')).toHaveLength(0);
-      expect(within(tableCard(5)).getByText('6 seats in total, 4 free')).toBeVisible();
-      expect(screen.getByLabelText('Legend')).not.toHaveTextContent('Taken by');
-    });
-
-    it('shows no moments when no other slot overlaps', async () => {
-      const ownOnly = { ...fullPlan, groups: fullPlan.groups.filter((g) => g.label !== 'D') };
-      stubApi({ floor: () => json(ownOnly) });
-      renderFloorPage();
-      await screen.findByLabelText('Tables of the slot');
-
-      expect(screen.queryByRole('group', { name: 'Moments of the slot' })).not.toBeInTheDocument();
-      expect(screen.getByText('4 tables · 14 / 20 seats taken')).toBeInTheDocument();
     });
   });
 
