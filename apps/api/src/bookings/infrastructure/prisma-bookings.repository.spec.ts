@@ -216,35 +216,51 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  describe('findSlotStartingAt', () => {
+  describe('findSlotAt', () => {
     const now = new Date('2026-11-01T10:00:00Z');
 
-    it('returns the id and the start of the slot', async () => {
+    it('returns the id, the start instant and the times of the slot', async () => {
       const startsAt = new Date('2026-11-02T11:00:00Z');
-      client.$queryRaw.mockResolvedValue([{ id: 3, starts_at: startsAt }]);
+      client.$queryRaw.mockResolvedValue([
+        { id: 3, starts_at: startsAt, start_time: '12:00', end_time: '13:00' },
+      ]);
       await expect(
-        repository.findSlotStartingAt('2026-11-02', '12:00', 'Europe/Rome', now),
-      ).resolves.toEqual({ id: 3, startsAt });
+        repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now),
+      ).resolves.toEqual({ id: 3, startsAt, startTime: '12:00', endTime: '13:00' });
     });
 
-    it('returns null when no slot starts at that date and time', async () => {
+    it('returns null when no slot includes that date and time', async () => {
       client.$queryRaw.mockResolvedValue([]);
       await expect(
-        repository.findSlotStartingAt('2026-11-02', '12:00', 'Europe/Rome', now),
+        repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now),
       ).resolves.toBeNull();
     });
 
-    it('takes the oldest slot and ignores the slots that have already started', async () => {
+    it('looks for the slot that starts at or before the time and ends after it', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.findSlotStartingAt('2026-11-02', '12:00', 'Europe/Rome', now);
-      expect(queryText()).toContain('ORDER BY s.id');
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryText()).toContain('s.start_time <= ');
+      expect(queryText()).toContain('s.end_time > ');
+    });
+
+    it('takes the earliest slot, then the oldest, and ignores the slots that have already started', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryText()).toContain('ORDER BY s.start_time, s.id');
       expect(queryText()).toContain('LIMIT 1');
     });
 
     it('binds the values instead of concatenating them', async () => {
       client.$queryRaw.mockResolvedValue([]);
-      await repository.findSlotStartingAt('2026-11-02', '12:00', 'Europe/Rome', now);
-      expect(queryValues()).toEqual(['Europe/Rome', '2026-11-02', '12:00', 'Europe/Rome', now]);
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryValues()).toEqual([
+        'Europe/Rome',
+        '2026-11-02',
+        '12:34',
+        '12:34',
+        'Europe/Rome',
+        now,
+      ]);
     });
   });
 });
