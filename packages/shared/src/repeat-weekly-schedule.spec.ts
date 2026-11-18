@@ -3,16 +3,11 @@ import { repeatWeeklyScheduleSchema } from './slots.js';
 
 // Spec MH-09: Repeat a weekly schedule.
 // Employee repeats a weekly schedule across multiple future weeks.
-// Schema validates the repeat parameters: source start date, repeat duration in weeks, conflict strategy.
+// Schema validates the repeat parameters: source start date and repeat duration in weeks.
+// Course issue #45 removed the conflict strategy: a conflictStrategy sent by a client is ignored.
 // TODO(MH-09-whitebox): add white-box unit tests for Zod custom refinements and parse transformations
 // TODO(MH-09-graybox): add gray-box unit tests for database schema type alignment and length validation
-// TODO(MH-09-integration): add PostgreSQL integration tests for multi-week schedule insertion
-// TODO(MH-09-e2e): add Playwright E2E tests for weekly schedule repetition workflow
-// TODO(MH-09): tests skipped until the implementation exists. Before merging MH-09:
-//   1. implement full validation rules in repeatWeeklyScheduleSchema in slots.ts;
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) domain clarifications.
-describe.skip('repeatWeeklyScheduleSchema (Black-box)', () => {
+describe('repeatWeeklyScheduleSchema (Black-box)', () => {
   const validPayload = {
     sourceStartDate: '2026-11-02',
     repeatWeeks: 2,
@@ -23,20 +18,6 @@ describe.skip('repeatWeeklyScheduleSchema (Black-box)', () => {
       const res = repeatWeeklyScheduleSchema.safeParse(validPayload);
       expect(res.success).toBe(true);
       expect(res.data).toMatchObject(validPayload);
-    });
-
-    it('accepts valid payload with explicit SKIP conflictStrategy', () => {
-      const payload = { ...validPayload, conflictStrategy: 'SKIP' as const };
-      const res = repeatWeeklyScheduleSchema.safeParse(payload);
-      expect(res.success).toBe(true);
-      expect(res.data).toEqual(payload);
-    });
-
-    it('accepts valid payload with explicit FAIL conflictStrategy', () => {
-      const payload = { ...validPayload, conflictStrategy: 'FAIL' as const };
-      const res = repeatWeeklyScheduleSchema.safeParse(payload);
-      expect(res.success).toBe(true);
-      expect(res.data).toEqual(payload);
     });
 
     it('strips extraneous unknown fields from the payload', () => {
@@ -122,13 +103,14 @@ describe.skip('repeatWeeklyScheduleSchema (Black-box)', () => {
     });
   });
 
-  describe('Equivalence Partitioning: conflictStrategy Enum', () => {
-    it.each(['OVERWRITE', 'IGNORE', 'REPLACE', 'skip', 'fail', 'MERGE', 1, null])(
-      'rejects invalid conflictStrategy value %j',
+  // Course issue #45: no conflict strategy. Any value is accepted and dropped, never validated.
+  describe('Equivalence Partitioning: conflictStrategy is ignored', () => {
+    it.each(['SKIP', 'FAIL', 'OVERWRITE', 'skip', 1, null])(
+      'accepts and drops conflictStrategy %j',
       (conflictStrategy) => {
-        expect(
-          repeatWeeklyScheduleSchema.safeParse({ ...validPayload, conflictStrategy }).success,
-        ).toBe(false);
+        const res = repeatWeeklyScheduleSchema.safeParse({ ...validPayload, conflictStrategy });
+        expect(res.success).toBe(true);
+        expect(res.data).toEqual(validPayload);
       },
     );
   });

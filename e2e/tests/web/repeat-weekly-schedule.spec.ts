@@ -11,13 +11,12 @@ test.afterEach(() => {
   slotIds = [];
 });
 
+// A repeat replaces whole target weeks, so MH-09 uses its own range of years (2200-2580), far
+// from the dates of the other suites. Random weeks keep parallel tests apart.
 function uniqueMondayDate(): string {
-  const dayOffset = randomInt(5000, 25000);
-  const d = new Date(Date.UTC(2035, 0, 1) + dayOffset * 86_400_000);
-  const day = d.getUTCDay();
-  const diffToMonday = day === 0 ? 1 : (8 - day) % 7;
-  d.setUTCDate(d.getUTCDate() + diffToMonday);
-  return d.toISOString().slice(0, 10);
+  // 2200-01-06 is a Monday.
+  const monday = Date.UTC(2200, 0, 6) + randomInt(0, 20_000) * 7 * 86_400_000;
+  return new Date(monday).toISOString().slice(0, 10);
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -63,7 +62,11 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     });
   });
 
-  test.describe('Employee Schedule Repetition Workflow', () => {
+  // TODO(MH-09): R9 web UI not built yet (no "Repeat weekly schedule" dialog on /staff/slots).
+  //   When it exists: un-skip, track every slot the UI creates (read the POST /api/slots and
+  //   /api/slots/repeat-weekly responses with page.waitForResponse) in slotIds for cleanup,
+  //   and align labels with the dialog.
+  test.describe.skip('Employee Schedule Repetition Workflow', () => {
     test('employee configures source day slots and repeats schedule across multiple weeks', async ({
       page,
       employeeUser,
@@ -134,7 +137,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     });
   });
 
-  test.describe('Form Validation & Error States', () => {
+  // TODO(MH-09): R9 web UI not built yet; un-skip together with the workflow tests above.
+  test.describe.skip('Form Validation & Error States', () => {
     test('displays validation error when entering 0 or negative weeks to repeat', async ({
       page,
       employeeUser,
@@ -162,6 +166,39 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
 
       await expect(dialog.getByText(/Must be at least 1 week/i)).toBeVisible();
+    });
+
+    test('warns that the slots already in the target weeks are replaced', async ({
+      page,
+      employeeUser,
+    }) => {
+      await signIn(page, employeeUser);
+      await page.goto('/staff/slots');
+      await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
+      const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
+      await expect(dialog).toContainText(/replaced/i);
+    });
+
+    test('explains why a week with reservations cannot be replaced (409)', async ({
+      page,
+      employeeUser,
+    }) => {
+      const monday = uniqueMondayDate();
+      await signIn(page, employeeUser);
+      await page.route('**/api/slots/repeat-weekly', (route) =>
+        route.fulfill({
+          status: 409,
+          json: {
+            message: `The week starting ${addDays(monday, 7)} has reservations: its schedule cannot be replaced`,
+          },
+        }),
+      );
+      await page.goto('/staff/slots');
+      await page.getByLabel('Day').fill(monday);
+      await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
+      const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
+      await expect(page.getByRole('alert')).toContainText('has reservations');
     });
   });
 
