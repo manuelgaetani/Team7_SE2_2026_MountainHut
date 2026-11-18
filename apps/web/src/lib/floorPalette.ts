@@ -42,7 +42,7 @@ const channel = (v: number): number => {
 };
 
 const luminance = (hex: string): number => {
-  const [r, g, b] = [1, 3, 5].map((i) => channel(parseInt(hex.slice(i, i + 2), 16)));
+  const [r, g, b] = [1, 3, 5].map((i) => channel(Number.parseInt(hex.slice(i, i + 2), 16)));
   return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
 };
 
