@@ -1,7 +1,5 @@
 import { z } from 'zod';
-
-// Maximum value of a Postgres INTEGER: larger ids would fail in the database.
-export const MAX_DB_INT = 2_147_483_647;
+import { MAX_DB_INT, localDateSchema, localTimeSchema } from './primitives.js';
 
 export const MAX_REQUIREMENTS_LENGTH = 500;
 
@@ -49,4 +47,40 @@ export interface BookingResult {
   requirements: PartyRequirement[];
   status: BookingStatus;
   tables: { tableNumber: number; assignedSeats: number }[];
+}
+
+// MH-04: public check of the tables available for a date, a time and a party size.
+// Query strings only carry strings: the party size must be written as plain digits.
+export const checkAvailabilityQuerySchema = z.object({
+  date: localDateSchema,
+  // A time of day: the slot that includes it is checked (it may have started earlier).
+  time: localTimeSchema,
+  partySize: z
+    .string()
+    .regex(/^\d+$/, 'Expected a whole number')
+    .transform(Number)
+    .pipe(z.number().int().positive().max(MAX_DB_INT)),
+});
+export type CheckAvailabilityQuery = z.infer<typeof checkAvailabilityQuerySchema>;
+
+// NO_SLOT: no slot includes that date and time (start included, end excluded), or the slot
+// has already started.
+// TOO_LATE: the slot starts in less than 2 hours, so it cannot be booked online (MH-01),
+// but the hut staff can still enter a reservation (MH-07).
+export type AvailabilityReason = 'NO_SLOT' | 'INSUFFICIENT_SEATS' | 'TOO_LATE';
+
+export interface AvailabilityResult {
+  available: boolean;
+  date: string;
+  time: string;
+  partySize: number;
+  reason?: AvailabilityReason;
+  // Start and end of the slot that includes the time asked. Missing when there is no slot.
+  slot?: { startTime: string; endTime: string };
+  // Free seats over all the tables of the slot. Missing when there is no slot.
+  totalFreeSeats?: number;
+  // How the party would be seated: present when it fits, also when it is too late to book.
+  tables?: { tableNumber: number; seats: number }[];
+  breakdown?: number[];
+  breakdownText?: string;
 }
