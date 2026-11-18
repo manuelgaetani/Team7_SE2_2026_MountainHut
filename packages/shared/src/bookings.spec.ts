@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { checkAvailabilityQuerySchema, createBookingSchema } from './bookings.js';
+import {
+  checkAvailabilityQuerySchema,
+  createBookingSchema,
+  MAX_REQUIREMENTS_COUNT,
+} from './bookings.js';
 
 const MAX_DB_INT = 2_147_483_647;
 const validBooking = { slotId: 1, partySize: 2 };
