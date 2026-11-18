@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { loginSchema, registerSchema } from './auth.js';
+import {
+  PASSWORD_RESET_TTL_HOURS,
+  changePasswordSchema,
+  confirmPasswordResetSchema,
+  loginSchema,
+  registerSchema,
+  requestPasswordResetSchema,
+} from './auth.js';
 
 const validRegistration = {
   email: 'anna@example.it',
@@ -169,5 +176,87 @@ describe('loginSchema', () => {
   it('rejects a missing or invalid email', () => {
     expect(loginSchema.safeParse({ password: 'password123' }).success).toBe(false);
     expect(loginSchema.safeParse({ email: 'anna', password: 'password123' }).success).toBe(false);
+  });
+});
+
+// MH-07 black box: password change and password recovery.
+
+describe('changePasswordSchema', () => {
+  const valid = { currentPassword: 'Generated1x', newPassword: 'MyOwnPass1' };
+
+  it('accepts the current and a new password', () => {
+    expect(changePasswordSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('checks the current password only as a login does, so a generated one always passes', () => {
+    expect(changePasswordSchema.safeParse({ ...valid, currentPassword: 'x' }).success).toBe(true);
+    expect(changePasswordSchema.safeParse({ ...valid, currentPassword: '' }).success).toBe(false);
+    expect(
+      changePasswordSchema.safeParse({ ...valid, currentPassword: 'a'.repeat(73) }).success,
+    ).toBe(false);
+  });
+
+  it('applies the registration rules to the new password: 8 characters, a letter and a digit', () => {
+    const withNew = (newPassword: string) =>
+      changePasswordSchema.safeParse({ ...valid, newPassword }).success;
+    expect(withNew('abcdef1')).toBe(false);
+    expect(withNew('abcdefg1')).toBe(true);
+    expect(withNew('abcdefgh')).toBe(false);
+    expect(withNew('12345678')).toBe(false);
+    expect(withNew(`1${'a'.repeat(71)}`)).toBe(true);
+    expect(withNew(`1${'a'.repeat(72)}`)).toBe(false);
+  });
+
+  it.each(['currentPassword', 'newPassword'])('rejects a request without %s', (field) => {
+    const input: Record<string, unknown> = { ...valid };
+    delete input[field];
+    expect(changePasswordSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('requestPasswordResetSchema', () => {
+  it('a reset link lasts 24 hours', () => {
+    expect(PASSWORD_RESET_TTL_HOURS).toBe(24);
+  });
+
+  it('accepts an email and normalizes it', () => {
+    expect(requestPasswordResetSchema.parse({ email: ' Anna@Example.IT ' })).toEqual({
+      email: 'anna@example.it',
+    });
+  });
+
+  it.each([{}, { email: '' }, { email: 'anna' }, { email: 'anna@' }])('rejects %j', (input) => {
+    expect(requestPasswordResetSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('confirmPasswordResetSchema', () => {
+  const valid = { token: 'code-from-the-link', password: 'MyOwnPass1' };
+
+  it('accepts the code of the link and a new password', () => {
+    expect(confirmPasswordResetSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts a code of 1 and of 200 characters, rejects 0 and 201', () => {
+    const withToken = (token: string) =>
+      confirmPasswordResetSchema.safeParse({ ...valid, token }).success;
+    expect(withToken('')).toBe(false);
+    expect(withToken('a')).toBe(true);
+    expect(withToken('a'.repeat(200))).toBe(true);
+    expect(withToken('a'.repeat(201))).toBe(false);
+  });
+
+  it('applies the registration rules to the new password', () => {
+    const withPassword = (password: string) =>
+      confirmPasswordResetSchema.safeParse({ ...valid, password }).success;
+    expect(withPassword('abcdef1')).toBe(false);
+    expect(withPassword('abcdefgh')).toBe(false);
+    expect(withPassword('abcdefg1')).toBe(true);
+  });
+
+  it.each(['token', 'password'])('rejects a request without %s', (field) => {
+    const input: Record<string, unknown> = { ...valid };
+    delete input[field];
+    expect(confirmPasswordResetSchema.safeParse(input).success).toBe(false);
   });
 });

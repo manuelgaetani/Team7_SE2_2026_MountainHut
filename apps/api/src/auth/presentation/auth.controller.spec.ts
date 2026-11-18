@@ -229,4 +229,63 @@ describe('AuthController', () => {
       expect(auth.me).toHaveBeenCalledWith(1);
     });
   });
+
+  // MH-07 black box: a logged-in user replaces their password and keeps a new session.
+  describe('changePassword', () => {
+    const authenticated: AuthenticatedUser = { id: 1, email: 'anna@example.it', role: 'HIKER' };
+    const body = { currentPassword: 'Generated1x', newPassword: 'MyOwnPass1' };
+
+    it('is protected by AuthGuard', () => {
+      const guards = new Reflector().get<unknown[] | undefined>(
+        GUARDS_METADATA,
+        AuthController.prototype.changePassword,
+      );
+      expect(guards).toEqual([AuthGuard]);
+    });
+
+    it('changes the password of the logged-in user, not of one named in the body', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      await controller.changePassword(authenticated, body, asResponse(fakeResponse()));
+      expect(auth.changePassword).toHaveBeenCalledWith(1, body);
+    });
+
+    it('sets the cookies of the new session', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      const res = fakeResponse();
+      await controller.changePassword(authenticated, body, asResponse(res));
+      expect(res.cookie).toHaveBeenCalledWith('token', 'access-token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+      });
+      expect(res.cookie).toHaveBeenCalledWith('refresh_token', 'refresh-token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+        path: '/api/auth',
+        expires: session.refreshExpiresAt,
+      });
+    });
+
+    it('returns only the user, never the tokens', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      const result = await controller.changePassword(
+        authenticated,
+        body,
+        asResponse(fakeResponse()),
+      );
+      expect(result).toEqual(user);
+      expect(JSON.stringify(result)).not.toContain('access-token');
+      expect(JSON.stringify(result)).not.toContain('refresh-token');
+    });
+
+    it('sets no cookie when the change is refused', async () => {
+      auth.changePassword.mockRejectedValue(new Error('Current password is wrong'));
+      const res = fakeResponse();
+      await expect(controller.changePassword(authenticated, body, asResponse(res))).rejects.toThrow(
+        'Current password is wrong',
+      );
+      expect(res.cookie).not.toHaveBeenCalled();
+    });
+  });
 });
