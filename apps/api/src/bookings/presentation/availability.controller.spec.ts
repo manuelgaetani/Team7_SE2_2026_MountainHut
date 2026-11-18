@@ -93,6 +93,7 @@ describe('AvailabilityController', () => {
 
   it('answers 500 when the service fails unexpectedly', async () => {
     availability.check.mockRejectedValue(new Error('database down'));
-    await get(validQuery).expect(500);
+    const response = await get(validQuery).expect(500);
+    expect(response.status).toBe(500);
   });
 });
