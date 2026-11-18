@@ -1,12 +1,14 @@
 import { randomInt } from 'node:crypto';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
 
+// The overlap rule (MH-02) refuses two overlapping slots on the same day, so MH-04 uses its own
+// range of years (3000-8000): far from createSlot (2031-2131) and MH-09 (2200-2580), and wide
+// enough that two parallel tests practically never draw the same day.
 function uniqueDate(): string {
-  const dayOffset = randomInt(5000, 25000);
-  const d = new Date(Date.UTC(2035, 0, 1) + dayOffset * 86_400_000);
+  const d = new Date(Date.UTC(3000, 0, 1) + randomInt(0, 1_826_000) * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
 
@@ -51,8 +53,26 @@ const dateOf = (slots: ListedSlot[], slotId: number): string =>
   slots.find((s) => s.id === slotId)!.date;
 
 // TODO(MH-04): the public availability page (/availability, no login, story R1, R4 and R5) is not
-// built yet in apps/web: the check is only in the API. Remove .skip once the page exists.
+// built yet in apps/web: the check is only in the API. Remove .skip once the page exists, and
+// replace the guessed labels and selectors with the real ones of the page.
 test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
+  // Every slot a test creates, deleted after the test: the tests share the database.
+  let slotIds: number[] = [];
+
+  test.afterEach(() => {
+    slotIds.forEach(deleteSlot);
+    slotIds = [];
+  });
+
+  async function createSlotThroughApi(
+    request: APIRequestContext,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const res = await request.post('/api/slots', { data });
+    expect(res.status()).toBe(201);
+    slotIds.push(((await res.json()) as { id: number }).id);
+  }
+
   test('R1 & R4: Anonymous visitor checks availability for a party fitting at a single table', async ({
     page,
     employeeUser,
@@ -66,7 +86,13 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.getByLabel('Start').fill('12:00');
     await page.getByLabel('End').fill('13:30');
     await page.getByLabel('Seats, row 1').fill('4');
+    const created = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === '/api/slots' && r.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: 'Create the slot' }).click();
+    const createdRes = await created;
+    expect(createdRes.status()).toBe(201);
+    slotIds.push(((await createdRes.json()) as { id: number }).id);
     await expect(page.getByText('Slot created: 12:00–13:30, 4 seats.')).toBeVisible();
 
     // 2. Staff logs out: visitor is anonymous (no login required)
@@ -95,19 +121,16 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     const testDate = uniqueDate();
 
     // 1. Setup slot with 3 tables of 2 seats via API
-    const slotRes = await employeeRequest.post('/api/slots', {
-      data: {
-        date: testDate,
-        startTime: '13:00',
-        endTime: '14:30',
-        tables: [
-          { tableNumber: 1, seats: 2 },
-          { tableNumber: 2, seats: 2 },
-          { tableNumber: 3, seats: 2 },
-        ],
-      },
+    await createSlotThroughApi(employeeRequest, {
+      date: testDate,
+      startTime: '13:00',
+      endTime: '14:30',
+      tables: [
+        { tableNumber: 1, seats: 2 },
+        { tableNumber: 2, seats: 2 },
+        { tableNumber: 3, seats: 2 },
+      ],
     });
-    expect(slotRes.status()).toBe(201);
 
     // 2. Public visitor opens availability check
     await page.goto('/availability');
@@ -132,15 +155,12 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     const testDate = uniqueDate();
 
     // Setup slot with 4 seats
-    const slotRes = await employeeRequest.post('/api/slots', {
-      data: {
-        date: testDate,
-        startTime: '18:00',
-        endTime: '19:30',
-        tables: [{ tableNumber: 1, seats: 4 }],
-      },
+    await createSlotThroughApi(employeeRequest, {
+      date: testDate,
+      startTime: '18:00',
+      endTime: '19:30',
+      tables: [{ tableNumber: 1, seats: 4 }],
     });
-    expect(slotRes.status()).toBe(201);
 
     // Visitor checks for 8 people (exceeds capacity)
     await page.goto('/availability');
@@ -162,7 +182,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
 // Availability is shown on the booking page: day radios, a guest stepper bounded by the free
 // seats, and time radios that are enabled only when the slot can seat the party.
 test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => {
-  test('provides direct link to registration or booking flow from positive availability result', async ({
+  test('sends a visitor to registration and lets a signed-in hiker book an available slot', async ({
     page,
     registeredUser,
   }) => {
@@ -196,7 +216,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
   });
 
   // The page has no free-text inputs: it prevents an incomplete request instead of reporting it.
-  test('shows validation error messages when submitting availability form with empty inputs', async ({
+  test('keeps booking disabled until a time is chosen and bounds the party by the free seats', async ({
     page,
     registeredUser,
   }) => {
