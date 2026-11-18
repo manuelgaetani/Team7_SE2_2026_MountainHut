@@ -1,19 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { projectWeeklySchedule } from './repeat-schedule-calculator.js';
+import { addDays, projectWeeklySchedule } from './repeat-schedule-calculator.js';
 import type { SourceSlotDefinition } from './repeat-schedule-calculator.js';
 
 // Spec MH-09: Repeat a weekly schedule.
 // Pure domain function projecting a weekly schedule of slots across N future weeks.
 // TODO(PO): Should repeated slots carry a reference/tag to their source template batch? (Currently modeled as independent slots).
 // TODO(MH-09-whitebox): add white-box unit tests for branch coverage and loop conditions in projection generation
-// TODO(MH-09-graybox): add gray-box unit tests verifying database row locking during batch slot insertions
-// TODO(MH-09-integration): add PostgreSQL integration tests for multi-week slot persistence
-// TODO(MH-09-e2e): add Playwright E2E tests for weekly schedule repetition workflow
-// TODO(MH-09): tests skipped until the implementation exists. Before merging MH-09:
-//   1. implement projectWeeklySchedule in repeat-schedule-calculator.ts (it is a stub that throws "Not implemented");
-//   2. change describe.skip back to describe;
-//   3. resolve any TODO(PO) domain clarifications.
-describe.skip('projectWeeklySchedule (Black-box schedule projection)', () => {
+describe('projectWeeklySchedule (Black-box schedule projection)', () => {
   const sampleSlot: SourceSlotDefinition = {
     date: '2026-11-02',
     startTime: '12:00',
@@ -185,9 +178,39 @@ describe.skip('projectWeeklySchedule (Black-box schedule projection)', () => {
       expect(result).toEqual([]);
     });
 
-    it('throws when repeatWeeks is less than or equal to 0', () => {
-      expect(() => projectWeeklySchedule([sampleSlot], 0)).toThrow();
-      expect(() => projectWeeklySchedule([sampleSlot], -1)).toThrow();
+    it.each([0, -1, 1.5, Number.NaN])('throws a RangeError when repeatWeeks is %s', (weeks) => {
+      expect(() => projectWeeklySchedule([sampleSlot], weeks)).toThrow(
+        new RangeError('repeatWeeks must be a positive integer'),
+      );
     });
+
+    it('gives each copy its own tables, independent of the source', () => {
+      const [copy] = projectWeeklySchedule([sampleSlot], 1);
+      expect(copy!.tables).toEqual(sampleSlot.tables);
+      expect(copy!.tables).not.toBe(sampleSlot.tables);
+      expect(copy!.tables[0]).not.toBe(sampleSlot.tables[0]);
+    });
+  });
+});
+
+describe('addDays', () => {
+  it.each([
+    ['2026-11-02', 0, '2026-11-02'],
+    ['2026-11-02', 6, '2026-11-08'],
+    ['2026-11-30', 1, '2026-12-01'],
+    ['2026-12-31', 1, '2027-01-01'],
+    ['2028-02-28', 1, '2028-02-29'],
+    ['2027-02-28', 1, '2027-03-01'],
+    ['2026-03-01', -1, '2026-02-28'],
+  ])('moves %s by %d days to %s', (date, days, expected) => {
+    expect(addDays(date, days)).toBe(expected);
+  });
+
+  // Europe/Rome switches to summer time on 2026-03-29 and back on 2026-10-25.
+  it.each([
+    ['2026-03-26', 7, '2026-04-02'],
+    ['2026-10-22', 7, '2026-10-29'],
+  ])('is not shifted by daylight saving time: %s + %d = %s', (date, days, expected) => {
+    expect(addDays(date, days)).toBe(expected);
   });
 });

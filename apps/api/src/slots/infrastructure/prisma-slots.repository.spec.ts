@@ -26,8 +26,11 @@ const slot = (id: number) => ({
 describe('PrismaSlotsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
-    slot: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
-    slotTable: { findMany: vi.fn(), createMany: vi.fn() },
+    $executeRaw: vi.fn(),
+    slot: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+    slotTable: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+    booking: { deleteMany: vi.fn() },
+    bookingTable: { deleteMany: vi.fn() },
   };
   // Outside a unit of work the context gives the plain client.
   const repository = new PrismaSlotsRepository(
@@ -163,6 +166,90 @@ describe('PrismaSlotsRepository', () => {
       const failure = new Error('database unreachable');
       client.slot.create.mockRejectedValue(failure);
       await expect(repository.create(newSlot)).rejects.toBe(failure);
+    });
+  });
+
+  // MH-09: repeat a weekly schedule.
+  describe('lockDay', () => {
+    it('takes the advisory lock of the day and binds the date instead of concatenating it', async () => {
+      client.$executeRaw.mockResolvedValue(1);
+      await repository.lockDay('2026-11-09');
+      const [text, ...values] = client.$executeRaw.mock.calls[0] as [string[], ...unknown[]];
+      expect(text.join('?')).toContain('pg_advisory_xact_lock');
+      expect(text.join('?')).toContain("'slots-day:'");
+      expect(values).toEqual([new Date('2026-11-09T00:00:00.000Z')]);
+    });
+  });
+
+  describe('findBetween', () => {
+    it('returns the slots of the date range, both ends included, ordered by date and start', async () => {
+      client.slot.findMany.mockResolvedValue([row(3), row(4)]);
+      await expect(repository.findBetween('2026-11-02', '2026-11-08')).resolves.toEqual([
+        slot(3),
+        slot(4),
+      ]);
+      expect(client.slot.findMany).toHaveBeenCalledWith({
+        where: {
+          date: {
+            gte: new Date('2026-11-02T00:00:00.000Z'),
+            lte: new Date('2026-11-08T00:00:00.000Z'),
+          },
+        },
+        include: withTables,
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      });
+    });
+  });
+
+  describe('findReservedDates', () => {
+    it('returns each date once, in order, with a pending or confirmed booking', async () => {
+      client.slot.findMany.mockResolvedValue([
+        { date: new Date('2026-11-10T00:00:00.000Z') },
+        { date: new Date('2026-11-18T00:00:00.000Z') },
+      ]);
+      await expect(repository.findReservedDates('2026-11-09', '2026-11-22')).resolves.toEqual([
+        '2026-11-10',
+        '2026-11-18',
+      ]);
+      expect(client.slot.findMany).toHaveBeenCalledWith({
+        where: {
+          date: {
+            gte: new Date('2026-11-09T00:00:00.000Z'),
+            lte: new Date('2026-11-22T00:00:00.000Z'),
+          },
+          bookings: { some: { status: { in: ['PENDING', 'CONFIRMED'] } } },
+        },
+        select: { date: true },
+        distinct: ['date'],
+        orderBy: { date: 'asc' },
+      });
+    });
+
+    it('returns no dates when the range has no reservations', async () => {
+      client.slot.findMany.mockResolvedValue([]);
+      await expect(repository.findReservedDates('2026-11-09', '2026-11-22')).resolves.toEqual([]);
+    });
+  });
+
+  describe('deleteSlots', () => {
+    it('deletes the booking tables, bookings, slot tables and then the slots', async () => {
+      const order: string[] = [];
+      for (const model of ['bookingTable', 'booking', 'slotTable', 'slot'] as const) {
+        client[model].deleteMany.mockImplementation(() => {
+          order.push(model);
+          return Promise.resolve({ count: 0 });
+        });
+      }
+      await repository.deleteSlots([7, 8]);
+      expect(order).toEqual(['bookingTable', 'booking', 'slotTable', 'slot']);
+      expect(client.bookingTable.deleteMany).toHaveBeenCalledWith({
+        where: { slotId: { in: [7, 8] } },
+      });
+      expect(client.booking.deleteMany).toHaveBeenCalledWith({ where: { slotId: { in: [7, 8] } } });
+      expect(client.slotTable.deleteMany).toHaveBeenCalledWith({
+        where: { slotId: { in: [7, 8] } },
+      });
+      expect(client.slot.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [7, 8] } } });
     });
   });
 

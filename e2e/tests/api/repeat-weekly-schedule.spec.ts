@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
-import { deleteSlot } from '../../fixtures/db.js';
+import { bookingStatus, deleteSlot, setBookingStatus } from '../../fixtures/db.js';
 
 interface SlotTable {
   tableNumber: number;
@@ -18,10 +18,15 @@ interface SlotDetails {
 }
 
 interface RepeatWeeklyScheduleResponse {
-  createdSlotsCount: number;
-  skippedSlotsCount: number;
   targetWeeks: number;
+  createdSlotsCount: number;
+  replacedSlotsCount: number;
   createdSlots: SlotDetails[];
+}
+
+interface BookableSlot {
+  id: number;
+  freeSeats: number;
 }
 
 let slotIds: number[] = [];
@@ -31,15 +36,12 @@ test.afterEach(() => {
   slotIds = [];
 });
 
-// Generates a random future date on an isolated Monday to avoid collision across parallel runs
+// A repeat replaces whole target weeks, so these tests use their own range of years (2200-2580),
+// far from the dates of the other suites. Random weeks keep parallel tests apart.
 function uniqueMondayDate(): string {
-  const dayOffset = randomInt(5000, 25000);
-  const d = new Date(Date.UTC(2035, 0, 1) + dayOffset * 86_400_000);
-  // Adjust to nearest Monday (1 = Monday, 0 = Sunday)
-  const day = d.getUTCDay();
-  const diffToMonday = day === 0 ? 1 : (8 - day) % 7;
-  d.setUTCDate(d.getUTCDate() + diffToMonday);
-  return d.toISOString().slice(0, 10);
+  // 2200-01-06 is a Monday.
+  const monday = Date.UTC(2200, 0, 6) + randomInt(0, 20_000) * 7 * 86_400_000;
+  return new Date(monday).toISOString().slice(0, 10);
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -64,366 +66,424 @@ async function createSlotWithTables(
   return slot;
 }
 
+type RepeatBody = RepeatWeeklyScheduleResponse & { message?: string };
+
+async function repeat(
+  request: APIRequestContext,
+  data: Record<string, unknown>,
+): Promise<{ status: number; body: RepeatBody }> {
+  const res = await request.post('/api/slots/repeat-weekly', { data });
+  const body = (await res.json()) as RepeatBody;
+  body.createdSlots?.forEach((s) => slotIds.push(s.id));
+  return { status: res.status(), body };
+}
+
+async function scheduleOf(request: APIRequestContext, date: string): Promise<SlotDetails[]> {
+  const res = await request.get(`/api/slots/schedule?date=${date}`);
+  expect(res.status()).toBe(200);
+  return (await res.json()) as SlotDetails[];
+}
+
+async function book(
+  request: APIRequestContext,
+  slotId: number,
+  partySize: number,
+): Promise<number> {
+  const res = await request.post('/api/bookings', { data: { slotId, partySize } });
+  expect(res.status()).toBe(201);
+  return ((await res.json()) as { id: number }).id;
+}
+
+const oneTable = (seats: number): SlotTable[] => [{ tableNumber: 1, seats }];
+
 test.describe('MH-09 Black-Box API: Repeat a weekly schedule', () => {
   test.describe('R1: Role-Based Access Control (RBAC)', () => {
     test('refuses unauthenticated requests with 401 Unauthorized', async ({ request }) => {
-      const sourceDate = uniqueMondayDate();
       const res = await request.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: sourceDate, repeatWeeks: 2 },
+        data: { sourceStartDate: uniqueMondayDate(), repeatWeeks: 2 },
       });
       expect(res.status()).toBe(401);
     });
 
-    test('forbids hikers (standard users) with 403 Forbidden', async ({ loggedInRequest }) => {
-      const sourceDate = uniqueMondayDate();
-      const res = await loggedInRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: sourceDate, repeatWeeks: 2 },
-      });
-      expect(res.status()).toBe(403);
+    test('forbids hikers with 403 Forbidden and copies nothing', async ({
+      loggedInRequest,
+      employeeRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      await createSlotWithTables(employeeRequest, monday, '12:00', '14:00', oneTable(4));
+
+      const { status } = await repeat(loggedInRequest, { sourceStartDate: monday, repeatWeeks: 1 });
+      expect(status).toBe(403);
+      expect(await scheduleOf(employeeRequest, addDays(monday, 7))).toEqual([]);
     });
 
-    test('allows employee to repeat a weekly schedule', async ({ employeeRequest }) => {
-      const sourceDate = uniqueMondayDate();
-      await createSlotWithTables(employeeRequest, sourceDate, '12:00', '14:00', [
-        { tableNumber: 1, seats: 4 },
-      ]);
+    for (const role of ['employee', 'warden'] as const) {
+      test(`allows a ${role} to repeat a weekly schedule`, async ({
+        employeeRequest,
+        wardenRequest,
+      }) => {
+        const staff = role === 'employee' ? employeeRequest : wardenRequest;
+        const monday = uniqueMondayDate();
+        await createSlotWithTables(staff, monday, '12:00', '14:00', oneTable(4));
 
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: sourceDate, repeatWeeks: 1 },
+        const { status, body } = await repeat(staff, { sourceStartDate: monday, repeatWeeks: 1 });
+        expect(status).toBe(201);
+        expect(body).toMatchObject({ targetWeeks: 1, createdSlotsCount: 1, replacedSlotsCount: 0 });
       });
-      expect(res.status()).toBe(201);
-
-      const body = (await res.json()) as RepeatWeeklyScheduleResponse;
-      body.createdSlots?.forEach((s) => slotIds.push(s.id));
-      expect(body.createdSlotsCount).toBe(1);
-    });
-
-    test('allows warden to repeat a weekly schedule as staff', async ({ wardenRequest }) => {
-      const sourceDate = uniqueMondayDate();
-      await createSlotWithTables(wardenRequest, sourceDate, '12:00', '14:00', [
-        { tableNumber: 1, seats: 4 },
-      ]);
-
-      const res = await wardenRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: sourceDate, repeatWeeks: 1 },
-      });
-      expect(res.status()).toBe(201);
-
-      const body = (await res.json()) as RepeatWeeklyScheduleResponse;
-      body.createdSlots?.forEach((s) => slotIds.push(s.id));
-      expect(body.createdSlotsCount).toBe(1);
-    });
+    }
   });
 
-  test.describe('R2, R3, R4 & R6: Schedule Replication Across Multiple Weeks', () => {
-    test('replicates multi-slot and multi-day schedule across 2 future weeks with exact tables and capacities', async ({
+  test.describe('R2, R3 & R4: Schedule Replication Across Multiple Weeks', () => {
+    test('replicates a multi-day schedule across 2 weeks with exact tables and capacities', async ({
       employeeRequest,
     }) => {
       const monday = uniqueMondayDate();
       const wednesday = addDays(monday, 2);
       const saturday = addDays(monday, 5);
-
-      // 1. Configure distinct slots across source week
-      // Monday lunch: 12:00-14:00 with Table 1 (4) and Table 2 (6) -> 10 seats
-      await createSlotWithTables(employeeRequest, monday, '12:00', '14:00', [
+      const mondayTables = [
         { tableNumber: 1, seats: 4 },
         { tableNumber: 2, seats: 6 },
-      ]);
-
-      // Wednesday dinner: 19:00-21:30 with Table 1 (2), Table 2 (4), Table 3 (8) -> 14 seats
-      await createSlotWithTables(employeeRequest, wednesday, '19:00', '21:30', [
+      ];
+      const wednesdayTables = [
         { tableNumber: 1, seats: 2 },
         { tableNumber: 2, seats: 4 },
         { tableNumber: 3, seats: 8 },
+      ];
+
+      await createSlotWithTables(employeeRequest, monday, '12:00', '14:00', mondayTables);
+      await createSlotWithTables(employeeRequest, wednesday, '19:00', '21:30', wednesdayTables);
+      await createSlotWithTables(employeeRequest, saturday, '11:30', '13:30', oneTable(6));
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 2,
+      });
+      expect(status).toBe(201);
+      expect(body).toMatchObject({ targetWeeks: 2, createdSlotsCount: 6, replacedSlotsCount: 0 });
+
+      // The response lists the copies ordered by date and start time.
+      expect(body.createdSlots.map((s) => `${s.date} ${s.startTime}`)).toEqual([
+        `${addDays(monday, 7)} 12:00`,
+        `${addDays(wednesday, 7)} 19:00`,
+        `${addDays(saturday, 7)} 11:30`,
+        `${addDays(monday, 14)} 12:00`,
+        `${addDays(wednesday, 14)} 19:00`,
+        `${addDays(saturday, 14)} 11:30`,
       ]);
 
-      // Saturday lunch: 11:30-13:30 with Table 1 (6) -> 6 seats
-      await createSlotWithTables(employeeRequest, saturday, '11:30', '13:30', [
-        { tableNumber: 1, seats: 6 },
-      ]);
-
-      // 2. Repeat source week across 2 consecutive weeks
-      const repeatRes = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: {
-          sourceStartDate: monday,
-          repeatWeeks: 2,
-        },
-      });
-      expect(repeatRes.status()).toBe(201);
-
-      const result = (await repeatRes.json()) as RepeatWeeklyScheduleResponse;
-      expect(result.createdSlotsCount).toBe(6); // 3 slots x 2 weeks
-      expect(result.skippedSlotsCount).toBe(0);
-      expect(result.targetWeeks).toBe(2);
-
-      result.createdSlots?.forEach((s) => slotIds.push(s.id));
-
-      // 3. Verify Week 1 target slots via GET /api/slots/schedule
-      const w1Monday = addDays(monday, 7);
-      const w1Wednesday = addDays(wednesday, 7);
-      const w1Saturday = addDays(saturday, 7);
-
-      const mondayW1Res = await employeeRequest.get(`/api/slots/schedule?date=${w1Monday}`);
-      expect(mondayW1Res.status()).toBe(200);
-      const mondayW1Slots = (await mondayW1Res.json()) as SlotDetails[];
-      expect(mondayW1Slots).toHaveLength(1);
-      expect(mondayW1Slots[0]).toMatchObject({
-        date: w1Monday,
-        startTime: '12:00',
-        endTime: '14:00',
-        totalSeats: 10,
-        tables: [
-          { tableNumber: 1, seats: 4 },
-          { tableNumber: 2, seats: 6 },
-        ],
-      });
-
-      const wednesdayW1Res = await employeeRequest.get(`/api/slots/schedule?date=${w1Wednesday}`);
-      expect(wednesdayW1Res.status()).toBe(200);
-      const wednesdayW1Slots = (await wednesdayW1Res.json()) as SlotDetails[];
-      expect(wednesdayW1Slots).toHaveLength(1);
-      expect(wednesdayW1Slots[0]).toMatchObject({
-        date: w1Wednesday,
-        startTime: '19:00',
-        endTime: '21:30',
-        totalSeats: 14,
-        tables: [
-          { tableNumber: 1, seats: 2 },
-          { tableNumber: 2, seats: 4 },
-          { tableNumber: 3, seats: 8 },
-        ],
-      });
-
-      const saturdayW1Res = await employeeRequest.get(`/api/slots/schedule?date=${w1Saturday}`);
-      expect(saturdayW1Res.status()).toBe(200);
-      const saturdayW1Slots = (await saturdayW1Res.json()) as SlotDetails[];
-      expect(saturdayW1Slots).toHaveLength(1);
-      expect(saturdayW1Slots[0]).toMatchObject({
-        date: w1Saturday,
-        startTime: '11:30',
-        endTime: '13:30',
-        totalSeats: 6,
-        tables: [{ tableNumber: 1, seats: 6 }],
-      });
-
-      // 4. Verify Week 2 target slots
-      const w2Monday = addDays(monday, 14);
-      const mondayW2Res = await employeeRequest.get(`/api/slots/schedule?date=${w2Monday}`);
-      expect(mondayW2Res.status()).toBe(200);
-      const mondayW2Slots = (await mondayW2Res.json()) as SlotDetails[];
-      expect(mondayW2Slots).toHaveLength(1);
-      expect(mondayW2Slots[0]).toMatchObject({
-        date: w2Monday,
-        startTime: '12:00',
-        endTime: '14:00',
-        totalSeats: 10,
-      });
+      for (const week of [1, 2]) {
+        expect(await scheduleOf(employeeRequest, addDays(monday, 7 * week))).toMatchObject([
+          { startTime: '12:00', endTime: '14:00', totalSeats: 10, tables: mondayTables },
+        ]);
+        expect(await scheduleOf(employeeRequest, addDays(wednesday, 7 * week))).toMatchObject([
+          { startTime: '19:00', endTime: '21:30', totalSeats: 14, tables: wednesdayTables },
+        ]);
+        expect(await scheduleOf(employeeRequest, addDays(saturday, 7 * week))).toMatchObject([
+          { startTime: '11:30', endTime: '13:30', totalSeats: 6, tables: oneTable(6) },
+        ]);
+      }
+      // Nothing beyond the requested weeks.
+      expect(await scheduleOf(employeeRequest, addDays(monday, 21))).toEqual([]);
     });
 
-    test('replicates empty slots (0 tables) correctly without failing', async ({
+    test('the source period is the 7 days from sourceStartDate, whatever the weekday', async ({
       employeeRequest,
     }) => {
+      const thursday = addDays(uniqueMondayDate(), 3);
+      const before = addDays(thursday, -1);
+      const lastSourceDay = addDays(thursday, 6);
+
+      await createSlotWithTables(employeeRequest, before, '12:00', '13:00', oneTable(2));
+      await createSlotWithTables(employeeRequest, thursday, '12:00', '13:00', oneTable(4));
+      await createSlotWithTables(employeeRequest, lastSourceDay, '19:00', '20:00', oneTable(6));
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: thursday,
+        repeatWeeks: 1,
+      });
+      expect(status).toBe(201);
+      expect(body.createdSlots.map((s) => s.date)).toEqual([
+        addDays(thursday, 7),
+        addDays(lastSourceDay, 7),
+      ]);
+      // The day before the source period is not copied (its copy would land on lastSourceDay)
+      // and is left untouched.
+      expect(await scheduleOf(employeeRequest, lastSourceDay)).toMatchObject([
+        { startTime: '19:00' },
+      ]);
+      expect(await scheduleOf(employeeRequest, before)).toHaveLength(1);
+    });
+
+    test('replicates slots without tables (0 seats)', async ({ employeeRequest }) => {
       const monday = uniqueMondayDate();
-      // Slot without tables
       const res = await employeeRequest.post('/api/slots', {
         data: { date: monday, startTime: '15:00', endTime: '17:00' },
       });
       expect(res.status()).toBe(201);
-      const sourceSlot = (await res.json()) as SlotDetails;
-      slotIds.push(sourceSlot.id);
+      slotIds.push(((await res.json()) as SlotDetails).id);
 
-      const repeatRes = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: 1 },
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
       });
-      expect(repeatRes.status()).toBe(201);
-
-      const body = (await repeatRes.json()) as RepeatWeeklyScheduleResponse;
-      body.createdSlots?.forEach((s) => slotIds.push(s.id));
+      expect(status).toBe(201);
       expect(body.createdSlotsCount).toBe(1);
-
-      const targetDate = addDays(monday, 7);
-      const targetRes = await employeeRequest.get(`/api/slots/schedule?date=${targetDate}`);
-      const targetSlots = (await targetRes.json()) as SlotDetails[];
-      expect(targetSlots[0]).toMatchObject({
-        date: targetDate,
-        startTime: '15:00',
-        endTime: '17:00',
-        totalSeats: 0,
-        tables: [],
-      });
+      expect(await scheduleOf(employeeRequest, addDays(monday, 7))).toMatchObject([
+        { startTime: '15:00', endTime: '17:00', totalSeats: 0, tables: [] },
+      ]);
     });
 
-    test('replicated slots are bookable by hikers independently of source slots', async ({
+    test('accepts the maximum of 12 weeks and copies into each of them', async ({
+      employeeRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:00', oneTable(4));
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 12,
+      });
+      expect(status).toBe(201);
+      expect(body.createdSlotsCount).toBe(12);
+      expect(body.createdSlots.map((s) => s.date)).toEqual(
+        Array.from({ length: 12 }, (_, i) => addDays(monday, 7 * (i + 1))),
+      );
+    });
+
+    // Europe/Rome moves to summer time on the last Sunday of March.
+    test('keeps dates and times across a daylight saving time change', async ({
+      employeeRequest,
+    }) => {
+      // A random year in the isolated range; the source week ends on the day of the change.
+      const year = 2200 + randomInt(0, 380);
+      const march31 = new Date(Date.UTC(year, 2, 31));
+      const lastSunday = addDays(march31.toISOString().slice(0, 10), -march31.getUTCDay());
+      const monday = addDays(lastSunday, -6);
+      const saturday = addDays(monday, 5);
+      await createSlotWithTables(employeeRequest, saturday, '19:00', '21:00', oneTable(4));
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
+      });
+      expect(status).toBe(201);
+      expect(body.createdSlots).toMatchObject([
+        { date: addDays(saturday, 7), startTime: '19:00', endTime: '21:00' },
+      ]);
+    });
+
+    test('copies are independent: booking a copy leaves the source slot free', async ({
       employeeRequest,
       loggedInRequest,
     }) => {
       const monday = uniqueMondayDate();
-      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', [
-        { tableNumber: 1, seats: 4 },
-      ]);
+      const source = await createSlotWithTables(
+        employeeRequest,
+        monday,
+        '12:00',
+        '13:30',
+        oneTable(4),
+      );
 
-      const repeatRes = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: 1 },
-      });
-      expect(repeatRes.status()).toBe(201);
-      const body = (await repeatRes.json()) as RepeatWeeklyScheduleResponse;
-      const targetSlot = body.createdSlots[0];
-      slotIds.push(targetSlot.id);
+      const { body } = await repeat(employeeRequest, { sourceStartDate: monday, repeatWeeks: 1 });
+      const copy = body.createdSlots[0]!;
+      expect(copy.id).not.toBe(source.id);
+      await book(loggedInRequest, copy.id, 4);
 
-      // Book the replicated slot as hiker
-      const bookingRes = await loggedInRequest.post('/api/bookings', {
-        data: {
-          slotId: targetSlot.id,
-          partySize: 4,
-        },
-      });
-      expect(bookingRes.status()).toBe(201);
-
-      // Source slot remains completely free (4 free seats)
-      const sourceSchedule = await employeeRequest.get(`/api/slots/schedule?date=${monday}`);
-      const sourceSlots = (await sourceSchedule.json()) as SlotDetails[];
-      expect(sourceSlots[0].totalSeats).toBe(4);
+      const listed = (await (await loggedInRequest.get('/api/slots')).json()) as BookableSlot[];
+      expect(listed.find((s) => s.id === source.id)?.freeSeats).toBe(4);
+      expect(listed.find((s) => s.id === copy.id)?.freeSeats).toBe(0);
     });
   });
 
-  test.describe('R5: Conflict Handling & Idempotency', () => {
-    test('skips conflicting slots and creates remaining non-conflicting slots when conflictStrategy is SKIP', async ({
+  test.describe('R10: A target week without reservations is replaced completely', () => {
+    test('deletes the slots already in the target week and creates the copies', async ({
       employeeRequest,
     }) => {
       const monday = uniqueMondayDate();
       const targetMonday = addDays(monday, 7);
+      const targetThursday = addDays(targetMonday, 3);
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+      // Same times with other tables, and a slot the source does not have.
+      await createSlotWithTables(employeeRequest, targetMonday, '12:00', '13:30', oneTable(2));
+      await createSlotWithTables(employeeRequest, targetThursday, '15:00', '16:00', oneTable(8));
 
-      // 1. Create two slots on source Monday
-      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', [
-        { tableNumber: 1, seats: 4 },
-      ]);
-      await createSlotWithTables(employeeRequest, monday, '19:00', '20:30', [
-        { tableNumber: 1, seats: 6 },
-      ]);
-
-      // 2. Pre-create one overlapping slot on target Monday (12:00-13:30)
-      await createSlotWithTables(employeeRequest, targetMonday, '12:00', '13:30', [
-        { tableNumber: 1, seats: 2 },
-      ]);
-
-      // 3. Repeat with SKIP strategy
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: {
-          sourceStartDate: monday,
-          repeatWeeks: 1,
-          conflictStrategy: 'SKIP',
-        },
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
       });
-      expect(res.status()).toBe(201);
+      expect(status).toBe(201);
+      expect(body).toMatchObject({ createdSlotsCount: 1, replacedSlotsCount: 2 });
 
-      const body = (await res.json()) as RepeatWeeklyScheduleResponse;
-      body.createdSlots?.forEach((s) => slotIds.push(s.id));
-      expect(body.createdSlotsCount).toBe(1); // Only 19:00 slot created
-      expect(body.skippedSlotsCount).toBe(1); // 12:00 slot skipped
-
-      // Verify target Monday now has both slots
-      const targetSchedule = await employeeRequest.get(`/api/slots/schedule?date=${targetMonday}`);
-      const slots = (await targetSchedule.json()) as SlotDetails[];
-      expect(slots).toHaveLength(2);
+      expect(await scheduleOf(employeeRequest, targetMonday)).toMatchObject([
+        { id: body.createdSlots[0]!.id, totalSeats: 4, tables: oneTable(4) },
+      ]);
+      expect(await scheduleOf(employeeRequest, targetThursday)).toEqual([]);
     });
 
-    test('rejects repetition with 409 Conflict when target slot exists and conflictStrategy is FAIL', async ({
+    test('ignores a conflictStrategy sent by the client (course issue #45)', async ({
       employeeRequest,
     }) => {
       const monday = uniqueMondayDate();
-      const targetMonday = addDays(monday, 7);
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+      await createSlotWithTables(
+        employeeRequest,
+        addDays(monday, 7),
+        '12:00',
+        '13:30',
+        oneTable(4),
+      );
 
-      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', [
-        { tableNumber: 1, seats: 4 },
-      ]);
-      await createSlotWithTables(employeeRequest, targetMonday, '12:00', '13:30', [
-        { tableNumber: 1, seats: 4 },
-      ]);
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
+        conflictStrategy: 'FAIL',
+      });
+      expect(status).toBe(201);
+      expect(body).toMatchObject({ createdSlotsCount: 1, replacedSlotsCount: 1 });
+    });
 
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: {
+    test('a rejected booking does not block the copy and is deleted with its slot', async ({
+      employeeRequest,
+      loggedInRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+      const target = await createSlotWithTables(
+        employeeRequest,
+        addDays(monday, 7),
+        '12:00',
+        '13:30',
+        oneTable(4),
+      );
+      const bookingId = await book(loggedInRequest, target.id, 2);
+      setBookingStatus(bookingId, 'REJECTED');
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
+      });
+      expect(status).toBe(201);
+      expect(body.replacedSlotsCount).toBe(1);
+      // The booking no longer exists.
+      expect(bookingStatus(bookingId)).toBe('');
+    });
+  });
+
+  test.describe('R5: A target week with reservations cannot be replaced', () => {
+    for (const reservation of ['PENDING', 'CONFIRMED'] as const) {
+      test(`answers 409 for a ${reservation} booking and writes nothing`, async ({
+        employeeRequest,
+        loggedInRequest,
+      }) => {
+        const monday = uniqueMondayDate();
+        const targetMonday = addDays(monday, 7);
+        await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+        await createSlotWithTables(
+          employeeRequest,
+          addDays(monday, 2),
+          '19:00',
+          '20:30',
+          oneTable(6),
+        );
+        const target = await createSlotWithTables(
+          employeeRequest,
+          targetMonday,
+          '12:00',
+          '13:30',
+          oneTable(2),
+        );
+        const bookingId = await book(loggedInRequest, target.id, 2);
+        setBookingStatus(bookingId, reservation);
+
+        const { status, body } = await repeat(employeeRequest, {
           sourceStartDate: monday,
           repeatWeeks: 1,
-          conflictStrategy: 'FAIL',
-        },
+        });
+        expect(status).toBe(409);
+        expect(body.message).toBe(
+          `The week starting ${targetMonday} has reservations: its schedule cannot be replaced`,
+        );
+
+        // The reserved week is untouched: same slot, same booking, no copies.
+        expect(await scheduleOf(employeeRequest, targetMonday)).toMatchObject([
+          { id: target.id, tables: oneTable(2) },
+        ]);
+        expect(await scheduleOf(employeeRequest, addDays(monday, 9))).toEqual([]);
+        expect(bookingStatus(bookingId)).toBe(reservation);
       });
-      expect(res.status()).toBe(409);
+    }
+
+    test('all or nothing: a reservation in week 2 leaves week 1 unchanged too', async ({
+      employeeRequest,
+      loggedInRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+      const week1 = await createSlotWithTables(
+        employeeRequest,
+        addDays(monday, 8),
+        '15:00',
+        '16:00',
+        oneTable(4),
+      );
+      const week2 = await createSlotWithTables(
+        employeeRequest,
+        addDays(monday, 18),
+        '12:00',
+        '13:30',
+        oneTable(4),
+      );
+      await book(loggedInRequest, week2.id, 2);
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 2,
+      });
+      expect(status).toBe(409);
+      expect(body.message).toBe(
+        `The week starting ${addDays(monday, 14)} has reservations: its schedule cannot be replaced`,
+      );
+      expect(await scheduleOf(employeeRequest, addDays(monday, 7))).toEqual([]);
+      expect(await scheduleOf(employeeRequest, addDays(monday, 8))).toMatchObject([
+        { id: week1.id },
+      ]);
     });
   });
 
   test.describe('R6 & R7: Input Validation & Error Handling', () => {
-    test('returns 422 Unprocessable Entity when source week contains no slots to copy', async ({
+    test('returns 422 when the source week contains no slots to copy', async ({
       employeeRequest,
     }) => {
-      const emptyMonday = uniqueMondayDate();
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: emptyMonday, repeatWeeks: 2 },
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: uniqueMondayDate(),
+        repeatWeeks: 2,
       });
-      expect(res.status()).toBe(422);
+      expect(status).toBe(422);
+      expect(body.message).toBe('Source week contains no time slots to repeat');
     });
 
-    test('rejects repeatWeeks of 0 with 400 Bad Request', async ({ employeeRequest }) => {
-      const monday = uniqueMondayDate();
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: 0 },
+    const invalidBodies: [string, Record<string, unknown>][] = [
+      ['repeatWeeks 0', { repeatWeeks: 0 }],
+      ['negative repeatWeeks', { repeatWeeks: -3 }],
+      ['decimal repeatWeeks', { repeatWeeks: 2.5 }],
+      ['repeatWeeks 13, above the maximum', { repeatWeeks: 13 }],
+      ['repeatWeeks as a string', { repeatWeeks: '2' }],
+      ['missing repeatWeeks', { repeatWeeks: undefined }],
+      ['malformed sourceStartDate', { sourceStartDate: 'not-a-date' }],
+      ['non-existent calendar date', { sourceStartDate: '2035-02-31' }],
+      ['missing sourceStartDate', { sourceStartDate: undefined }],
+    ];
+    for (const [name, change] of invalidBodies) {
+      test(`rejects ${name} with 400 Bad Request`, async ({ employeeRequest }) => {
+        const data = { sourceStartDate: uniqueMondayDate(), repeatWeeks: 2, ...change };
+        const { status } = await repeat(employeeRequest, data);
+        expect(status).toBe(400);
       });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects negative repeatWeeks with 400 Bad Request', async ({ employeeRequest }) => {
-      const monday = uniqueMondayDate();
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: -3 },
-      });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects float repeatWeeks with 400 Bad Request', async ({ employeeRequest }) => {
-      const monday = uniqueMondayDate();
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: 2.5 },
-      });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects repeatWeeks exceeding maximum limit (52) with 400 Bad Request', async ({
-      employeeRequest,
-    }) => {
-      const monday = uniqueMondayDate();
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: monday, repeatWeeks: 53 },
-      });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects malformed sourceStartDate with 400 Bad Request', async ({ employeeRequest }) => {
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: 'not-a-date', repeatWeeks: 2 },
-      });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects non-existent calendar date (2035-02-31) with 400 Bad Request', async ({
-      employeeRequest,
-    }) => {
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { sourceStartDate: '2035-02-31', repeatWeeks: 2 },
-      });
-      expect(res.status()).toBe(400);
-    });
-
-    test('rejects missing sourceStartDate with 400 Bad Request', async ({ employeeRequest }) => {
-      const res = await employeeRequest.post('/api/slots/repeat-weekly', {
-        data: { repeatWeeks: 2 },
-      });
-      expect(res.status()).toBe(400);
-    });
+    }
   });
 
   test.describe('MH-09 Planned Future Scenarios (TODOs)', () => {
-    // TODO(MH-09): Repeat schedule across daylight saving time transition (CET to CEST)
-    test.skip('correctly handles clock shift across European daylight saving time boundaries', async () => {});
-
     // TODO(MH-09): Selective day-of-week repetition (e.g. repeat only weekend schedules)
     test.skip('allows repeating only specific days of the week (e.g. only Friday to Sunday)', async () => {});
 

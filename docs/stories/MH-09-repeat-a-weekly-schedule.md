@@ -2,7 +2,7 @@
 
 |                |                                                                                  |
 | -------------- | -------------------------------------------------------------------------------- |
-| **Status**     | Backend complete; web page pending; E2E tests to align with course issue #45     |
+| **Status**     | Backend complete and tested; web page pending (R9)                               |
 | **Depends on** | MH-02 (define slot capacity and tables), MH-58 (authentication and `RolesGuard`) |
 
 ## User story
@@ -179,16 +179,16 @@ npm run e2e:web -w @mountain-hut/e2e -- e2e/tests/web/repeat-weekly-schedule.spe
 npm run test:e2e
 ```
 
-| Spec                                                    | Covers                                                                                                                                                                                                              |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema tests: BVA for repeatWeeks (1..12), sourceStartDate format & calendar validity, conflictStrategy ignored                                                                                           |
-| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box projection tests: multi-day/multi-week date mapping ($D + 7k$), table layout preservation, month/year/leap day boundary transitions                                                                       |
-| `apps/api/src/slots/slots.service.spec.ts`              | `repeatWeekly` with a mocked repository: day locks in order, source and target ranges, copies with tables, replacement, `409` and `422` without writes                                                              |
-| `apps/api/src/slots/slots.repository.spec.ts`           | `lockDay` bound value, `findBetween`, `findReservedDates` filter, `deleteSlots` order                                                                                                                               |
-| `apps/api/src/slots/slots.controller.spec.ts`           | `POST /slots/repeat-weekly`: staff only, `400` on invalid bodies, `conflictStrategy` not passed on                                                                                                                  |
-| `apps/api/test/repeat-schedule.int-spec.ts`             | On PostgreSQL: copies over 2 weeks with tables, 7-day source range, replacement, `PENDING`/`CONFIRMED` bookings block with no writes, rejected bookings deleted, empty source, parallel copies                      |
-| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API: RBAC (401, 403, 201), multi-day replication, exact table layouts, conflict handling (`SKIP`/`FAIL`, to be replaced by the rule of course issue #45), empty source week (422), input validation (400) |
-| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web: staff login, modal interaction, day navigation, schedule replication verification, validation feedback                                                                                               |
+| Spec                                                    | Covers                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema tests: BVA for repeatWeeks (1..12), sourceStartDate format & calendar validity, conflictStrategy ignored                                                                                                                                                                                                                                                                               |
+| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box projection tests: multi-day/multi-week date mapping ($D + 7k$), table layout preservation, month/year/leap day boundary transitions                                                                                                                                                                                                                                                           |
+| `apps/api/src/slots/slots.service.spec.ts`              | `repeatWeekly` with a mocked repository: day locks in order, source and target ranges, copies with tables, replacement, `409` and `422` without writes                                                                                                                                                                                                                                                  |
+| `apps/api/src/slots/slots.repository.spec.ts`           | `lockDay` bound value, `findBetween`, `findReservedDates` filter, `deleteSlots` order                                                                                                                                                                                                                                                                                                                   |
+| `apps/api/src/slots/slots.controller.spec.ts`           | `POST /slots/repeat-weekly`: staff only, `400` on invalid bodies, `conflictStrategy` not passed on                                                                                                                                                                                                                                                                                                      |
+| `apps/api/test/repeat-schedule.int-spec.ts`             | On PostgreSQL: copies over 2 weeks with tables, 7-day source range, replacement, `PENDING`/`CONFIRMED` bookings block with no writes, rejected bookings deleted, empty source, parallel copies                                                                                                                                                                                                          |
+| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API: RBAC (401, 403, 201), multi-day replication with exact tables, 7-day source window from any weekday, 12-week maximum, DST change, independent copies, replacement of a week without reservations (R10), `conflictStrategy` ignored, `REJECTED` bookings do not block, `PENDING`/`CONFIRMED` give `409` with nothing written (all or nothing), empty source (422), input validation (400) |
+| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web: access for visitors and hikers (active); dialog workflow, validation, replacement warning and `409` feedback skipped until the R9 UI exists                                                                                                                                                                                                                                              |
 
 ### Test Coverage Roadmap & Pending Tests
 
@@ -198,10 +198,9 @@ npm run test:e2e
 - **TODO(MH-09-graybox):**
   - Gray-box unit tests verifying database row locking during batch slot insertions.
   - Gray-box unit tests verifying unique constraint collision mapping (`slots_date_start_time_end_time_key`).
-- **E2E to align with course issue #45:** the API tests of `SKIP` and `FAIL` (`skippedSlotsCount`) describe the first draft of the contract. They should check instead that a target week without reservations is replaced (`replacedSlotsCount`) and that one with reservations answers `409`.
+- **E2E isolation:** a repeat replaces whole target weeks, so the MH-09 E2E tests use their own range of years (2200-2580) to never delete the slots of other suites.
 - **TODO(MH-09-e2e):**
   - Planned API future scenarios:
-    - Handle daylight saving time (CET to CEST) shifts across weekly repeats.
     - Selective day-of-week repetition (e.g. repeat only weekend schedules).
     - Database transaction rollback verification during bulk insertion failure.
     - Seasonal blackout / holiday closure exclusion filtering.
