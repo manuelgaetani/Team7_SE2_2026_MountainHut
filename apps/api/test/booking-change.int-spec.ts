@@ -17,9 +17,10 @@ import { NotificationService } from '../src/notifications/notification.service.j
 import { createBooking, createHiker, createSlot, resetDatabase } from './integration/database.js';
 
 // MH-06: a hiker changes the slot, the party size or the requirements of a booking.
-// Rules: course issues #38 (a party that no longer fits is seated again with the MH-01 rules),
-// #41 (every change is notified by email) and #43 (at least 48 hours before the meal, for the
-// booked slot and for a new one).
+// Rules: course issues #38 and #48 (every change is treated as a new booking: the seats of the
+// booking are released and the tables are assigned again with the MH-01 rules, even when the party
+// still fits at its tables or only the requirements change), #41 (every change is notified by
+// email) and #43 (at least 48 hours before the meal, for the booked slot and for a new one).
 
 // Keeps the emails instead of sending them; it can be told to fail.
 class FakeMailer extends Mailer {
@@ -52,11 +53,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
   // The emails are sent after the commit and not awaited. Each test waits for its own before the
   // next one empties the database: a late email could otherwise land on a booking of the next test.
   const pending: Promise<unknown>[] = [];
-  type Sender = (bookingId: number) => Promise<void>;
-  const internals = service as unknown as Record<'sendChange' | 'sendConfirmation', Sender>;
-  for (const name of ['sendChange', 'sendConfirmation'] as const) {
-    const send = internals[name].bind(service);
-    internals[name] = (bookingId) => {
+  for (const name of ['send', 'sendChange'] as const) {
+    const send = sender[name].bind(sender);
+    sender[name] = (bookingId) => {
       const sending = send(bookingId);
       pending.push(sending);
       return sending;
@@ -97,19 +96,62 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
     await prisma.$disconnect();
   });
 
-  describe('party size (issue #38)', () => {
-    it('keeps the party at its table when the larger party still fits there', async () => {
+  describe('party size (issues #38 and #48)', () => {
+    it('seats a larger party again with the MH-01 rules even when it still fits at its table', async () => {
+      // Table 2 (8 seats) could hold the 5 people, but as a new booking the smallest table that
+      // fits is table 1 (6 seats).
       const anna = await createHiker(prisma, 'anna@example.test');
-      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [6, 6]);
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [6, 8]);
       const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
         { tableNumber: 2, assignedSeats: 3 },
       ]);
 
       const result = await service.change(anna.userId, booking, { partySize: 5 });
 
-      expect(result.tables).toEqual([{ tableNumber: 2, assignedSeats: 5 }]);
+      expect(result.tables).toEqual([{ tableNumber: 1, assignedSeats: 5 }]);
       expect((await bookingOf(booking)).partySize).toBe(5);
-      expect(await tablesOf(booking)).toEqual(['2:5']);
+      expect(await tablesOf(booking)).toEqual(['1:5']);
+      expect(await seatsTakenIn(slot)).toBe(5);
+    });
+
+    it('moves a smaller party to the smallest table that fits it', async () => {
+      // The example of issue #48: a party of 4 alone at a 4-seat table becomes a party of 2, and a
+      // 2-seat table is free in the same slot.
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 2]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 4 },
+      ]);
+
+      await service.change(anna.userId, booking, { partySize: 2 });
+
+      expect(await tablesOf(booking)).toEqual(['2:2']);
+      expect(await seatsTakenIn(slot)).toBe(2);
+    });
+
+    it('seats a party that was split again at a single table when it becomes smaller', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 4, 2]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 4 },
+      ]);
+
+      await service.change(anna.userId, booking, { partySize: 2 });
+
+      expect(await tablesOf(booking)).toEqual(['3:2']);
+    });
+
+    it('assigns the tables again when the same party size is sent', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 2]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+
+      await service.change(anna.userId, booking, { partySize: 2 });
+
+      expect(await tablesOf(booking)).toEqual(['2:2']);
     });
 
     it('seats the party again with the MH-01 rules when it no longer fits at its tables', async () => {
@@ -237,9 +279,10 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
   });
 
   describe('requirements', () => {
-    it('changes the requirements without touching the tables', async () => {
+    it('changes the requirements and assigns the tables again with the MH-01 rules', async () => {
+      // Issue #48: a change of the requirements alone is a change too.
       const anna = await createHiker(prisma, 'anna@example.test');
-      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4]);
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 2]);
       const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
@@ -250,7 +293,8 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
 
       expect(result.requirements).toBe('no nuts');
       expect((await bookingOf(booking)).requirements).toBe('no nuts');
-      expect(await tablesOf(booking)).toEqual(['1:2']);
+      expect(await tablesOf(booking)).toEqual(['2:2']);
+      expect(await seatsTakenIn(slot)).toBe(2);
     });
 
     it('removes the requirements', async () => {
