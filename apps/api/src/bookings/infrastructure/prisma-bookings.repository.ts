@@ -71,27 +71,6 @@ export class PrismaBookingsRepository extends BookingsRepository {
     }));
   }
 
-  // MH-04: the slot that starts at a hut-local date and time and has not started yet.
-  // Slots of a day cannot overlap (MH-02), so at most one starts at a given time; slots created
-  // before that rule could share a start time, and the oldest one is taken.
-  async findSlotStartingAt(
-    date: string,
-    time: string,
-    timeZone: string,
-    now: Date,
-  ): Promise<{ id: number; startsAt: Date } | null> {
-    const rows = await this.db().$queryRaw<{ id: number; starts_at: Date }[]>`
-      SELECT s.id, ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
-      FROM slots s
-      WHERE s.date = ${date}::date
-        AND s.start_time = ${time}::time
-        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
-      ORDER BY s.id
-      LIMIT 1`;
-    const row = rows[0];
-    return row ? { id: row.id, startsAt: row.starts_at } : null;
-  }
-
   // Blocca la riga dello slot (le altre prenotazioni dello stesso slot aspettano)
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
   async lockSlotAndGetStart(slotId: number, timeZone: string): Promise<Date | null> {
@@ -117,6 +96,27 @@ export class PrismaBookingsRepository extends BookingsRepository {
       FOR UPDATE OF s_other`;
 
     return rows[0]?.starts_at ?? null;
+  }
+
+  // MH-04: the slot that starts at a hut-local date and time and has not started yet.
+  // Slots of a day cannot overlap (MH-02), so at most one starts at a given time; slots created
+  // before that rule could share a start time, and the oldest one is taken.
+  async findSlotStartingAt(
+    date: string,
+    time: string,
+    timeZone: string,
+    now: Date,
+  ): Promise<{ id: number; startsAt: Date } | null> {
+    const rows = await this.db().$queryRaw<{ id: number; starts_at: Date }[]>`
+      SELECT s.id, ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
+      FROM slots s
+      WHERE s.date = ${date}::date
+        AND s.start_time = ${time}::time
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.id
+      LIMIT 1`;
+    const row = rows[0];
+    return row ? { id: row.id, startsAt: row.starts_at } : null;
   }
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati

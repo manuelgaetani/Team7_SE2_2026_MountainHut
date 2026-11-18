@@ -27,7 +27,13 @@ describe('PrismaSlotsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     $executeRaw: vi.fn(),
-    slot: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+    slot: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     slotTable: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
     booking: { deleteMany: vi.fn() },
     bookingTable: { deleteMany: vi.fn() },
