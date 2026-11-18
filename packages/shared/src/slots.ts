@@ -1,19 +1,11 @@
 import { z } from 'zod';
-import { MAX_DB_INT } from './bookings.js';
-
-const isCalendarDate = (s: string): boolean => {
-  const parsed = new Date(`${s}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === s;
-};
+import { MAX_DB_INT, localDateSchema, localTimeSchema } from './primitives.js';
 
 // Calendar date of the slot in the hut's local time, e.g. "2026-11-02".
-const date = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD')
-  .refine(isCalendarDate, 'Not a valid calendar date');
+const date = localDateSchema;
 
 // Time of day in the hut's local time, e.g. "12:30".
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected a time as HH:MM');
+const time = localTimeSchema;
 
 const id = z.number().int().positive().max(MAX_DB_INT);
 
