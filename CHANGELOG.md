@@ -15,6 +15,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Integration tests with PostgreSQL for party requirements (MH-05): order, limits, cascade delete, refused bookings and the confirmation email.
 - Party requirements in the web app (MH-05): on the booking page the hiker can add, edit and remove requirement rows, each with an "Allergies" checkbox; the confirmation dialog lists them and marks the ones with allergies.
 - Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
+- Repeat a weekly schedule (MH-09): `POST /api/slots/repeat-weekly` (staff only) copies the slots and tables of the 7 days starting at `sourceStartDate` into each of the next `repeatWeeks` weeks (1 to 12). A target week that already has slots is replaced completely, unless one of its slots has pending or confirmed bookings: then the answer is `409` and nothing changes (course issue #45). An empty source week answers `422`.
 
 ## [release-1] - 2026-11-06
 

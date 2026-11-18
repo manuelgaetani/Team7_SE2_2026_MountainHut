@@ -16,6 +16,8 @@ import type {
   DefineSlotTablesInput,
   FloorPlan,
   ListSlotsQuery,
+  RepeatWeeklyScheduleInput,
+  RepeatWeeklyScheduleResult,
   SlotDetails,
   SlotSummary,
 } from '@mountain-hut/shared';
@@ -23,6 +25,7 @@ import {
   createSlotSchema,
   defineSlotTablesSchema,
   listSlotsQuerySchema,
+  repeatWeeklyScheduleSchema,
 } from '@mountain-hut/shared';
 import { AuthGuard } from '../../auth/presentation/auth.guard.js';
 import { Roles } from '../../auth/presentation/roles.decorator.js';
@@ -59,6 +62,16 @@ export class SlotsController {
     @Body(new ZodValidationPipe(createSlotSchema)) body: CreateSlotInput,
   ): Promise<SlotDetails> {
     return this.slots.create(body);
+  }
+
+  // MH-09: copies the slots of a week into the next weeks, replacing the slots already there.
+  @Post('repeat-weekly')
+  @HttpCode(201)
+  @ApiZodBody(repeatWeeklyScheduleSchema)
+  repeatWeekly(
+    @Body(new ZodValidationPipe(repeatWeeklyScheduleSchema)) body: RepeatWeeklyScheduleInput,
+  ): Promise<RepeatWeeklyScheduleResult> {
+    return this.slots.repeatWeekly(body);
   }
 
   // Not GET /slots: that route lists the bookable slots for any role (MH-01).

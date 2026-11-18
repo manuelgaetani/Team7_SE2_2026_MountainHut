@@ -3,12 +3,15 @@ import type {
   CreateSlotInput,
   DefineSlotTablesInput,
   FloorPlan,
+  RepeatWeeklyScheduleInput,
+  RepeatWeeklyScheduleResult,
   SlotDetails,
   SlotTable,
 } from '@mountain-hut/shared';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
 import { buildFloorPlan } from '../domain/floor-plan.js';
+import { addDays, projectWeeklySchedule } from '../domain/repeat-schedule-calculator.js';
 import type { Slot } from '../domain/slot.js';
 import { SlotsRepository } from './slots.repository.port.js';
 
@@ -82,6 +85,70 @@ export class SlotsService {
       if (tables) await this.repo.createTables(id, tables);
     });
     return this.findOne(id);
+  }
+
+  // MH-09: copies the slots of the 7 days starting at sourceStartDate, with their tables, into each
+  // of the next repeatWeeks weeks, on the same weekdays. A target week is replaced completely: its
+  // slots are deleted first. This is refused if a slot of a target week has reservations (course
+  // issue #45), and when the source week has no slots. All or nothing, in one unit of work.
+  async repeatWeekly(input: RepeatWeeklyScheduleInput): Promise<RepeatWeeklyScheduleResult> {
+    const source = input.sourceStartDate;
+    const firstTarget = addDays(source, 7);
+    const lastTarget = addDays(source, 7 * input.repeatWeeks + 6);
+
+    return this.uow.run(async () => {
+      // Always in date order, so two copies on overlapping weeks cannot deadlock.
+      for (let day = firstTarget; day <= lastTarget; day = addDays(day, 1)) {
+        await this.repo.lockDay(day);
+      }
+
+      const sourceSlots = await this.repo.findBetween(source, addDays(source, 6));
+      if (sourceSlots.length === 0) {
+        throw new DomainError('UNPROCESSABLE', 'Source week contains no time slots to repeat');
+      }
+
+      const [reserved] = await this.repo.findReservedDates(firstTarget, lastTarget);
+      if (reserved) {
+        const daysAfterSource = (Date.parse(reserved) - Date.parse(source)) / 86_400_000;
+        const weekStart = addDays(source, 7 * Math.floor(daysAfterSource / 7));
+        throw new DomainError(
+          'CONFLICT',
+          `The week starting ${weekStart} has reservations: its schedule cannot be replaced`,
+        );
+      }
+
+      const replaced = await this.repo.findBetween(firstTarget, lastTarget);
+      if (replaced.length > 0) await this.repo.deleteSlots(replaced.map((s) => s.id));
+
+      const createdSlots: SlotDetails[] = [];
+      for (const slot of projectWeeklySchedule(sourceSlots, input.repeatWeeks)) {
+        const id = await this.repo.create({
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        });
+        if (slot.tables.length > 0) await this.repo.createTables(id, slot.tables);
+        createdSlots.push(
+          toDetails({
+            id,
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            tables: slot.tables,
+          }),
+        );
+      }
+      createdSlots.sort(
+        (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime),
+      );
+
+      return {
+        targetWeeks: input.repeatWeeks,
+        createdSlotsCount: createdSlots.length,
+        replacedSlotsCount: replaced.length,
+        createdSlots,
+      };
+    });
   }
 
   // The tables given in the request, or a copy of another slot's tables. Undefined if neither.

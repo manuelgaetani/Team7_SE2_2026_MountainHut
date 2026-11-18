@@ -22,6 +22,17 @@ export abstract class SlotsRepository {
   // only touch (one ends when the other starts) do not overlap.
   abstract findOverlapping(slot: NewSlot): Promise<Slot | null>;
 
+  // Slots from one date to another, both included, by date and start time, with their tables.
+  abstract findBetween(from: string, to: string): Promise<Slot[]>;
+
+  // Days ('YYYY-MM-DD'), between two dates both included, with a slot that has reservations:
+  // bookings that take seats (pending or confirmed). In date order.
+  abstract findReservedDates(from: string, to: string): Promise<string[]>;
+
+  // Deletes slots with their tables. Bookings left on them take no seats (the caller checks
+  // there are no reservations) and are deleted too, with their table assignments.
+  abstract deleteSlots(ids: number[]): Promise<void>;
+
   // Tables of the slot, ordered by number.
   abstract findTables(slotId: number): Promise<SlotTable[]>;
 
