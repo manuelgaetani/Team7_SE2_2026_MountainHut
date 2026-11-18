@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -583,6 +583,71 @@ describe('SlotsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Define the tables of 19:30–21:00' }),
     ).toBeInTheDocument();
+  });
+
+  it('colours each table by how full it is: free, partly taken or full', async () => {
+    const slot: SlotDetails = {
+      ...slotWithTables,
+      tables: [
+        { tableNumber: 1, seats: 4 },
+        { tableNumber: 2, seats: 4 },
+        { tableNumber: 3, seats: 2 },
+      ],
+      totalSeats: 10,
+    };
+    const table = (tableNumber: number, capacity: number, occupiedSeats: number) => ({
+      tableNumber,
+      capacity,
+      occupiedSeats,
+      freeSeats: capacity - occupiedSeats,
+      groups: [],
+    });
+    const floor: FloorPlan = {
+      slot: { id: 1, date: '2026-11-04', startTime: '12:00', endTime: '13:00' },
+      tables: [table(1, 4, 0), table(2, 4, 3), table(3, 2, 2)],
+      groups: [],
+      totals: { capacity: 10, occupiedSeats: 5, freeSeats: 5, confirmedGroups: 0, splitGroups: 0 },
+    };
+    stubSlotsApi({ schedule: { '2026-11-04': [slot] }, floorHandler: () => json(floor) });
+    renderSlotsPage();
+
+    const tableItem = async (text: string) => (await screen.findByText(text)).closest('li');
+    expect(await tableItem(', free')).toHaveClass('schedule__table--free');
+    expect(await tableItem(', partly taken')).toHaveClass('schedule__table--partial');
+    expect(await tableItem(', full')).toHaveClass('schedule__table--full');
+    expect(await tableItem(', free')).toHaveTextContent('Table 1 · 4 seats, free');
+    expect(await tableItem(', full')).toHaveTextContent('Table 3 · 2 seats, full');
+    expect(await tableItem(', partly taken')).toHaveTextContent('Table 2 · 4 seats, partly taken');
+    expect(screen.getByText('3 tables · 5/10 seats taken')).toBeInTheDocument();
+  });
+
+  it('explains the colours of the tables in a legend above the slots', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    const legend = await screen.findByRole('list', { name: 'Table colours' });
+    const items = within(legend).getAllByRole('listitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Free', 'Partly taken', 'Full']);
+    expect(items[0]).toHaveClass('schedule__table--free');
+    expect(items[1]).toHaveClass('schedule__table--partial');
+    expect(items[2]).toHaveClass('schedule__table--full');
+  });
+
+  it('shows no legend when no slot of the day has tables', async () => {
+    stubSlotsApi({ schedule: { '2026-11-04': [emptySlot] } });
+    renderSlotsPage();
+
+    await screen.findByText('19:30–21:00');
+    expect(screen.queryByRole('list', { name: 'Table colours' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the tables neutral when the floor plan cannot be read', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    const item = await screen.findByText('Table 1 · 4 seats');
+    expect(item).toHaveClass('schedule__table');
+    expect(item.className).not.toMatch(/schedule__table--/);
   });
 
   it('opens the floor plan of a slot and comes back to the same day', async () => {
