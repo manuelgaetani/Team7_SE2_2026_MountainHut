@@ -52,6 +52,17 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
   const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
   const service = new BookingsService(uow, repo, sender, config);
 
+  // The confirmation is sent after the booking is stored, and not awaited. Each test waits for
+  // its own sends before the next one empties the database: a late send would otherwise look for
+  // a booking or a user that no longer exists.
+  const pending: Promise<void>[] = [];
+  const send = sender.send.bind(sender);
+  sender.send = (bookingId) => {
+    const sending = send(bookingId);
+    pending.push(sending);
+    return sending;
+  };
+
   const originalDelays = [...CONFIRMATION_RETRY_DELAYS_MS];
 
   // A hiker with an account and a name, so each email can be told from the others.
@@ -79,7 +90,8 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
     CONFIRMATION_RETRY_DELAYS_MS.splice(0, CONFIRMATION_RETRY_DELAYS_MS.length, 5, 5, 5);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await Promise.allSettled(pending.splice(0));
     CONFIRMATION_RETRY_DELAYS_MS.splice(0, CONFIRMATION_RETRY_DELAYS_MS.length, ...originalDelays);
   });
 

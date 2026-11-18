@@ -26,17 +26,22 @@ export class SlotsService {
   ) {}
 
   // Creates a slot, optionally with its tables (a list, or a copy of another slot's tables).
-  // 404 if copyTablesFromSlotId does not exist, 409 (raised by the repository) if a slot with the same date, start and end exists.
+  // 404 if copyTablesFromSlotId does not exist; 409 if the slot overlaps another slot of the same
+  // day (issue #31: contiguous slots are allowed) or (raised by the repository) has the same
+  // date, start and end. Slots in the past are still accepted: the story does not say otherwise.
   async create(input: CreateSlotInput): Promise<SlotDetails> {
-    // TODO(MH-02): overlapping slots and slots in the past are accepted for now; the team is
-    // deciding whether to ask the product owner. Add the checks here if they must be refused.
+    const slot = { date: input.date, startTime: input.startTime, endTime: input.endTime };
     const id = await this.uow.run(async () => {
+      await this.repo.lockDay(slot.date);
+      const clash = await this.repo.findOverlapping(slot);
+      if (clash) {
+        throw new DomainError(
+          'CONFLICT',
+          `This slot overlaps the slot ${clash.startTime}–${clash.endTime} of the same day`,
+        );
+      }
       const tables = await this.resolveTables(input);
-      const slotId = await this.repo.create({
-        date: input.date,
-        startTime: input.startTime,
-        endTime: input.endTime,
-      });
+      const slotId = await this.repo.create(slot);
       if (tables) await this.repo.createTables(slotId, tables);
       return slotId;
     });
