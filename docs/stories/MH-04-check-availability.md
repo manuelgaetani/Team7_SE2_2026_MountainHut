@@ -109,9 +109,9 @@ Response `200 OK`:
 
 ### Errors
 
-| Status | When                                                | `message`                               |
-| ------ | --------------------------------------------------- | --------------------------------------- |
-| `400`  | Invalid date, time, decimal/alphanumeric party size | `Validation failed: invalid input data` |
+| Status | When                                                | `message`      |
+| ------ | --------------------------------------------------- | -------------- |
+| `400`  | Invalid date, time, decimal/alphanumeric party size | `Invalid data` |
 
 ## Web app
 
@@ -126,30 +126,41 @@ Response `200 OK`:
 
 ## Code map
 
-| Path                                               | Content                                                          |
-| -------------------------------------------------- | ---------------------------------------------------------------- |
-| `packages/shared/src/bookings.ts`                  | `checkAvailabilityQuerySchema`, `AvailabilityResult` definitions |
-| `apps/api/src/bookings/availability.controller.ts` | Public REST controller for `/api/availability`                   |
-| `apps/api/src/bookings/availability.service.ts`    | Service orchestrating slot search, availability, and breakdown   |
-| `apps/api/src/bookings/booking-policy.ts`          | Core `checkAvailability` and `formatBreakdown` logic             |
-| `apps/api/src/bookings/bookings.repository.ts`     | `findSlotStartingAt` and `findFreeSeatsByTable` raw queries      |
-| `e2e/tests/api/availability.spec.ts`               | Black-Box, Gray-Box, and White-Box Playwright E2E API tests      |
-| `e2e/tests/web/availability.spec.ts`               | Playwright Web E2E UI test specifications                        |
+| Path                                                                 | Content                                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `packages/shared/src/bookings.ts`                                    | `checkAvailabilityQuerySchema`, `AvailabilityResult` definitions          |
+| `apps/api/src/bookings/presentation/availability.controller.ts`      | Public REST controller for `/api/availability`                            |
+| `apps/api/src/bookings/application/availability.service.ts`          | Service orchestrating slot search, availability, and breakdown            |
+| `apps/api/src/bookings/domain/booking-policy.ts`                     | Core `checkAvailability` and `formatBreakdown` logic                      |
+| `apps/api/src/bookings/application/bookings.repository.port.ts`      | `findSlotStartingAt` and `findFreeSeatsByTable` port                      |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | Prisma implementation of the two queries                                  |
+| `apps/api/test/availability.int-spec.ts`                             | Integration tests with PostgreSQL                                         |
+| `e2e/tests/api/availability.spec.ts`                                 | Black-Box, Gray-Box, and White-Box Playwright E2E API tests               |
+| `e2e/tests/web/availability.spec.ts`                                 | Playwright Web E2E UI test specifications (skipped until the page exists) |
 
 ## Testing
 
 ```bash
-# Run E2E tests on Docker Compose stack
+# Unit tests
+npm test -w @mountain-hut/api
+# Integration tests (PostgreSQL, uses the "<db>_test" database)
+npm run test:int -w @mountain-hut/api -- availability
+# E2E tests on Docker Compose stack
 docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                             | Covers                                                                                                   |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `e2e/tests/api/availability.spec.ts` (Black-Box) | Requirements R1..R7: public access, multi-table breakdown, capacity limits, BVA, stateless cookies       |
-| `e2e/tests/api/availability.spec.ts` (Gray-Box)  | Direct DB seeding: `<2h` imminent slots (`TOO_LATE`), past slots (`NO_SLOT`), empty slots, PENDING seats |
-| `e2e/tests/api/availability.spec.ts` (White-Box) | Internal branches: `formatBreakdown` singular/plural, `smallestFit` tie-breaker, greedy table layout     |
-| `e2e/tests/web/availability.spec.ts`             | Black-box Web UI: public form, seat layout display, unavailable feedback, no alternative suggestions     |
+| Spec                                                                      | Covers                                                                                                                                   |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/bookings/domain/booking-policy.spec.ts`                     | `checkAvailability` and the 2-hour limit: exact fit, one seat over, full or overbooked tables, decision table (white-box)                |
+| `apps/api/src/bookings/application/availability.service.spec.ts`          | Results `NO_SLOT`, `INSUFFICIENT_SEATS`, `TOO_LATE` with seating, tables/breakdown alignment, configured time zone, no alternative slots |
+| `apps/api/src/bookings/presentation/availability.controller.spec.ts`      | Public route without auth guard, party size as a number, unknown query parameters removed, 500 on unexpected errors                      |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | `findSlotStartingAt` (oldest slot, started slots ignored) and `findFreeSeatsByTable` (PENDING and CONFIRMED only), bound values          |
+| `apps/api/test/availability.int-spec.ts`                                  | Real PostgreSQL: slot lookup in the hut time zone, PENDING/CONFIRMED vs REJECTED seats, overlapping slots, read-only check               |
+| `e2e/tests/api/availability.spec.ts` (Black-Box)                          | Requirements R1..R7: public access, multi-table breakdown, capacity limits, BVA, stateless cookies                                       |
+| `e2e/tests/api/availability.spec.ts` (Gray-Box)                           | Direct DB seeding: `<2h` imminent slots (`TOO_LATE`), past slots (`NO_SLOT`), empty slots, PENDING seats                                 |
+| `e2e/tests/api/availability.spec.ts` (White-Box)                          | Internal branches: `formatBreakdown` singular/plural, `smallestFit` tie-breaker, greedy table layout                                     |
+| `e2e/tests/web/availability.spec.ts`                                      | Black-box Web UI: public form, seat layout display, unavailable feedback, no alternative suggestions (skipped until the page exists)     |
 
 ### Try it manually
 
