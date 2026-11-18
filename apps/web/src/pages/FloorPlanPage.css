@@ -123,9 +123,6 @@
   cursor: pointer;
 }
 /* A seat taken by an overlapping slot: hatched, so it never looks like a group of the slot. */
-.floor-seat--other {
-  background: repeating-linear-gradient(45deg, #fff 0 3px, var(--line) 3px 6px);
-}
 .floor-seat--selected {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
@@ -226,41 +223,6 @@
 }
 .floor-group__assigned dd {
   margin: 0;
-}
-
-.floor-moments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: -4px 0 14px;
-}
-.floor-moment {
-  display: grid;
-  gap: 2px;
-  padding: 8px 14px;
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.floor-moment--current {
-  border-color: var(--green);
-  background: var(--tint);
-}
-.floor-moment:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-.floor-moment__time {
-  font-size: 12px;
-  font-weight: 600;
-}
-.floor-moment__with {
-  color: var(--muted);
-  font-size: 10px;
 }
 
 .floor-legend {

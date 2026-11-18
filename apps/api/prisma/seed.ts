@@ -23,12 +23,10 @@ const SEED_EMPLOYEES = [
 ];
 
 const DAYS = 14;
-// Pranzo: quattro turni da un'ora, a partire dalle 12:00 ogni mezz'ora.
+// Pranzo: due turni da un'ora e mezza, uno dopo l'altro. Gli slot non si sovrappongono.
 const TIMES = [
-  ['12:00', '13:00'],
-  ['12:30', '13:30'],
-  ['13:00', '14:00'],
-  ['13:30', '14:30'],
+  ['11:30', '13:00'],
+  ['13:00', '14:30'],
 ] as const;
 // Tavoli di ogni turno: numero e posti (24 posti in totale).
 const TABLES = [
@@ -46,6 +44,18 @@ const dayAt = (offset: number): Date => {
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset));
 };
 const timeOf = (hhmm: string): Date => new Date(`1970-01-01T${hhmm}:00Z`);
+
+// Cancella tutti gli slot con i loro tavoli e le loro prenotazioni, così nel database non
+// restano gli slot di prima, che si sovrapponevano. Le notifiche restano, senza prenotazione.
+async function clearSlots() {
+  await prisma.$transaction([
+    prisma.bookingTable.deleteMany(),
+    prisma.booking.deleteMany(),
+    prisma.slotTable.deleteMany(),
+    prisma.slot.deleteMany(),
+  ]);
+  console.log('Deleted the existing slots, tables and bookings');
+}
 
 async function seedEmployee(seed: (typeof SEED_EMPLOYEES)[number]) {
   const passwordHash = await bcrypt.hash(seed.password, 10);
@@ -89,19 +99,17 @@ async function main() {
     await seedEmployee(employee);
   }
 
+  await clearSlots();
   for (let day = 0; day < DAYS; day++) {
     const date = dayAt(day);
     for (const [start, end] of TIMES) {
-      const slot = await prisma.slot.upsert({
-        where: {
-          date_startTime_endTime: { date, startTime: timeOf(start), endTime: timeOf(end) },
+      await prisma.slot.create({
+        data: {
+          date,
+          startTime: timeOf(start),
+          endTime: timeOf(end),
+          tables: { create: TABLES },
         },
-        update: {},
-        create: { date, startTime: timeOf(start), endTime: timeOf(end) },
-      });
-      await prisma.slotTable.createMany({
-        data: TABLES.map((t) => ({ slotId: slot.id, ...t })),
-        skipDuplicates: true,
       });
     }
   }

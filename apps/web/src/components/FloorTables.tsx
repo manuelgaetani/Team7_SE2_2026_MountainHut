@@ -1,12 +1,9 @@
-import { otherSlotsLabel, seatAriaLabel, tableTakenLabel } from '../lib/floorLabels.ts';
-import type { MomentTable } from '../lib/floorMoments.ts';
+import type { FloorTable } from '@mountain-hut/shared';
+import { seatAriaLabel, tableTakenLabel } from '../lib/floorLabels.ts';
 import { groupColor } from '../lib/floorPalette.ts';
-import { seatsLabel } from '../lib/slotTables.ts';
 
 interface FloorTablesProps {
-  tables: MomentTable[];
-  // The overlapping slots that hold seats in the moment shown.
-  otherSlots: string[];
+  tables: FloorTable[];
   selected: string | null;
   // When true every group of the slot shows its colour, not only the selected one.
   showAll: boolean;
@@ -14,10 +11,10 @@ interface FloorTablesProps {
   onSelect: (label: string | null) => void;
 }
 
-// The tables of one moment of the slot, in an automatic grid ordered by number. One square
-// for each seat: a seat of the slot shows the colour and letter of its group once the group
-// is selected, a seat held by an overlapping slot is hatched, a free seat is empty.
-export function FloorTables({ tables, otherSlots, selected, showAll, onSelect }: FloorTablesProps) {
+// The tables of the slot, in an automatic grid ordered by number. One square for each seat:
+// a taken seat shows the colour and letter of its group once the group is selected, a free
+// seat is empty.
+export function FloorTables({ tables, selected, showAll, onSelect }: FloorTablesProps) {
   const ordered = [...tables].sort((a, b) => a.tableNumber - b.tableNumber);
 
   return (
@@ -56,13 +53,6 @@ export function FloorTables({ tables, otherSlots, selected, showAll, onSelect }:
                   );
                 }),
               )}
-              {Array.from({ length: table.otherSeats }, (_, i) => (
-                <span
-                  key={`other-${i}`}
-                  className="floor-seat floor-seat--other"
-                  aria-hidden="true"
-                />
-              ))}
               {Array.from({ length: table.freeSeats }, (_, i) => (
                 <span
                   key={`free-${i}`}
@@ -75,11 +65,6 @@ export function FloorTables({ tables, otherSlots, selected, showAll, onSelect }:
               {table.capacity} seats in total
               {table.freeSeats > 0 && `, ${table.freeSeats} free`}
             </p>
-            {table.otherSeats > 0 && (
-              <p className="floor-table__capacity">
-                {seatsLabel(table.otherSeats)} for {otherSlotsLabel(otherSlots)}
-              </p>
-            )}
           </li>
         );
       })}

@@ -1,23 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { FloorGroup } from '@mountain-hut/shared';
+import type { FloorGroup, FloorTable } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
-import type { MomentTable } from './floorMoments.ts';
 import {
   floorErrorMessage,
   groupTablesLabel,
   onTablesLabel,
-  otherSlotsLabel,
   peopleLabel,
   seatAriaLabel,
   seatsTakenLabel,
   tableTakenLabel,
 } from './floorLabels.ts';
 
-const table = (taken: number, capacity = 4): MomentTable => ({
+const table = (taken: number, capacity = 4): FloorTable => ({
   tableNumber: 1,
   capacity,
   groups: [],
-  otherSeats: 0,
+  occupiedSeats: taken,
   freeSeats: capacity - taken,
 });
 
@@ -55,16 +53,6 @@ describe('floor labels', () => {
     expect(groupTablesLabel(group)).toBe('T4 · 6 + T5 · 2');
     expect(onTablesLabel(1)).toBe('on 1 table');
     expect(onTablesLabel(2)).toBe('on 2 tables');
-  });
-
-  it('names the overlapping slots', () => {
-    expect(otherSlotsLabel(['12:00–13:00'])).toBe('the slot 12:00–13:00');
-    expect(otherSlotsLabel(['11:30–12:30', '13:00–14:00'])).toBe(
-      'the slots 11:30–12:30 and 13:00–14:00',
-    );
-    expect(otherSlotsLabel(['11:00–12:30', '11:30–12:30', '12:00–13:00'])).toBe(
-      'the slots 11:00–12:30, 11:30–12:30 and 12:00–13:00',
-    );
   });
 
   it('describes a seat for screen readers', () => {

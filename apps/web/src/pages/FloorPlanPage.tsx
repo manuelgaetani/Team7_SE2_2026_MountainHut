@@ -5,10 +5,8 @@ import { useCurrentUser } from '../api/useAuth.ts';
 import { useFloorPlan } from '../api/useSlots.ts';
 import { FloorGroups } from '../components/FloorGroups.tsx';
 import { FloorHeader } from '../components/FloorHeader.tsx';
-import { FloorMomentPicker } from '../components/FloorMomentPicker.tsx';
 import { FloorTables } from '../components/FloorTables.tsx';
-import { floorErrorMessage, otherSlotsLabel, seatsTakenLabel } from '../lib/floorLabels.ts';
-import { floorMoments, isSlotGroup } from '../lib/floorMoments.ts';
+import { floorErrorMessage, seatsTakenLabel } from '../lib/floorLabels.ts';
 import { parseSlotId } from '../lib/slotId.ts';
 import { tablesLabel } from '../lib/slotTables.ts';
 import './BookingPage.css';
@@ -39,18 +37,12 @@ function FloorPlanView({ id }: { id: number }) {
 function FloorPlanContent({ plan }: { plan: FloorPlan }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [current, setCurrent] = useState(0);
 
-  const { slot, tables } = plan;
+  const { tables, groups, totals } = plan;
   if (tables.length === 0) {
     return <p className="notice notice--ok">No tables yet: hikers cannot book this slot.</p>;
   }
 
-  const moments = floorMoments(plan);
-  const index = Math.min(current, moments.length - 1);
-  const moment = moments[index]!;
-  const shared = moments.some((m) => m.otherSlots.length > 0);
-  const groups = plan.groups.filter((g) => isSlotGroup(g, slot));
   const guests = groups.reduce((sum, g) => sum + g.partySize, 0);
 
   function select(label: string | null) {
@@ -62,20 +54,10 @@ function FloorPlanContent({ plan }: { plan: FloorPlan }) {
     <div className="layout layout--staff">
       <section className="summary layout__form" aria-label="Tables">
         <h3 className="summary__title">Tables</h3>
-        {shared ? (
-          <FloorMomentPicker moments={moments} current={index} onPick={setCurrent} />
-        ) : (
-          <p className="field__hint floor-page__meta">
-            {tablesLabel(tables.length)} · {seatsTakenLabel(moment.occupiedSeats, moment.capacity)}
-          </p>
-        )}
-        <FloorTables
-          tables={moment.tables}
-          otherSlots={moment.otherSlots}
-          selected={selected}
-          showAll={showAll}
-          onSelect={select}
-        />
+        <p className="field__hint floor-page__meta">
+          {tablesLabel(tables.length)} · {seatsTakenLabel(totals.occupiedSeats, totals.capacity)}
+        </p>
+        <FloorTables tables={tables} selected={selected} showAll={showAll} onSelect={select} />
         <ul className="floor-legend" aria-label="Legend">
           <li>
             <span className="floor-seat floor-seat--free" aria-hidden="true" />
@@ -85,12 +67,6 @@ function FloorPlanContent({ plan }: { plan: FloorPlan }) {
             <li>
               <span className="floor-seat floor-seat--booked" aria-hidden="true" />
               Booked in this slot
-            </li>
-          )}
-          {moment.otherSlots.length > 0 && (
-            <li>
-              <span className="floor-seat floor-seat--other" aria-hidden="true" />
-              Taken by {otherSlotsLabel(moment.otherSlots)}
             </li>
           )}
         </ul>
