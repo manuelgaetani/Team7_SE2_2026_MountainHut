@@ -6,15 +6,19 @@ export const peopleLabel = (n: number): string => (n === 1 ? '1 person' : `${n} 
 
 const seatsLabel = (n: number): string => (n === 1 ? '1 free seat' : `${n} free seats`);
 
-// "Sat 15 Jun at 12:00 for 3 people"
-export const askedLabel = (r: AvailabilityResult): string =>
-  `${dateShort(fromIsoDate(r.date))} at ${r.time} for ${peopleLabel(r.partySize)}`;
+// "Sat 15 Jun, slot 12:00–13:30, for 3 people", or "Sat 15 Jun at 12:34 for 3 people" when no
+// slot includes the time asked.
+export const askedLabel = (r: AvailabilityResult): string => {
+  const day = dateShort(fromIsoDate(r.date));
+  const when = r.slot ? `, slot ${r.slot.startTime}–${r.slot.endTime},` : ` at ${r.time}`;
+  return `${day}${when} for ${peopleLabel(r.partySize)}`;
+};
 
 // Why the party cannot book that slot. No other slot is suggested (MH-04).
 export function unavailableReason(r: AvailabilityResult): string {
   switch (r.reason) {
     case 'NO_SLOT':
-      return `There is no time slot starting at ${r.time} on ${dateShort(fromIsoDate(r.date))}. Try another date or time.`;
+      return `There is no time slot at ${r.time} on ${dateShort(fromIsoDate(r.date))}. Try another date or time.`;
     case 'TOO_LATE':
       return 'The slot starts in less than 2 hours, so it can no longer be booked online.';
     default: {

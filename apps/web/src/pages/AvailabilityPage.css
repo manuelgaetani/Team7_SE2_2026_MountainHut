@@ -41,6 +41,13 @@
   color: var(--muted);
   font-size: 0.85rem;
 }
+.availability-result__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 0.85rem;
+}
 .availability-result__tables {
   display: flex;
   flex-wrap: wrap;
