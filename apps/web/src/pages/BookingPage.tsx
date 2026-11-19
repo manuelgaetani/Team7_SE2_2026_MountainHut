@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { createBookingSchema } from '@mountain-hut/shared';
+import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -10,6 +10,8 @@ import { DayPicker } from '../components/DayPicker.tsx';
 import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
+import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
+import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
@@ -25,6 +27,13 @@ function bookingError(e: unknown): string {
   return 'Booking failed. Please try again.';
 }
 
+// The rows with a description, trimmed as the API stores them. The key of each row is
+// kept: it identifies the requirement in the lists of the summary and of the dialog.
+const filledRequirements = (rows: RequirementDraft[]): RequirementDraft[] =>
+  rows
+    .filter((r) => r.description.trim() !== '')
+    .map((r) => ({ ...r, description: r.description.trim() }));
+
 function BookingFlow() {
   const slotsQuery = useBookableSlots();
   const book = useCreateBooking();
@@ -32,8 +41,12 @@ function BookingFlow() {
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [requestedGuests, setRequestedGuests] = useState(2);
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
+  const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sentSummary, setSentSummary] = useState<string | null>(null);
+  const [sent, setSent] = useState<{
+    summary: string;
+    requirements: RequirementDraft[];
+  } | null>(null);
 
   const slots = slotsQuery.data;
   const dates = useMemo(
@@ -69,14 +82,33 @@ function BookingFlow() {
   function handleSubmit() {
     if (!slot) return;
     setError(null);
-    const parsed = createBookingSchema.safeParse({ slotId: slot.id, partySize: guests });
+    if (requirements.some((r) => r.description.trim() === '')) {
+      setError('Describe each requirement or remove it.');
+      return;
+    }
+    if (requirements.some((r) => r.description.trim().length > MAX_REQUIREMENTS_LENGTH)) {
+      setError(`Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`);
+      return;
+    }
+    const parsed = createBookingSchema.safeParse({
+      slotId: slot.id,
+      partySize: guests,
+      ...(requirements.length > 0 && {
+        requirements: requirements.map(({ allergies, description }) => ({
+          allergies,
+          description,
+        })),
+      }),
+    });
     if (!parsed.success) {
       setError('Choose a date, time, and number of people.');
       return;
     }
+    const filled = filledRequirements(requirements);
     const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
     book.mutate(parsed.data, {
-      onSuccess: () => setSentSummary(summary),
+      // The API stores the requirements as sent, trimmed: the dialog shows the same rows.
+      onSuccess: () => setSent({ summary, requirements: filled }),
       onError: (e) => setError(bookingError(e)),
     });
   }
@@ -104,6 +136,7 @@ function BookingFlow() {
           value={slot?.id ?? null}
           onChange={handle(setChosenSlotId)}
         />
+        <RequirementsEditor value={requirements} onChange={handle(setRequirements)} />
 
         {slot && (
           <p className="recap">
@@ -137,6 +170,7 @@ function BookingFlow() {
           time={slot?.startTime ?? null}
           guests={guests}
           tables={book.isSuccess ? book.data.tables : null}
+          requirements={filledRequirements(requirements)}
         />
         <aside className="experience">
           <h3>An Alpine Experience</h3>
@@ -144,12 +178,14 @@ function BookingFlow() {
         </aside>
       </div>
 
-      {sentSummary && (
+      {sent && (
         <BookingSentDialog
-          summary={sentSummary}
+          summary={sent.summary}
+          requirements={sent.requirements}
           onClose={() => {
-            setSentSummary(null);
+            setSent(null);
             setChosenSlotId(null);
+            setRequirements([]);
           }}
         />
       )}

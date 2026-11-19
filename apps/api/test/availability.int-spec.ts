@@ -35,20 +35,45 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
   });
 
   describe('finding the slot', () => {
-    it('answers NO_SLOT when no slot starts at that date and time', async () => {
+    it('answers NO_SLOT when no slot includes that date and time', async () => {
       await createSlot(prisma, DATE, TIME, '21:00', [4]);
 
-      const otherTime = await check(2, DAY_BEFORE, DATE, '20:00');
+      const before = await check(2, DAY_BEFORE, DATE, '18:59');
       const otherDate = await check(2, DAY_BEFORE, '2031-07-02', TIME);
 
-      expect(otherTime).toEqual({
+      expect(before).toEqual({
         available: false,
         date: DATE,
-        time: '20:00',
+        time: '18:59',
         partySize: 2,
         reason: 'NO_SLOT',
       });
       expect(otherDate).toMatchObject({ available: false, reason: 'NO_SLOT' });
+    });
+
+    it('finds the slot that includes a time after its start, and gives its start and end', async () => {
+      await createSlot(prisma, DATE, TIME, '21:00', [4]);
+
+      expect(await check(2, DAY_BEFORE, DATE, '20:34')).toMatchObject({
+        available: true,
+        time: '20:34',
+        slot: { startTime: TIME, endTime: '21:00' },
+        totalFreeSeats: 4,
+      });
+    });
+
+    it('gives the later slot for the time at which two contiguous slots meet', async () => {
+      await createSlot(prisma, DATE, '12:00', '13:00', [2]);
+      await createSlot(prisma, DATE, '13:00', '14:00', [6]);
+
+      expect(await check(2, DAY_BEFORE, DATE, '12:59')).toMatchObject({
+        slot: { startTime: '12:00', endTime: '13:00' },
+        totalFreeSeats: 2,
+      });
+      expect(await check(2, DAY_BEFORE, DATE, '13:00')).toMatchObject({
+        slot: { startTime: '13:00', endTime: '14:00' },
+        totalFreeSeats: 6,
+      });
     });
 
     it('does not match a slot by its end time', async () => {
@@ -71,13 +96,28 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
       expect(winter.reason).toBe('TOO_LATE');
     });
 
-    it('answers NO_SLOT from the moment the slot starts', async () => {
+    it('answers NO_SLOT from the moment the slot starts, also for a later time in it', async () => {
       await createSlot(prisma, DATE, TIME, '21:00', [4]);
 
       expect(await check(2, STARTS_AT)).toMatchObject({ available: false, reason: 'NO_SLOT' });
+      expect(await check(2, STARTS_AT, DATE, '20:30')).toMatchObject({
+        available: false,
+        reason: 'NO_SLOT',
+      });
       expect(await check(2, new Date(STARTS_AT.getTime() + HOUR_MS))).toMatchObject({
         available: false,
         reason: 'NO_SLOT',
+      });
+    });
+
+    it('takes the earliest slot when two old overlapping slots include the time', async () => {
+      // Possible only for slots created before overlapping slots were forbidden (MH-02).
+      await createSlot(prisma, DATE, '19:30', '21:00', [8]);
+      await createSlot(prisma, DATE, TIME, '22:00', [2]);
+
+      expect(await check(2, DAY_BEFORE, DATE, '20:00')).toMatchObject({
+        slot: { startTime: TIME, endTime: '22:00' },
+        totalFreeSeats: 2,
       });
     });
 
@@ -99,6 +139,7 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
         date: DATE,
         time: TIME,
         partySize: 6,
+        slot: { startTime: TIME, endTime: '21:00' },
         totalFreeSeats: 6,
         tables: [
           { tableNumber: 1, seats: 2 },
@@ -162,6 +203,7 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
         time: TIME,
         partySize: 4,
         reason: 'INSUFFICIENT_SEATS',
+        slot: { startTime: TIME, endTime: '21:00' },
         totalFreeSeats: 3,
       });
     });
@@ -226,6 +268,7 @@ describe('Availability with PostgreSQL (integration) - MH-04', () => {
         time: TIME,
         partySize: 3,
         reason: 'TOO_LATE',
+        slot: { startTime: TIME, endTime: '21:00' },
         totalFreeSeats: 6,
         tables: [
           { tableNumber: 1, seats: 2 },

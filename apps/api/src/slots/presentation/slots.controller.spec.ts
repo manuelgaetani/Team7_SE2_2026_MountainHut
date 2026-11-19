@@ -5,6 +5,8 @@ import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@mountain-hut/shared';
 import { AuthGuard } from '../../auth/presentation/auth.guard.js';
+import { DomainExceptionFilter } from '../../presentation/domain-exception.filter.js';
+import { DomainError } from '../../shared-kernel/domain-error.js';
 import { SlotsController } from './slots.controller.js';
 import { ListBookableSlots } from '../../bookings/application/list-bookable-slots.js';
 import { SlotsService } from '../application/slots.service.js';
@@ -12,7 +14,13 @@ import { SlotsService } from '../application/slots.service.js';
 describe('SlotsController', () => {
   let app: INestApplication<App>;
   let role: Role;
-  const slots = { create: vi.fn(), listByDate: vi.fn(), findOne: vi.fn(), defineTables: vi.fn() };
+  const slots = {
+    create: vi.fn(),
+    listByDate: vi.fn(),
+    findOne: vi.fn(),
+    defineTables: vi.fn(),
+    floorPlan: vi.fn(),
+  };
   const bookable = { execute: vi.fn() };
   const body = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
 
@@ -36,6 +44,7 @@ describe('SlotsController', () => {
       })
       .compile();
     app = module.createNestApplication();
+    app.useGlobalFilters(new DomainExceptionFilter());
     await app.init();
   });
 
@@ -95,5 +104,35 @@ describe('SlotsController', () => {
     await request(app.getHttpServer()).put('/slots/1/tables').send({}).expect(403);
     expect(slots.findOne).not.toHaveBeenCalled();
     expect(slots.defineTables).not.toHaveBeenCalled();
+  });
+
+  describe('GET /slots/:id/floor', () => {
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'lets a %s see the plan of a slot',
+      async (staffRole) => {
+        role = staffRole;
+        const plan = { slot: { id: 5 }, tables: [], groups: [] };
+        slots.floorPlan.mockResolvedValue(plan);
+        const response = await request(app.getHttpServer()).get('/slots/5/floor').expect(200);
+        expect(response.body).toEqual(plan);
+        expect(slots.floorPlan).toHaveBeenCalledWith(5);
+      },
+    );
+
+    it('answers 403 to a hiker without calling the service', async () => {
+      role = 'HIKER';
+      await request(app.getHttpServer()).get('/slots/5/floor').expect(403);
+      expect(slots.floorPlan).not.toHaveBeenCalled();
+    });
+
+    it('answers 400 without calling the service when the id is not a number', async () => {
+      await request(app.getHttpServer()).get('/slots/abc/floor').expect(400);
+      expect(slots.floorPlan).not.toHaveBeenCalled();
+    });
+
+    it('propagates the 404 of a slot that does not exist', async () => {
+      slots.floorPlan.mockRejectedValue(new DomainError('NOT_FOUND', 'Slot not found'));
+      await request(app.getHttpServer()).get('/slots/99/floor').expect(404);
+    });
   });
 });

@@ -9,6 +9,8 @@ const NOW = new Date('2026-11-01T10:00:00Z');
 const slotStart = new Date(NOW.getTime() + MIN_LEAD_MS);
 const query = { date: '2026-11-02', time: '12:00', partySize: 6 };
 const asked = { available: false, date: '2026-11-02', time: '12:00', partySize: 6 };
+// The slot that includes the time asked: it may start before it (MH-04).
+const slotTimes = { startTime: '11:30', endTime: '13:00' };
 const threeTablesOfTwo = [
   { tableNumber: 1, freeSeats: 2 },
   { tableNumber: 2, freeSeats: 2 },
@@ -18,13 +20,13 @@ const threeTablesOfTwo = [
 describe('AvailabilityService', () => {
   let service: AvailabilityService;
   const config = { bookingTimeZone: 'Europe/Rome' };
-  const repo = { findSlotStartingAt: vi.fn(), findFreeSeatsByTable: vi.fn() };
+  const repo = { findSlotAt: vi.fn(), findFreeSeatsByTable: vi.fn() };
 
   beforeEach(async () => {
     vi.resetAllMocks();
     config.bookingTimeZone = 'Europe/Rome';
     vi.setSystemTime(NOW);
-    repo.findSlotStartingAt.mockResolvedValue({ id: 9, startsAt: slotStart });
+    repo.findSlotAt.mockResolvedValue({ id: 9, startsAt: slotStart, ...slotTimes });
     repo.findFreeSeatsByTable.mockResolvedValue(threeTablesOfTwo);
     const module = await Test.createTestingModule({
       providers: [
@@ -46,6 +48,7 @@ describe('AvailabilityService', () => {
       await expect(service.check(query)).resolves.toEqual({
         ...asked,
         available: true,
+        slot: slotTimes,
         totalFreeSeats: 6,
         tables: [
           { tableNumber: 1, seats: 2 },
@@ -89,6 +92,7 @@ describe('AvailabilityService', () => {
         ...asked,
         partySize: 7,
         reason: 'INSUFFICIENT_SEATS',
+        slot: slotTimes,
         totalFreeSeats: 6,
       });
       expect(result).not.toHaveProperty('tables');
@@ -106,21 +110,22 @@ describe('AvailabilityService', () => {
     });
   });
 
-  describe('when no slot starts at that date and time', () => {
+  describe('when no slot includes that date and time', () => {
     it('is not available with the reason NO_SLOT and reads no seats', async () => {
-      repo.findSlotStartingAt.mockResolvedValue(null);
+      repo.findSlotAt.mockResolvedValue(null);
       const result = await service.check(query);
       expect(result).toEqual({ ...asked, reason: 'NO_SLOT' });
       expect(result).not.toHaveProperty('totalFreeSeats');
+      expect(result).not.toHaveProperty('slot');
       expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
     });
   });
 
   describe('when it is too late to book online', () => {
-    const tooLate = { id: 9, startsAt: new Date(slotStart.getTime() - 1) };
+    const tooLate = { id: 9, startsAt: new Date(slotStart.getTime() - 1), ...slotTimes };
 
     it('is not available, but still shows where the party would sit', async () => {
-      repo.findSlotStartingAt.mockResolvedValue(tooLate);
+      repo.findSlotAt.mockResolvedValue(tooLate);
       await expect(service.check(query)).resolves.toMatchObject({
         available: false,
         reason: 'TOO_LATE',
@@ -131,7 +136,7 @@ describe('AvailabilityService', () => {
     });
 
     it('gives no seating when the party does not fit', async () => {
-      repo.findSlotStartingAt.mockResolvedValue(tooLate);
+      repo.findSlotAt.mockResolvedValue(tooLate);
       const result = await service.check({ ...query, partySize: 7 });
       expect(result).toMatchObject({ available: false, reason: 'TOO_LATE', totalFreeSeats: 6 });
       expect(result).not.toHaveProperty('tables');
@@ -149,6 +154,8 @@ describe('AvailabilityService', () => {
       'time',
       'partySize',
       'reason',
+      // The slot that includes the time asked, not another one.
+      'slot',
       'totalFreeSeats',
       'tables',
       'breakdown',
@@ -160,15 +167,86 @@ describe('AvailabilityService', () => {
     }
   });
 
+  // White-box: tables, breakdown and breakdownText are all built from the same allocation.
+  describe('how it builds the seating (white-box)', () => {
+    const mixed = [
+      { tableNumber: 1, freeSeats: 2 },
+      { tableNumber: 2, freeSeats: 3 },
+      { tableNumber: 3, freeSeats: 1 },
+    ];
+
+    it('keeps tables and breakdown aligned, in the order of the allocation', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      const result = await service.check(query);
+      expect(result.tables).toEqual([
+        { tableNumber: 2, seats: 3 },
+        { tableNumber: 1, seats: 2 },
+        { tableNumber: 3, seats: 1 },
+      ]);
+      expect(result.breakdown).toEqual(result.tables?.map((t) => t.seats));
+      expect(result.breakdownText).toBe('3 + 2 + 1 seats');
+    });
+
+    it('seats a small party at one table, the smallest that fits', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      await expect(service.check({ ...query, partySize: 1 })).resolves.toMatchObject({
+        available: true,
+        tables: [{ tableNumber: 3, seats: 1 }],
+        breakdown: [1],
+        breakdownText: '1 seat',
+      });
+    });
+
+    it('gives the same seating when it is too late, with table numbers too', async () => {
+      repo.findSlotAt.mockResolvedValue({ id: 9, startsAt: new Date(NOW.getTime()), ...slotTimes });
+      repo.findFreeSeatsByTable.mockResolvedValue(mixed);
+      await expect(service.check(query)).resolves.toEqual({
+        ...asked,
+        reason: 'TOO_LATE',
+        slot: slotTimes,
+        totalFreeSeats: 6,
+        tables: [
+          { tableNumber: 2, seats: 3 },
+          { tableNumber: 1, seats: 2 },
+          { tableNumber: 3, seats: 1 },
+        ],
+        breakdown: [3, 2, 1],
+        breakdownText: '3 + 2 + 1 seats',
+      });
+    });
+
+    it('does not count the seats of overbooked tables in the free seats', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue([
+        { tableNumber: 1, freeSeats: -2 },
+        { tableNumber: 2, freeSeats: 4 },
+      ]);
+      await expect(service.check({ ...query, partySize: 3 })).resolves.toMatchObject({
+        available: true,
+        totalFreeSeats: 4,
+        tables: [{ tableNumber: 2, seats: 3 }],
+      });
+    });
+  });
+
   describe('how it reads the data', () => {
     it('looks for the slot with the date and time asked, from now', async () => {
       await service.check(query);
-      expect(repo.findSlotStartingAt).toHaveBeenCalledWith(
-        '2026-11-02',
-        '12:00',
-        'Europe/Rome',
-        NOW,
-      );
+      expect(repo.findSlotAt).toHaveBeenCalledWith('2026-11-02', '12:00', 'Europe/Rome', NOW);
+    });
+
+    it('gives the start and the end of the slot found, which may start before the time asked', async () => {
+      await expect(service.check({ ...query, time: '12:34' })).resolves.toMatchObject({
+        time: '12:34',
+        slot: { startTime: '11:30', endTime: '13:00' },
+      });
+    });
+
+    it('gives the slot also when the party does not fit', async () => {
+      repo.findFreeSeatsByTable.mockResolvedValue([]);
+      await expect(service.check(query)).resolves.toMatchObject({
+        reason: 'INSUFFICIENT_SEATS',
+        slot: slotTimes,
+      });
     });
 
     it('reads the free seats of the slot found', async () => {
@@ -179,13 +257,13 @@ describe('AvailabilityService', () => {
     it('uses the time given by the caller instead of the clock', async () => {
       const later = new Date(NOW.getTime() + 60_000);
       await service.check(query, later);
-      expect(repo.findSlotStartingAt.mock.calls[0]?.[3]).toBe(later);
+      expect(repo.findSlotAt.mock.calls[0]?.[3]).toBe(later);
     });
 
     it('uses the configured booking time zone', async () => {
       config.bookingTimeZone = 'UTC';
       await service.check(query);
-      expect(repo.findSlotStartingAt.mock.calls[0]?.[2]).toBe('UTC');
+      expect(repo.findSlotAt.mock.calls[0]?.[2]).toBe('UTC');
     });
 
     it('propagates the errors of the repository', async () => {

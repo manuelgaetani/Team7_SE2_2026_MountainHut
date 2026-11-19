@@ -48,10 +48,11 @@ function trackSlot(id: number): number {
   return id;
 }
 
-// Generates an isolated calendar date so parallel tests never collide.
+// The overlap rule (MH-02) refuses two overlapping slots on the same day, so MH-04 uses its own
+// range of years (3000-8000): far from createSlot (2031-2131) and MH-09 (2200-2580), and wide
+// enough that two parallel tests practically never draw the same day.
 function uniqueDate(): string {
-  const dayOffset = randomInt(5000, 25000);
-  const d = new Date(Date.UTC(2035, 0, 1) + dayOffset * 86_400_000);
+  const d = new Date(Date.UTC(3000, 0, 1) + randomInt(0, 1_826_000) * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
 
@@ -224,7 +225,6 @@ test.describe('MH-04 Black-Box API: Functional Specifications', () => {
     ).toBe(400);
   });
 
-  // Implemented from former TODO: Upper boundary handling
   test('handles maximum integer boundary for party size gracefully without server error', async ({
     employeeRequest,
     request,
@@ -259,7 +259,6 @@ test.describe('MH-04 Black-Box API: Functional Specifications', () => {
     expect(overflowRes.status()).toBe(400);
   });
 
-  // Implemented from former TODO: Stateless public endpoint check
   test('verifies public availability response sets no session or tracking cookies', async ({
     employeeRequest,
     request,
@@ -285,7 +284,6 @@ test.describe('MH-04 Black-Box API: Functional Specifications', () => {
     expect(cookies).toHaveLength(0);
   });
 
-  // Implemented from former TODO: Real-time availability reduction upon booking
   test('updates available table breakdown dynamically after another hiker books seats', async ({
     employeeRequest,
     request,
@@ -354,7 +352,6 @@ test.describe('MH-04 Black-Box API: Functional Specifications', () => {
 // =============================================================================
 
 test.describe('MH-04 Gray-Box API: Database State & Constraints', () => {
-  // Implemented from former TODO: Imminent slot (< 2h) using db.ts helper
   test('returns unavailable with reason TOO_LATE when requested slot starts in under 2 hours', async ({
     request,
     loggedInRequest,

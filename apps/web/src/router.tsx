@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SlotsPage } from './pages/SlotsPage.tsx';
 import { UnauthorizedPage } from './pages/UnauthorizedPage.tsx';
+import { FloorPlanPage } from './pages/FloorPlanPage.tsx';
 
 export const routes = [
   {
@@ -20,6 +21,7 @@ export const routes = [
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'staff/slots', element: <SlotsPage /> },
+      { path: 'staff/slots/:id/floor', element: <FloorPlanPage /> },
       { path: 'unauthorized', element: <UnauthorizedPage /> },
       { path: 'forbidden', element: <UnauthorizedPage /> },
       { path: '*', element: <NotFoundPage /> },

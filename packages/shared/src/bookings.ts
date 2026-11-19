@@ -1,20 +1,28 @@
 import { z } from 'zod';
-import { localDateSchema, localTimeSchema } from './slots.js';
-
-// Maximum value of a Postgres INTEGER: larger ids would fail in the database.
-export const MAX_DB_INT = 2_147_483_647;
+import { MAX_DB_INT, localDateSchema, localTimeSchema } from './primitives.js';
 
 export const MAX_REQUIREMENTS_LENGTH = 500;
 
 // Postgres text columns cannot store a NUL byte.
 const hasNoNulByte = (s: string): boolean => !s.includes('\u0000');
 
+// Only a limit against abuse: one entry can cover several people of the party.
+export const MAX_REQUIREMENTS_COUNT = 20;
+
+// Needs of a subset of the party, e.g. "2 vegetarians".
+export const partyRequirementSchema = z.object({
+  // True when special care is needed during the preparation, e.g. allergies.
+  allergies: z.boolean(),
+  description: z.string().trim().min(1).max(MAX_REQUIREMENTS_LENGTH).refine(hasNoNulByte),
+});
+export type PartyRequirement = z.infer<typeof partyRequirementSchema>;
+
 export const createBookingSchema = z.object({
   slotId: z.number().int().positive().max(MAX_DB_INT),
   // The only upper limit is the number of free seats in the slot, checked by the API.
   partySize: z.number().int().positive(),
-  // Party needs, e.g. allergies.
-  requirements: z.string().trim().max(MAX_REQUIREMENTS_LENGTH).refine(hasNoNulByte).optional(),
+  // One entry per subset of the party; omitted or empty when there are no needs.
+  requirements: z.array(partyRequirementSchema).max(MAX_REQUIREMENTS_COUNT).optional(),
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
@@ -36,6 +44,7 @@ export interface BookingResult {
   id: number;
   slotId: number;
   partySize: number;
+  requirements: PartyRequirement[];
   status: BookingStatus;
   tables: { tableNumber: number; assignedSeats: number }[];
 }
@@ -44,7 +53,7 @@ export interface BookingResult {
 // Query strings only carry strings: the party size must be written as plain digits.
 export const checkAvailabilityQuerySchema = z.object({
   date: localDateSchema,
-  // Start time of the slot.
+  // A time of day: the slot that includes it is checked (it may have started earlier).
   time: localTimeSchema,
   partySize: z
     .string()
@@ -54,7 +63,8 @@ export const checkAvailabilityQuerySchema = z.object({
 });
 export type CheckAvailabilityQuery = z.infer<typeof checkAvailabilityQuerySchema>;
 
-// NO_SLOT: no slot starts at that date and time, or it has already started.
+// NO_SLOT: no slot includes that date and time (start included, end excluded), or the slot
+// has already started.
 // TOO_LATE: the slot starts in less than 2 hours, so it cannot be booked online (MH-01),
 // but the hut staff can still enter a reservation (MH-07).
 export type AvailabilityReason = 'NO_SLOT' | 'INSUFFICIENT_SEATS' | 'TOO_LATE';
@@ -65,6 +75,8 @@ export interface AvailabilityResult {
   time: string;
   partySize: number;
   reason?: AvailabilityReason;
+  // Start and end of the slot that includes the time asked. Missing when there is no slot.
+  slot?: { startTime: string; endTime: string };
   // Free seats over all the tables of the slot. Missing when there is no slot.
   totalFreeSeats?: number;
   // How the party would be seated: present when it fits, also when it is too late to book.

@@ -4,7 +4,7 @@ import { AppConfig } from '../../config/app-config.js';
 import { checkAvailability, formatBreakdown } from '../domain/booking-policy.js';
 import { BookingsRepository } from './bookings.repository.port.js';
 
-// MH-04: whether a party fits in the slot starting at a date and time, without booking.
+// MH-04: whether a party fits in the slot that includes a date and time, without booking.
 @Injectable()
 export class AvailabilityService {
   constructor(
@@ -14,7 +14,7 @@ export class AvailabilityService {
 
   async check(query: CheckAvailabilityQuery, now = new Date()): Promise<AvailabilityResult> {
     const asked = { date: query.date, time: query.time, partySize: query.partySize };
-    const slot = await this.repo.findSlotStartingAt(
+    const slot = await this.repo.findSlotAt(
       query.date,
       query.time,
       this.config.bookingTimeZone,
@@ -34,6 +34,7 @@ export class AvailabilityService {
       available: check.status === 'AVAILABLE',
       ...asked,
       ...(check.status === 'AVAILABLE' ? {} : { reason: check.status }),
+      slot: { startTime: slot.startTime, endTime: slot.endTime },
       totalFreeSeats: check.freeSeats,
     };
     if (!check.allocation) return result;
