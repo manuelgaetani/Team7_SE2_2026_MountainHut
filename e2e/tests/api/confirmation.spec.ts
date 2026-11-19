@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test';
+import type { PartyRequirement } from '@mountain-hut/shared';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { bookingStatus, createSlot, deleteSlot } from '../../fixtures/db.js';
@@ -23,7 +24,7 @@ async function book(
   client: APIRequestContext,
   slotId: number,
   partySize: number,
-  requirements?: string,
+  requirements?: PartyRequirement[],
 ): Promise<number> {
   const response = await client.post('/api/bookings', {
     data: { slotId, partySize, requirements },
@@ -124,11 +125,13 @@ test('the requirements cannot inject HTML in the email', async ({
   registeredUser,
   request,
 }) => {
-  const requirements = '<script>alert(1)</script> & "salt"';
+  const requirements: PartyRequirement[] = [
+    { allergies: false, description: '<script>alert(1)</script> & "salt"' },
+  ];
   await book(loggedInRequest, slot([4]), 2, requirements);
 
   const [message] = await waitForEmails(request, registeredUser.email, 1);
-  expect(message.Text).toContain(requirements);
+  expect(message.Text).toContain('<script>alert(1)</script> & "salt"');
   expect(message.HTML).not.toContain('<script>');
   expect(message.HTML).toContain('&lt;script&gt;');
 });
