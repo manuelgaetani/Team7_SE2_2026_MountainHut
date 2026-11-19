@@ -87,6 +87,42 @@ describe('BookingsController', () => {
     expect(bookings.create).not.toHaveBeenCalled();
   });
 
+  describe('party requirements (MH-05)', () => {
+    const requirement = { allergies: true, description: 'no nuts' };
+
+    it('passes the requirements to the service trimmed and without unknown fields', async () => {
+      bookings.create.mockResolvedValue(result);
+      await post({
+        slotId: 3,
+        partySize: 3,
+        requirements: [
+          { ...requirement, description: '  1 vegan, peanut allergy ', bookingId: 99 },
+          { allergies: false, description: '2 vegetarians' },
+        ],
+      }).expect(201);
+      expect(bookings.create).toHaveBeenCalledWith(1, {
+        slotId: 3,
+        partySize: 3,
+        requirements: [
+          { allergies: true, description: '1 vegan, peanut allergy' },
+          { allergies: false, description: '2 vegetarians' },
+        ],
+      });
+    });
+
+    it.each([
+      ['an allergies flag that is not a boolean', [{ ...requirement, allergies: 'yes' }]],
+      ['a requirement without allergies flag', [{ description: 'no nuts' }]],
+      ['an empty description', [{ ...requirement, description: '   ' }]],
+      ['a description over 500 characters', [{ ...requirement, description: 'a'.repeat(501) }]],
+      ['more than 20 requirements', Array.from({ length: 21 }, () => requirement)],
+      ['requirements that are not a list', 'no nuts'],
+    ])('answers 400 without calling the service for %s', async (_case, requirements) => {
+      await post({ slotId: 3, partySize: 2, requirements }).expect(400);
+      expect(bookings.create).not.toHaveBeenCalled();
+    });
+  });
+
   it('propagates the errors of the service', async () => {
     bookings.create.mockRejectedValue(new ConflictException('No seats'));
     const response = await post({ slotId: 3, partySize: 2 });

@@ -1,12 +1,19 @@
-/* Staff page for the time slots (MH-02). Builds on the classes of BookingPage.css and styles.css. */
-
 .schedule {
   display: grid;
-  gap: 12px;
+  gap: 18px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+
+/* Bigger slot cards; the double class wins over the generic .summary padding. */
+.summary.schedule__slot {
+  padding: 24px 28px;
+}
+.schedule__slot .summary__title {
+  font-size: 1.2rem;
+}
+
 .schedule__head {
   display: flex;
   justify-content: space-between;
@@ -14,27 +21,106 @@
   gap: 12px;
 }
 .schedule__head .summary__title {
-  margin: 0 0 10px;
+  margin: 0 0 16px;
 }
+.schedule__head .field__meta {
+  font-size: 13px;
+}
+
 .schedule__tables {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .schedule__table {
-  padding: 4px 10px;
+  padding: 8px 16px;
   background: var(--tint);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
 }
+
+/* Fill of a table: free, partly taken, full. Dark text keeps the contrast above 4.5:1. */
+.schedule__table--free {
+  background: #d5ead6;
+  color: #1d4a2a;
+  box-shadow: inset 0 0 0 1px #8fc293;
+}
+.schedule__table--partial {
+  background: #f6e3a1;
+  color: #5a4300;
+  box-shadow: inset 0 0 0 1px #e0bf4f;
+}
+.schedule__table--full {
+  background: #f3c4be;
+  color: #7a1d14;
+  box-shadow: inset 0 0 0 1px #d9837a;
+}
+
+/* The fill in words, for screen readers only. */
+.schedule__fill {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .schedule__empty {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
+}
+.schedule__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* "Floor plan" has the colour of "Create the slot" (.cta), with rounder corners and only as
+   wide as its text: one line, never squeezed by the table chips. */
+.schedule__floor {
+  flex-shrink: 0;
+  width: auto;
+  padding: 12px 24px;
+  border-radius: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* What the colours of the tables mean, above the slots of the day. */
+.schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 14px;
+}
+.schedule-legend__title {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.schedule-legend__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schedule-legend .schedule__table {
+  padding: 4px 12px;
+  font-size: 12px;
 }
 
 .slot-form {
@@ -107,4 +193,56 @@
   .layout--staff .layout__side {
     order: 0;
   }
+}
+
+/* Phones: no zoom (it pushed the cards past the right edge), tables above the buttons,
+   buttons as wide as the card so they are easy to tap. */
+@media (max-width: 600px) {
+  .page__body:has(.layout--staff) {
+    zoom: 1;
+    padding-inline: 16px;
+  }
+  .summary.schedule__slot {
+    padding: 18px 16px;
+  }
+  .schedule__head {
+    flex-wrap: wrap;
+  }
+  .schedule__head .summary__title {
+    margin-bottom: 4px;
+  }
+  .schedule__head .field__meta {
+    margin-bottom: 14px;
+  }
+  .schedule__empty {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .schedule__tables {
+    gap: 8px;
+  }
+  .schedule__table {
+    padding: 8px 12px;
+  }
+  .schedule__floor {
+    justify-content: center;
+    width: 100%;
+  }
+  .schedule__actions .pill {
+    text-align: center;
+  }
+  .schedule__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .slot-form__times {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schedule__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

@@ -98,6 +98,35 @@ export class PrismaBookingsRepository extends BookingsRepository {
     return rows[0]?.starts_at ?? null;
   }
 
+  // MH-04: the slot that includes a hut-local date and time (start included, end excluded) and
+  // has not started yet. Slots of a day cannot overlap (MH-02); slots created before that rule
+  // could, and then the earliest one is taken, the oldest if they start together.
+  async findSlotAt(
+    date: string,
+    time: string,
+    timeZone: string,
+    now: Date,
+  ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null> {
+    const rows = await this.db().$queryRaw<
+      { id: number; starts_at: Date; start_time: string; end_time: string }[]
+    >`
+      SELECT s.id,
+             ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at,
+             to_char(s.start_time, 'HH24:MI') AS start_time,
+             to_char(s.end_time, 'HH24:MI') AS end_time
+      FROM slots s
+      WHERE s.date = ${date}::date
+        AND s.start_time <= ${time}::time
+        AND s.end_time > ${time}::time
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.start_time, s.id
+      LIMIT 1`;
+    const row = rows[0];
+    return row
+      ? { id: row.id, startsAt: row.starts_at, startTime: row.start_time, endTime: row.end_time }
+      : null;
+  }
+
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
   async findFreeSeatsByTable(slotId: number): Promise<TableFreeSeats[]> {
@@ -127,7 +156,15 @@ export class PrismaBookingsRepository extends BookingsRepository {
   }
 
   async createBooking(data: NewBooking): Promise<StoredBooking> {
-    const booking = await this.db().booking.create({ data: { ...data, status: 'PENDING' } });
+    const { requirements, ...fields } = data;
+    const booking = await this.db().booking.create({
+      data: {
+        ...fields,
+        status: 'PENDING',
+        // One insert: the ids follow the order in which the hiker entered the requirements.
+        requirements: { createMany: { data: requirements } },
+      },
+    });
     return {
       id: booking.id,
       slotId: booking.slotId,
