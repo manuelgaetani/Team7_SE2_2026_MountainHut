@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { HikerProfile } from '@mountain-hut/shared';
+import type { HikerProfile, NewHikerAccountInput, TemporaryHikerInput } from '@mountain-hut/shared';
+import { isUniqueViolation } from '../../infrastructure/prisma/prisma-errors.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
+import { DomainError } from '../../shared-kernel/domain-error.js';
 import { HikersRepository } from '../application/hikers.repository.port.js';
 
 const profileFields = {
@@ -62,5 +64,40 @@ export class PrismaHikersRepository extends HikersRepository {
       take: limit,
     });
     return rows.map(toProfile);
+  }
+
+  async findById(id: number): Promise<HikerProfile | null> {
+    const row = await this.db().hiker.findUnique({ where: { id }, select: profileFields });
+    return row ? toProfile(row) : null;
+  }
+
+  async createTemporary(input: TemporaryHikerInput): Promise<HikerProfile> {
+    const row = await this.db().hiker.create({
+      data: { fullName: input.fullName, phone: input.phone },
+      select: profileFields,
+    });
+    return toProfile(row);
+  }
+
+  async createAccount(input: NewHikerAccountInput, passwordHash: string): Promise<HikerProfile> {
+    try {
+      const row = await this.db().hiker.create({
+        data: {
+          fullName: input.fullName,
+          phone: input.phone,
+          notes: input.notes,
+          emergencyContact: input.emergencyContact,
+          user: {
+            create: { email: input.email, password: passwordHash, mustChangePassword: true },
+          },
+        },
+        select: profileFields,
+      });
+      return toProfile(row);
+    } catch (e) {
+      // Same rule as the web registration: the unique email of the database decides.
+      if (isUniqueViolation(e)) throw new DomainError('CONFLICT', 'Email already registered');
+      throw e;
+    }
   }
 }

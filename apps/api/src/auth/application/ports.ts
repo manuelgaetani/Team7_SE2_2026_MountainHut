@@ -86,3 +86,9 @@ export abstract class PasswordResetTokenRepository {
 export abstract class PasswordResetNotifier {
   abstract send(user: { id: number; email: string }, token: string, expiresAt: Date): Promise<void>;
 }
+
+// The password of an account created by the staff, read to the hiker over the phone or at
+// the desk. The hiker must change it at the next login.
+export abstract class PasswordGenerator {
+  abstract generate(): string;
+}

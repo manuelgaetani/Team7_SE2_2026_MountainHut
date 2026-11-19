@@ -10,6 +10,7 @@ import { Login } from './application/login.js';
 import { Logout } from './application/logout.js';
 import {
   AccessTokenIssuer,
+  PasswordGenerator,
   PasswordHasher,
   PasswordResetTokenRepository,
   RefreshTokenGenerator,
@@ -22,6 +23,7 @@ import { RequestPasswordReset } from './application/request-password-reset.js';
 import { SessionIssuer } from './application/session-issuer.js';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher.js';
 import { CryptoRefreshTokenGenerator } from './infrastructure/crypto-refresh-token-generator.js';
+import { CryptoPasswordGenerator } from './infrastructure/crypto-password-generator.js';
 import { JwtAccessTokenIssuer } from './infrastructure/jwt-access-token-issuer.js';
 import { PrismaPasswordResetTokenRepository } from './infrastructure/prisma-password-reset-token.repository.js';
 import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-token.repository.js';
@@ -64,12 +66,13 @@ type SignOptions = NonNullable<JwtModuleOptions['signOptions']>;
     { provide: RefreshTokenRepository, useClass: PrismaRefreshTokenRepository },
     { provide: PasswordResetTokenRepository, useClass: PrismaPasswordResetTokenRepository },
     { provide: PasswordHasher, useClass: BcryptPasswordHasher },
+    { provide: PasswordGenerator, useClass: CryptoPasswordGenerator },
     { provide: AccessTokenIssuer, useClass: JwtAccessTokenIssuer },
     { provide: RefreshTokenGenerator, useClass: CryptoRefreshTokenGenerator },
     AuthGuard,
     RolesGuard,
   ],
-  exports: [AuthGuard, RolesGuard],
+  exports: [AuthGuard, RolesGuard, PasswordHasher, PasswordGenerator],
 })
 export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

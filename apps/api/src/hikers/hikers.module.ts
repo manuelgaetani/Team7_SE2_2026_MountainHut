@@ -10,5 +10,7 @@ import { HikersController } from './presentation/hikers.controller.js';
   imports: [AuthModule],
   controllers: [HikersController],
   providers: [SearchHikers, { provide: HikersRepository, useClass: PrismaHikersRepository }],
+  // the staff booking finds or creates the hiker.
+  exports: [HikersRepository],
 })
 export class HikersModule {}
