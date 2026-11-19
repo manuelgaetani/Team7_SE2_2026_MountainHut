@@ -444,7 +444,8 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
         }),
       ).rejects.toMatchObject({
         code: 'CONFLICT',
-        message: 'A slot with the same date, start and end already exists',
+        // An identical slot overlaps the existing one, so the overlap check refuses it (MH-02).
+        message: 'This slot overlaps the slot 12:00–14:00 of the same day',
       });
     });
 

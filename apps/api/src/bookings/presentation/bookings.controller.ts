@@ -9,12 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
-import type {
-  BookingResult,
-  ChangeBookingInput,
-  ChangedBookingResult,
-  CreateBookingInput,
-} from '@mountain-hut/shared';
+import type { BookingResult, ChangeBookingInput, CreateBookingInput } from '@mountain-hut/shared';
 import { changeBookingSchema, createBookingSchema } from '@mountain-hut/shared';
 import { AuthGuard } from '../../auth/presentation/auth.guard.js';
 import { Roles } from '../../auth/presentation/roles.decorator.js';
@@ -50,7 +45,7 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(changeBookingSchema)) body: ChangeBookingInput,
-  ): Promise<ChangedBookingResult> {
+  ): Promise<BookingResult> {
     return this.bookings.change(user.id, id, body);
   }
 }

@@ -1,10 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  BookingResult,
-  ChangeBookingInput,
-  ChangedBookingResult,
-  CreateBookingInput,
-} from '@mountain-hut/shared';
+import type { BookingResult, ChangeBookingInput, CreateBookingInput } from '@mountain-hut/shared';
 import { AppConfig } from '../../config/app-config.js';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
@@ -61,16 +56,17 @@ export class BookingsService {
         throw new DomainError('CONFLICT', 'Insufficient seats available for this slot');
       }
 
-      // 4. Save booking and table assignments.
+      // 4. Save booking, party requirements and table assignments.
+      const requirements = input.requirements ?? [];
       const booking = await this.repo.createBooking({
         hikerId,
         slotId: input.slotId,
         partySize: input.partySize,
-        requirements: input.requirements || null,
+        requirements,
       });
       await this.repo.createBookingTables(booking.id, input.slotId, decision.allocation);
 
-      return { ...booking, tables: decision.allocation };
+      return { ...booking, tables: decision.allocation, requirements };
     });
 
     // After the commit and not awaited: a slow SMTP server must not delay the answer.
@@ -84,7 +80,7 @@ export class BookingsService {
     userId: number,
     bookingId: number,
     input: ChangeBookingInput,
-  ): Promise<ChangedBookingResult> {
+  ): Promise<BookingResult> {
     const result = await this.uow.run(async () => {
       const hikerId = await this.repo.findHikerIdByUserId(userId);
       if (!hikerId) throw new DomainError('FORBIDDEN', 'You can only change your own bookings');
@@ -135,16 +131,18 @@ export class BookingsService {
         tables = allocation;
       }
 
-      const requirements =
-        input.requirements === undefined ? booking.requirements : input.requirements || null;
       // The old assignments go first: they point to the booking with its old slot.
       await this.repo.deleteBookingTables(booking.id);
-      const stored = await this.repo.updateBooking(booking.id, {
-        slotId,
-        partySize,
-        requirements,
-      });
+      const stored = await this.repo.updateBooking(booking.id, { slotId, partySize });
       await this.repo.createBookingTables(booking.id, slotId, tables);
+
+      // A list sent by the hiker replaces the old one as a whole (MH-05); without it they stay.
+      let requirements = input.requirements;
+      if (requirements === undefined) {
+        requirements = await this.repo.findRequirements(booking.id);
+      } else {
+        await this.repo.replaceRequirements(booking.id, requirements);
+      }
 
       return { ...stored, requirements, tables };
     });

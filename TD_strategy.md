@@ -12,3 +12,5 @@ The priority should always be code coverage, then SOLID principles, then clean a
 
 From now on after a merge on validation branch all the issues should be fixed and checked against documentation for SOLID and clean architecture compliance.
 SonarCloud is started in the CI github workflow from the first sprint at every merge or Pull Request on master branch.
+
+Before accepting any PR all the related Sonar Cloude issue should be resolved by the one that has done the Pull Request.

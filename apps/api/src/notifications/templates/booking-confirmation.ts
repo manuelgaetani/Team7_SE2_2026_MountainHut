@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import type { MailAttachment } from '../mailer.js';
 import { escapeHtml } from './escape-html.js';
+import type { PartyRequirement } from '@mountain-hut/shared';
 
 export interface BookingConfirmationData {
   fullName: string;
@@ -11,9 +12,12 @@ export interface BookingConfirmationData {
   startTime: string;
   endTime: string;
   partySize: number;
-  // Party needs typed by the hiker (e.g. allergies); null when there are none.
-  requirements: string | null;
+  // Needs of the subsets of the party; empty when there are none.
+  requirements: PartyRequirement[];
 }
+
+// Marks a requirement that needs special care during the preparation.
+const ALLERGIES_LABEL = 'Allergies (special care needed)';
 
 export interface EmailContent {
   subject: string;
@@ -142,7 +146,10 @@ function bookingEmail(booking: BookingConfirmationData, wording: Wording): Email
   const time = `${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}`;
   const people = booking.partySize === 1 ? '1 person' : `${booking.partySize} people`;
   const subject = `Booking n. ${booking.bookingId} ${wording.event} - ${day}`;
-  const requirements = booking.requirements?.trim() || null;
+  // One line per requirement: the ones with allergies are marked for the kitchen.
+  const requirements = booking.requirements
+    .map((r) => (r.allergies ? `${ALLERGIES_LABEL}: ${r.description}` : r.description))
+    .join('\n');
 
   const greeting = `Hi ${booking.fullName},`;
   const intro = wording.intro;

@@ -11,7 +11,7 @@ describe('BookingConfirmationAdapter', () => {
 
   const row = {
     partySize: 2,
-    requirements: 'no nuts',
+    requirements: [{ allergies: true, description: 'no nuts' }],
     hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
     slot: {
       date: new Date('2026-11-14T00:00:00.000Z'),
@@ -41,9 +41,35 @@ describe('BookingConfirmationAdapter', () => {
         startTime: '12:30',
         endTime: '13:30',
         partySize: 2,
-        requirements: 'no nuts',
+        requirements: [{ allergies: true, description: 'no nuts' }],
       },
     );
+  });
+
+  it('reads the requirements in insert order, with their flag and description only', async () => {
+    findUnique.mockResolvedValue(row);
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    await adapter.notify(9);
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 9 },
+        select: expect.objectContaining({
+          requirements: {
+            select: { allergies: true, description: true },
+            orderBy: { id: 'asc' },
+          },
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('sends a booking without requirements with an empty list', async () => {
+    findUnique.mockResolvedValue({ ...row, requirements: [] });
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    await adapter.notify(9);
+    expect(notifications.sendBookingConfirmation.mock.calls[0][1]).toMatchObject({
+      requirements: [],
+    });
   });
 
   it('has no email for a hiker without an account', async () => {

@@ -68,6 +68,14 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       await prisma.bookingTable.findMany({ where: { bookingId }, orderBy: { tableNumber: 'asc' } })
     ).map((t) => `${t.tableNumber}:${t.assignedSeats}`);
   const bookingOf = (id: number) => prisma.booking.findUniqueOrThrow({ where: { id } });
+  // The requirements of a booking (MH-05 list), in the order they were entered.
+  const needsOf = (bookingId: number) =>
+    prisma.partyRequirement.findMany({
+      where: { bookingId },
+      orderBy: { id: 'asc' },
+      select: { allergies: true, description: true },
+    });
+  const vegan = { allergies: false, description: 'vegan' };
   const seatsTakenIn = async (slotId: number): Promise<number> =>
     (await prisma.bookingTable.aggregate({ where: { slotId }, _sum: { assignedSeats: true } }))._sum
       .assignedSeats ?? 0;
@@ -288,11 +296,14 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
 
       // Parsed like the controller does: the schema trims the text.
-      const input = changeBookingSchema.parse({ requirements: '  no nuts ' });
+      const input = changeBookingSchema.parse({
+        requirements: [{ allergies: true, description: '  no nuts ' }],
+      });
       const result = await service.change(anna.userId, booking, input);
 
-      expect(result.requirements).toBe('no nuts');
-      expect((await bookingOf(booking)).requirements).toBe('no nuts');
+      const noNuts = [{ allergies: true, description: 'no nuts' }];
+      expect(result.requirements).toEqual(noNuts);
+      expect(await needsOf(booking)).toEqual(noNuts);
       expect(await tablesOf(booking)).toEqual(['2:2']);
       expect(await seatsTakenIn(slot)).toBe(2);
     });
@@ -303,11 +314,11 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
-      await prisma.booking.update({ where: { id: booking }, data: { requirements: 'vegan' } });
+      await prisma.partyRequirement.create({ data: { bookingId: booking, ...vegan } });
 
-      await service.change(anna.userId, booking, { requirements: null });
+      await service.change(anna.userId, booking, { requirements: [] });
 
-      expect((await bookingOf(booking)).requirements).toBeNull();
+      expect(await needsOf(booking)).toEqual([]);
     });
   });
 
@@ -337,7 +348,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       const before = await snapshot(booking);
       vi.setSystemTime(new Date('2031-07-08T17:00:01Z'));
 
-      for (const change of [{ partySize: 3 }, { requirements: 'vegan' }, { slotId: later }]) {
+      for (const change of [{ partySize: 3 }, { requirements: [vegan] }, { slotId: later }]) {
         await expect(service.change(anna.userId, booking, change)).rejects.toMatchObject({
           code: 'UNPROCESSABLE',
         });
@@ -495,7 +506,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
         { tableNumber: 1, assignedSeats: 2 },
       ]);
 
-      await service.change(anna.userId, booking, { partySize: 3, requirements: 'vegan' });
+      await service.change(anna.userId, booking, { partySize: 3, requirements: [vegan] });
 
       await vi.waitFor(() => expect(mailer.sent).toHaveLength(1), WAIT);
       const [email] = mailer.sent;

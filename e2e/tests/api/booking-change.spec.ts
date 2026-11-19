@@ -24,8 +24,15 @@ interface BookingResponse {
   partySize: number;
   status: string;
   tables: TableAllocation[];
-  requirements?: string | null;
+  requirements?: Need[];
 }
+
+// One entry of the requirements list (MH-05).
+interface Need {
+  allergies: boolean;
+  description: string;
+}
+const need = (description: string, allergies = false): Need => ({ allergies, description });
 
 interface SlotSummary {
   id: number;
@@ -111,7 +118,7 @@ async function createBooking(
     data: {
       slotId,
       partySize,
-      ...(requirements !== undefined ? { requirements } : {}),
+      ...(requirements !== undefined ? { requirements: [need(requirements)] } : {}),
     },
   });
   expect(response.status()).toBe(201);
@@ -235,7 +242,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
 
     const booking = await createBooking(loggedInRequest, slotId, 2, '1 vegetarian');
 
-    const newRequirements = '1 vegan, 1 celiac (severe gluten allergy)';
+    const newRequirements = [need('1 vegan'), need('1 celiac (severe gluten allergy)', true)];
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
       data: { requirements: newRequirements },
     });
@@ -244,21 +251,21 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     const updated = (await patchRes.json()) as BookingResponse;
     expect(updated.slotId).toBe(slotId);
     expect(updated.partySize).toBe(2);
-    expect(updated.requirements).toBe(newRequirements);
+    expect(updated.requirements).toEqual(newRequirements);
   });
 
-  test('R3: Clears dietary requirements by passing null', async ({ loggedInRequest }) => {
+  test('R3: Clears dietary requirements by passing an empty list', async ({ loggedInRequest }) => {
     const slotId = slot([4]);
 
     const booking = await createBooking(loggedInRequest, slotId, 2, 'No nuts');
 
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
-      data: { requirements: null },
+      data: { requirements: [] },
     });
     expect(patchRes.status()).toBe(200);
 
     const updated = (await patchRes.json()) as BookingResponse;
-    expect(updated.requirements == null || updated.requirements === '').toBe(true);
+    expect(updated.requirements).toEqual([]);
   });
 
   test('R3: Modifies date/time, party size, and requirements simultaneously in one request', async ({
@@ -273,7 +280,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
       data: {
         slotId: targetSlotId,
         partySize: 6,
-        requirements: '2 vegans, 1 peanut allergy',
+        requirements: [need('2 vegans'), need('1 peanut allergy', true)],
       },
     });
     expect(patchRes.status()).toBe(200);
@@ -281,7 +288,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     const updated = (await patchRes.json()) as BookingResponse;
     expect(updated.slotId).toBe(targetSlotId);
     expect(updated.partySize).toBe(6);
-    expect(updated.requirements).toBe('2 vegans, 1 peanut allergy');
+    expect(updated.requirements).toEqual([need('2 vegans'), need('1 peanut allergy', true)]);
     expect(updated.tables).toEqual([{ tableNumber: 1, assignedSeats: 6 }]);
   });
 
@@ -472,7 +479,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     const booking = await createBooking(loggedInRequest, slotId, 2);
 
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
-      data: { requirements: 'A'.repeat(501) },
+      data: { requirements: [need('A'.repeat(501))] },
     });
     expect(patchRes.status()).toBe(400);
   });
@@ -484,7 +491,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     const booking = await createBooking(loggedInRequest, slotId, 2);
 
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
-      data: { requirements: 'peanut\u0000allergy' },
+      data: { requirements: [need('peanut\u0000allergy', true)] },
     });
     expect(patchRes.status()).toBe(400);
   });
@@ -522,7 +529,7 @@ test.describe('MH-06 Black-Box API: Change a booking', () => {
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
       data: {
         partySize: 4,
-        requirements: '1 severe peanut allergy',
+        requirements: [need('1 severe peanut allergy', true)],
       },
     });
     expect(patchRes.status()).toBe(200);
@@ -603,7 +610,7 @@ test.describe('MH-06 Black-Box API: 48-hour rule', () => {
     const booking = await createBooking(loggedInRequest, slotId, 2, '1 vegetarian');
 
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
-      data: { requirements: '1 vegan' },
+      data: { requirements: [need('1 vegan')] },
     });
 
     expect(patchRes.status()).toBe(422);

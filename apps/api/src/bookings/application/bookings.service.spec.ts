@@ -37,6 +37,8 @@ describe('BookingsService', () => {
     findBookingTables: vi.fn(),
     deleteBookingTables: vi.fn(),
     updateBooking: vi.fn(),
+    findRequirements: vi.fn(),
+    replaceRequirements: vi.fn(),
   };
   const confirmationSender = { send: vi.fn(), sendChange: vi.fn() };
 
@@ -87,6 +89,7 @@ describe('BookingsService', () => {
       await expect(service.create(1, input)).resolves.toEqual({
         ...storedBooking,
         tables: [{ tableNumber: 1, assignedSeats: 2 }],
+        requirements: [],
       });
     });
 
@@ -97,21 +100,24 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
-        requirements: null,
+        requirements: [],
       });
     });
 
-    it('stores the requirements of the party', async () => {
-      await service.create(1, { ...input, requirements: 'no nuts' });
-      expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: 'no nuts' }),
-      );
+    it('stores the requirements of the party and returns them', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      const result = await service.create(1, { ...input, requirements });
+      expect(repo.createBooking).toHaveBeenCalledWith(expect.objectContaining({ requirements }));
+      expect(result.requirements).toEqual(requirements);
     });
 
-    it('stores empty requirements as none', async () => {
-      await service.create(1, { ...input, requirements: '' });
+    it('stores an empty list of requirements as none', async () => {
+      await service.create(1, { ...input, requirements: [] });
       expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: null }),
+        expect.objectContaining({ requirements: [] }),
       );
     });
 
@@ -270,9 +276,11 @@ describe('BookingsService', () => {
       hikerId: 7,
       slotId: 3,
       partySize: 2,
-      requirements: 'vegan',
       status: 'CONFIRMED' as const,
     };
+    // The requirements are a list (MH-05), stored apart from the booking.
+    const currentNeeds = [{ allergies: false, description: 'vegan' }];
+    const noNuts = { allergies: true, description: 'no nuts' };
     const currentTables = [{ tableNumber: 1, assignedSeats: 2 }];
     const updated = { id: 9, slotId: 3, partySize: 3, status: 'CONFIRMED' as const };
 
@@ -281,12 +289,13 @@ describe('BookingsService', () => {
       repo.lockSlotAndGetStart.mockImplementation((id: number) =>
         Promise.resolve(starts.get(id) ?? null),
       );
-      repo.findBookingTables.mockResolvedValue(currentTables);
       repo.findFreeSeatsByTable.mockResolvedValue([
         { tableNumber: 1, freeSeats: 4 },
         { tableNumber: 2, freeSeats: 6 },
       ]);
       repo.updateBooking.mockResolvedValue(updated);
+      repo.findBookingTables.mockResolvedValue(currentTables);
+      repo.findRequirements.mockResolvedValue(currentNeeds);
       confirmationSender.sendChange.mockResolvedValue(undefined);
     });
 
@@ -294,13 +303,14 @@ describe('BookingsService', () => {
       expect(repo.deleteBookingTables).not.toHaveBeenCalled();
       expect(repo.updateBooking).not.toHaveBeenCalled();
       expect(repo.createBookingTables).not.toHaveBeenCalled();
+      expect(repo.replaceRequirements).not.toHaveBeenCalled();
     };
 
     describe('when the change is admitted', () => {
       it('returns the changed booking with its requirements and tables', async () => {
         await expect(service.change(1, 9, { partySize: 3 })).resolves.toEqual({
           ...updated,
-          requirements: 'vegan',
+          requirements: currentNeeds,
           tables: [{ tableNumber: 1, assignedSeats: 3 }],
         });
       });
@@ -367,7 +377,7 @@ describe('BookingsService', () => {
       });
 
       it('does not read the free seats when only the requirements change', async () => {
-        await service.change(1, 9, { requirements: 'no nuts' });
+        await service.change(1, 9, { requirements: [noNuts] });
         expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
         expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, currentTables);
       });
@@ -375,25 +385,21 @@ describe('BookingsService', () => {
 
     describe('requirements', () => {
       it('keeps the requirements when the change does not mention them', async () => {
-        await service.change(1, 9, { partySize: 3 });
-        expect(repo.updateBooking).toHaveBeenCalledWith(9, {
-          slotId: 3,
-          partySize: 3,
-          requirements: 'vegan',
-        });
+        const result = await service.change(1, 9, { partySize: 3 });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 3 });
+        expect(repo.replaceRequirements).not.toHaveBeenCalled();
+        expect(result.requirements).toEqual(currentNeeds);
       });
 
       it.each([
-        ['new text', 'no nuts', 'no nuts'],
-        ['null', null, null],
-        ['an empty text', '', null],
-      ])('stores %s as the new requirements', async (_name, requirements, stored) => {
-        await service.change(1, 9, { requirements });
-        expect(repo.updateBooking).toHaveBeenCalledWith(9, {
-          slotId: 3,
-          partySize: 2,
-          requirements: stored,
-        });
+        ['a new list', [noNuts]],
+        ['an empty list', []],
+      ])('stores %s as the new requirements', async (_name, requirements) => {
+        const result = await service.change(1, 9, { requirements });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 2 });
+        expect(repo.replaceRequirements).toHaveBeenCalledWith(9, requirements);
+        expect(calledInRun(repo.replaceRequirements)).toBe(true);
+        expect(result.requirements).toEqual(requirements);
       });
     });
 
@@ -468,7 +474,7 @@ describe('BookingsService', () => {
 
       it.each([
         ['the party size', { partySize: 3 }],
-        ['the requirements', { requirements: 'no nuts' }],
+        ['the requirements', { requirements: [noNuts] }],
         ['the slot', { slotId: 5 }],
       ])(
         'refuses to change %s less than 48 hours before the booked slot',

@@ -16,6 +16,7 @@ describe('PrismaBookingsRepository', () => {
       update: vi.fn(),
     },
     bookingTable: { createMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+    partyRequirement: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
   };
   // Outside a unit of work the context gives the plain client.
   const repository = new PrismaBookingsRepository(
@@ -177,18 +178,35 @@ describe('PrismaBookingsRepository', () => {
   });
 
   describe('createBooking', () => {
-    const data = { hikerId: 7, slotId: 3, partySize: 2, requirements: null };
+    const fields = { hikerId: 7, slotId: 3, partySize: 2 };
+    const data = { ...fields, requirements: [] };
 
     it('stores the booking as pending', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await repository.createBooking(data);
       expect(client.booking.create).toHaveBeenCalledWith({
-        data: { ...data, status: 'PENDING' },
+        data: { ...fields, status: 'PENDING', requirements: { createMany: { data: [] } } },
+      });
+    });
+
+    it('stores the requirements of the party with the booking', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
+      await repository.createBooking({ ...fields, requirements });
+      expect(client.booking.create).toHaveBeenCalledWith({
+        data: {
+          ...fields,
+          status: 'PENDING',
+          requirements: { createMany: { data: requirements } },
+        },
       });
     });
 
     it('does not expose the hiker id in the result', async () => {
-      client.booking.create.mockResolvedValue({ id: 9, ...data, status: 'PENDING' });
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await expect(repository.createBooking(data)).resolves.toEqual({
         id: 9,
         slotId: 3,
@@ -220,7 +238,6 @@ describe('PrismaBookingsRepository', () => {
       hiker_id: 7,
       slot_id: 3,
       party_size: 2,
-      requirements: 'vegan',
       status: 'CONFIRMED',
     };
 
@@ -231,7 +248,6 @@ describe('PrismaBookingsRepository', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
-        requirements: 'vegan',
         status: 'CONFIRMED',
       });
     });
@@ -284,9 +300,9 @@ describe('PrismaBookingsRepository', () => {
   });
 
   describe('updateBooking', () => {
-    const change = { slotId: 4, partySize: 5, requirements: null };
+    const change = { slotId: 4, partySize: 5 };
 
-    it('stores the new slot, party size and requirements', async () => {
+    it('stores the new slot and party size', async () => {
       client.booking.update.mockResolvedValue({
         id: 9,
         hikerId: 7,
@@ -310,6 +326,84 @@ describe('PrismaBookingsRepository', () => {
         partySize: 5,
         status: 'CONFIRMED',
       });
+    });
+  });
+
+  describe('findRequirements', () => {
+    it('reads the requirements of the booking in the order they were entered', async () => {
+      const needs = [{ allergies: true, description: '1 shellfish allergy' }];
+      client.partyRequirement.findMany.mockResolvedValue(needs);
+      await expect(repository.findRequirements(9)).resolves.toBe(needs);
+      expect(client.partyRequirement.findMany).toHaveBeenCalledWith({
+        where: { bookingId: 9 },
+        select: { allergies: true, description: true },
+        orderBy: { id: 'asc' },
+      });
+    });
+  });
+
+  describe('replaceRequirements', () => {
+    it('deletes the old requirements, then stores the new list in one insert', async () => {
+      const needs = [
+        { allergies: false, description: '2 vegetarians' },
+        { allergies: true, description: '1 shellfish allergy' },
+      ];
+      await repository.replaceRequirements(9, needs);
+      expect(client.partyRequirement.deleteMany).toHaveBeenCalledWith({ where: { bookingId: 9 } });
+      expect(client.partyRequirement.createMany).toHaveBeenCalledWith({
+        data: needs.map((n) => ({ bookingId: 9, ...n })),
+      });
+      expect(client.partyRequirement.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+        client.partyRequirement.createMany.mock.invocationCallOrder[0]!,
+      );
+    });
+  });
+
+  describe('findSlotAt', () => {
+    const now = new Date('2026-11-01T10:00:00Z');
+
+    it('returns the id, the start instant and the times of the slot', async () => {
+      const startsAt = new Date('2026-11-02T11:00:00Z');
+      client.$queryRaw.mockResolvedValue([
+        { id: 3, starts_at: startsAt, start_time: '12:00', end_time: '13:00' },
+      ]);
+      await expect(
+        repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now),
+      ).resolves.toEqual({ id: 3, startsAt, startTime: '12:00', endTime: '13:00' });
+    });
+
+    it('returns null when no slot includes that date and time', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(
+        repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now),
+      ).resolves.toBeNull();
+    });
+
+    it('looks for the slot that starts at or before the time and ends after it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryText()).toContain('s.start_time <= ');
+      expect(queryText()).toContain('s.end_time > ');
+    });
+
+    it('takes the earliest slot, then the oldest, and ignores the slots that have already started', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryText()).toContain('ORDER BY s.start_time, s.id');
+      expect(queryText()).toContain('LIMIT 1');
+    });
+
+    it('binds the values instead of concatenating them', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotAt('2026-11-02', '12:34', 'Europe/Rome', now);
+      expect(queryValues()).toEqual([
+        'Europe/Rome',
+        '2026-11-02',
+        '12:34',
+        '12:34',
+        'Europe/Rome',
+        now,
+      ]);
     });
   });
 });
