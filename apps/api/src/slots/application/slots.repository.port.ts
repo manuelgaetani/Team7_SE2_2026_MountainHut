@@ -1,4 +1,5 @@
 import type { SlotTable } from '@mountain-hut/shared';
+import type { FloorAllocation } from '../domain/floor-plan.js';
 import type { NewSlot, Slot } from '../domain/slot.js';
 
 // Storage of the slots and their tables. Inside UnitOfWork.run every call joins the transaction.
@@ -28,4 +29,8 @@ export abstract class SlotsRepository {
   abstract create(slot: NewSlot): Promise<number>;
 
   abstract createTables(slotId: number, tables: SlotTable[]): Promise<void>;
+
+  // Seats taken at the tables of the slot, by the active bookings of every overlapping slot
+  // (tables are shared). Empty if the slot does not exist.
+  abstract findFloorAllocations(slotId: number): Promise<FloorAllocation[]>;
 }

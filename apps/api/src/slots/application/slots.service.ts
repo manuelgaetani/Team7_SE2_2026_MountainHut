@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import type {
   CreateSlotInput,
   DefineSlotTablesInput,
+  FloorPlan,
   SlotDetails,
   SlotTable,
 } from '@mountain-hut/shared';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
+import { buildFloorPlan } from '../domain/floor-plan.js';
 import type { Slot } from '../domain/slot.js';
 import { SlotsRepository } from './slots.repository.port.js';
 
@@ -57,6 +59,14 @@ export class SlotsService {
     const slot = await this.repo.findById(id);
     if (!slot) throw new DomainError('NOT_FOUND', 'Slot not found');
     return toDetails(slot);
+  }
+
+  // Read only: the tables of a slot do not change once defined (MH-19 will change that).
+  // 404 if the slot does not exist.
+  async floorPlan(id: number): Promise<FloorPlan> {
+    const slot = await this.findOne(id);
+    const allocations = await this.repo.findFloorAllocations(id);
+    return buildFloorPlan(slot, allocations);
   }
 
   // Defines the tables of a slot that has none yet.
