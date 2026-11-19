@@ -4,7 +4,7 @@ import { AppConfig } from '../../config/app-config.js';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
 import { isChangeAdmitted } from '../domain/booking-change-cutoff.js';
-import { decideBooking, isBookableInTime } from '../domain/booking-policy.js';
+import { decideBooking } from '../domain/booking-policy.js';
 import { canAccommodatePartyChange } from '../domain/change-seat-allocation.js';
 import { BookingsRepository } from './bookings.repository.port.js';
 import { ConfirmationSender } from './confirmation-sender.js';
@@ -109,10 +109,11 @@ export class BookingsService {
       if (movesSlot) {
         const targetStart = starts.get(slotId);
         if (!targetStart) throw new DomainError('NOT_FOUND', 'Target slot not found');
-        if (!isBookableInTime(targetStart, now)) {
+        // Course issue #43: the 48 hours apply to the new slot too.
+        if (!isChangeAdmitted(targetStart, now)) {
           throw new DomainError(
             'UNPROCESSABLE',
-            'Less than 2 hours remaining before the slot starts',
+            'The new slot must start at least 48 hours from now',
           );
         }
         if (await this.repo.hasActiveBooking(hikerId, slotId)) {
@@ -120,15 +121,13 @@ export class BookingsService {
         }
       }
 
-      const current = await this.repo.findBookingTables(booking.id);
-      let tables = current;
-      if (movesSlot || partySize !== booking.partySize) {
-        const free = await this.repo.findFreeSeatsByTable(slotId, booking.id);
-        const allocation = canAccommodatePartyChange(free, partySize, movesSlot ? [] : current);
-        if (!allocation) {
-          throw new DomainError('CONFLICT', 'Insufficient seats available for the updated booking');
-        }
-        tables = allocation;
+      // Course issues #38 and #48: every change is a new booking. The seats of the booking are
+      // released and the party is seated again with the MH-01 rules, even when it still fits at
+      // its tables or only the requirements change.
+      const free = await this.repo.findFreeSeatsByTable(slotId, booking.id);
+      const tables = canAccommodatePartyChange(free, partySize);
+      if (!tables) {
+        throw new DomainError('CONFLICT', 'Insufficient seats available for the updated booking');
       }
 
       // The old assignments go first: they point to the booking with its old slot.

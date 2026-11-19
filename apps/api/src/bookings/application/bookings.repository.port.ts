@@ -85,8 +85,6 @@ export abstract class BookingsRepository {
   // the other. null if the booking does not exist.
   abstract lockBooking(bookingId: number): Promise<LockedBooking | null>;
 
-  abstract findBookingTables(bookingId: number): Promise<SeatAllocation[]>;
-
   abstract deleteBookingTables(bookingId: number): Promise<void>;
 
   abstract updateBooking(bookingId: number, change: BookingChange): Promise<StoredBooking>;

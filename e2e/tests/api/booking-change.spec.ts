@@ -656,7 +656,7 @@ test.describe('MH-06 Black-Box API: Availability check on change', () => {
     });
   });
 
-  test('R7: Keeps the party at the table it already has while it still fits there', async ({
+  test('R7: Seats the party again with the MH-01 rules even when it still fits at its table (issues #38, #48)', async ({
     loggedInRequest,
   }) => {
     // Tables of 4 and 6: a party of 5 sits at table 2.
@@ -664,14 +664,14 @@ test.describe('MH-06 Black-Box API: Availability check on change', () => {
     const booking = await createBooking(loggedInRequest, slotId, 5);
     expect(booking.tables).toEqual([{ tableNumber: 2, assignedSeats: 5 }]);
 
-    // Down to 3: table 1 would be the best fit for a new booking, but the party is not moved.
+    // Down to 3: every change is a new booking, so the party moves to table 1, the best fit.
     const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
       data: { partySize: 3 },
     });
 
     expect(patchRes.status()).toBe(200);
     expect(((await patchRes.json()) as BookingResponse).tables).toEqual([
-      { tableNumber: 2, assignedSeats: 3 },
+      { tableNumber: 1, assignedSeats: 3 },
     ]);
   });
 

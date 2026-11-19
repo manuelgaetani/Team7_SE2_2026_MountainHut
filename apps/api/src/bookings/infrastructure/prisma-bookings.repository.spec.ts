@@ -279,19 +279,6 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  describe('findBookingTables', () => {
-    it('reads the tables of the booking in table order', async () => {
-      const tables = [{ tableNumber: 1, assignedSeats: 2 }];
-      client.bookingTable.findMany.mockResolvedValue(tables);
-      await expect(repository.findBookingTables(9)).resolves.toBe(tables);
-      expect(client.bookingTable.findMany).toHaveBeenCalledWith({
-        where: { bookingId: 9 },
-        select: { tableNumber: true, assignedSeats: true },
-        orderBy: { tableNumber: 'asc' },
-      });
-    });
-  });
-
   describe('deleteBookingTables', () => {
     it('deletes only the table assignments of the booking', async () => {
       await repository.deleteBookingTables(9);

@@ -34,7 +34,6 @@ describe('BookingsService', () => {
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
     lockBooking: vi.fn(),
-    findBookingTables: vi.fn(),
     deleteBookingTables: vi.fn(),
     updateBooking: vi.fn(),
     findRequirements: vi.fn(),
@@ -281,7 +280,6 @@ describe('BookingsService', () => {
     // The requirements are a list (MH-05), stored apart from the booking.
     const currentNeeds = [{ allergies: false, description: 'vegan' }];
     const noNuts = { allergies: true, description: 'no nuts' };
-    const currentTables = [{ tableNumber: 1, assignedSeats: 2 }];
     const updated = { id: 9, slotId: 3, partySize: 3, status: 'CONFIRMED' as const };
 
     beforeEach(() => {
@@ -294,7 +292,6 @@ describe('BookingsService', () => {
         { tableNumber: 2, freeSeats: 6 },
       ]);
       repo.updateBooking.mockResolvedValue(updated);
-      repo.findBookingTables.mockResolvedValue(currentTables);
       repo.findRequirements.mockResolvedValue(currentNeeds);
       confirmationSender.sendChange.mockResolvedValue(undefined);
     });
@@ -349,8 +346,13 @@ describe('BookingsService', () => {
         expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
       });
 
-      it('keeps the party at its table while the larger party still fits there', async () => {
-        // Table 2 would also fit 3 people, but the party already sits at table 1.
+      it('seats the party again with the MH-01 rules even when it still fits at its table (issues #38, #48)', async () => {
+        // The party could stay at table 2 (8 seats), but as a new booking the smallest table that
+        // fits 3 people is table 1.
+        repo.findFreeSeatsByTable.mockResolvedValue([
+          { tableNumber: 1, freeSeats: 4 },
+          { tableNumber: 2, freeSeats: 8 },
+        ]);
         await service.change(1, 9, { partySize: 3 });
         expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
           { tableNumber: 1, assignedSeats: 3 },
@@ -376,10 +378,12 @@ describe('BookingsService', () => {
         expectNothingChanged();
       });
 
-      it('does not read the free seats when only the requirements change', async () => {
+      it('seats the party again when only the requirements change (issue #48)', async () => {
         await service.change(1, 9, { requirements: [noNuts] });
-        expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
-        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, currentTables);
+        expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 1, assignedSeats: 2 },
+        ]);
       });
     });
 
@@ -449,6 +453,16 @@ describe('BookingsService', () => {
         starts.set(6, new Date(NOW.getTime() + MIN_LEAD_MS - 1));
         await expect(service.change(1, 9, { slotId: 6 })).rejects.toMatchObject({
           code: 'UNPROCESSABLE',
+        });
+        starts.delete(6);
+        expectNothingChanged();
+      });
+
+      it('answers 422 when the new slot starts in less than 48 hours (issue #43)', async () => {
+        starts.set(6, new Date(NOW.getTime() + 48 * HOUR - 1));
+        await expect(service.change(1, 9, { slotId: 6 })).rejects.toMatchObject({
+          code: 'UNPROCESSABLE',
+          message: 'The new slot must start at least 48 hours from now',
         });
         starts.delete(6);
         expectNothingChanged();

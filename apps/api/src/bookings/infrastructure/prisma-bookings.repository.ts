@@ -240,14 +240,6 @@ export class PrismaBookingsRepository extends BookingsRepository {
     };
   }
 
-  async findBookingTables(bookingId: number): Promise<SeatAllocation[]> {
-    return this.db().bookingTable.findMany({
-      where: { bookingId },
-      select: { tableNumber: true, assignedSeats: true },
-      orderBy: { tableNumber: 'asc' },
-    });
-  }
-
   async deleteBookingTables(bookingId: number): Promise<void> {
     await this.db().bookingTable.deleteMany({ where: { bookingId } });
   }
