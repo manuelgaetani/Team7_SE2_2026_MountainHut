@@ -8,6 +8,7 @@ import { useAvailability } from '../api/useAvailability.ts';
 import { FormField } from '../components/FormField.tsx';
 import { toIsoDate } from '../lib/dates.ts';
 import { askedLabel, availabilityError, unavailableReason } from '../lib/availability.ts';
+import { authPath, bookingPath } from '../lib/bookingRedirect.ts';
 import './BookingPage.css';
 import './AvailabilityPage.css';
 
@@ -21,6 +22,12 @@ const FIELD_ERRORS: Record<Field, string> = {
 
 function Result({ result }: { result: AvailabilityResult }) {
   const { data: user } = useCurrentUser();
+  // The booking page with this check already filled in, also after signing in or registering.
+  const booking = bookingPath({
+    date: result.date,
+    time: result.slot?.startTime ?? result.time,
+    partySize: result.partySize,
+  });
 
   if (!result.available) {
     return (
@@ -46,9 +53,20 @@ function Result({ result }: { result: AvailabilityResult }) {
           ))}
         </ul>
       )}
-      <Link to={user ? '/book' : '/register'} className="pill">
-        {user ? 'Book a table' : 'Register to book a table'}
-      </Link>
+      {user ? (
+        <Link to={booking} className="pill">
+          Book a table
+        </Link>
+      ) : (
+        <p className="availability-result__actions">
+          <Link to={authPath('/register', booking)} className="pill">
+            Register to book a table
+          </Link>
+          <span>
+            Already registered? <Link to={authPath('/login', booking)}>Sign in</Link>
+          </span>
+        </p>
+      )}
     </div>
   );
 }

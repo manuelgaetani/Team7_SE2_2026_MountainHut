@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { loginSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useLogin } from '../api/useAuth.ts';
 import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
+import { authPath, safeNext } from '../lib/bookingRedirect.ts';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
+  // Where to go after signing in, e.g. the booking chosen in the availability check.
+  const next = safeNext(useSearchParams()[0].get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +29,7 @@ export function LoginPage() {
 
     login.mutate(parsed.data, {
       onSuccess: () => {
-        void navigate('/');
+        void navigate(next ?? '/');
       },
       onError: (e) => {
         setError(
@@ -73,7 +76,7 @@ export function LoginPage() {
         </button>
       </form>
       <p className="auth-switch">
-        Don't have an account? <Link to="/register">Register</Link>
+        Don't have an account? <Link to={authPath('/register', next)}>Register</Link>
       </p>
     </section>
   );

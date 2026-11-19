@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { registerSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useRegister } from '../api/useAuth.ts';
 import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
+import { authPath, safeNext } from '../lib/bookingRedirect.ts';
 
 type Errors = Partial<Record<string, string>>;
 
@@ -21,6 +22,8 @@ const FIELD_MESSAGES: Record<string, string> = {
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
+  // Kept for the sign in that follows, e.g. the booking chosen in the availability check.
+  const next = safeNext(useSearchParams()[0].get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -66,7 +69,7 @@ export function RegisterPage() {
 
     register.mutate(parsed.data, {
       onSuccess: () => {
-        void navigate('/login');
+        void navigate(authPath('/login', next));
       },
       onError: (e) => {
         setFormError(
@@ -149,7 +152,7 @@ export function RegisterPage() {
         </button>
       </form>
       <p className="auth-switch">
-        Already have an account? <Link to="/login">Sign in</Link>
+        Already have an account? <Link to={authPath('/login', next)}>Sign in</Link>
       </p>
     </section>
   );
