@@ -22,7 +22,7 @@ describe('LoginPage', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/login', expect.anything());
   });
 
-  it('signs in, shows the user and goes to the home page', async () => {
+  it('signs in, shows the session and goes to the home page', async () => {
     const fetchMock = stubApi({ '/api/auth/login': () => json(user) });
     const router = renderAt('/login');
     // Wait for the background auth check to settle so its refresh response does not overwrite the login.
@@ -31,7 +31,7 @@ describe('LoginPage', () => {
     );
     fill(user.email, 'secret');
     submit();
-    expect(await screen.findByText(user.email)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(sentBody(fetchMock, '/api/auth/login')).toEqual({
       email: user.email,

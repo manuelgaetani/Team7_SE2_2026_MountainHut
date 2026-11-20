@@ -1,11 +1,11 @@
-import type { BookingStatus } from '@mountain-hut/shared';
+import type { BookingStatus, MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
 export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
-  requirements: string | null;
+  requirements: PartyRequirement[];
 }
 
 export interface UpcomingSlot {
@@ -26,13 +26,11 @@ export interface StoredBooking {
 
 export interface LockedBooking extends StoredBooking {
   hikerId: number;
-  requirements: string | null;
 }
 
 export interface BookingChange {
   slotId: number;
   partySize: number;
-  requirements: string | null;
 }
 
 // Storage of the bookings. Inside UnitOfWork.run every call joins the transaction: the slot
@@ -40,6 +38,25 @@ export interface BookingChange {
 export abstract class BookingsRepository {
   // Slots that have not started yet, with the seats left over all their tables.
   abstract findUpcomingSlots(timeZone: string, now: Date): Promise<UpcomingSlot[]>;
+
+  // MH-04: the slot that includes a hut-local date ('YYYY-MM-DD') and time ('HH:MM') and has
+  // not started yet: it starts at or before the time and ends after it, so where two contiguous
+  // slots meet the later one is taken. Slots of a day cannot overlap (MH-02); slots created before
+  // that rule could, and then the earliest one (the oldest if they start together) is taken.
+  // Times as 'HH:MM'. null if there is none.
+  abstract findSlotAt(
+    date: string,
+    time: string,
+    timeZone: string,
+    now: Date,
+  ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null>;
+
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  abstract findUpcomingBookingsOfHiker(
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]>;
 
   // Locks the slot and the overlapping slots that share a table with it, so the other bookings
   // on those tables wait until the run ends, and returns when the slot starts.
@@ -75,9 +92,13 @@ export abstract class BookingsRepository {
   // the other. null if the booking does not exist.
   abstract lockBooking(bookingId: number): Promise<LockedBooking | null>;
 
-  abstract findBookingTables(bookingId: number): Promise<SeatAllocation[]>;
-
   abstract deleteBookingTables(bookingId: number): Promise<void>;
 
   abstract updateBooking(bookingId: number, change: BookingChange): Promise<StoredBooking>;
+
+  // Party requirements of the booking, in the order the hiker entered them.
+  abstract findRequirements(bookingId: number): Promise<PartyRequirement[]>;
+
+  // Replaces the party requirements of the booking with the given list, kept in its order.
+  abstract replaceRequirements(bookingId: number, requirements: PartyRequirement[]): Promise<void>;
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   Param,
   ParseIntPipe,
@@ -12,8 +13,8 @@ import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type {
   BookingResult,
   ChangeBookingInput,
-  ChangedBookingResult,
   CreateBookingInput,
+  MyBooking,
 } from '@mountain-hut/shared';
 import { changeBookingSchema, createBookingSchema } from '@mountain-hut/shared';
 import { AuthGuard } from '../../auth/presentation/auth.guard.js';
@@ -24,13 +25,24 @@ import { ZodValidationPipe } from '../../presentation/zod-validation.pipe.js';
 import { CurrentUser } from '../../presentation/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
 import { BookingsService } from '../application/bookings.service.js';
+import { ListMyBookings } from '../application/list-my-bookings.js';
 
 @ApiTags('bookings')
 @ApiCookieAuth()
 @Controller('bookings')
 @UseGuards(AuthGuard, RolesGuard)
 export class BookingsController {
-  constructor(private readonly bookings: BookingsService) {}
+  constructor(
+    private readonly bookings: BookingsService,
+    private readonly myBookings: ListMyBookings,
+  ) {}
+
+  // The upcoming bookings of the logged hiker.
+  @Get('me')
+  @Roles('HIKER')
+  listMine(@CurrentUser() user: AuthenticatedUser): Promise<MyBooking[]> {
+    return this.myBookings.execute(user.id, new Date());
+  }
 
   @Post()
   @HttpCode(201)
@@ -50,7 +62,7 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(changeBookingSchema)) body: ChangeBookingInput,
-  ): Promise<ChangedBookingResult> {
+  ): Promise<BookingResult> {
     return this.bookings.change(user.id, id, body);
   }
 }

@@ -34,9 +34,10 @@ describe('BookingsService', () => {
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
     lockBooking: vi.fn(),
-    findBookingTables: vi.fn(),
     deleteBookingTables: vi.fn(),
     updateBooking: vi.fn(),
+    findRequirements: vi.fn(),
+    replaceRequirements: vi.fn(),
   };
   const confirmationSender = { send: vi.fn(), sendChange: vi.fn() };
 
@@ -87,6 +88,7 @@ describe('BookingsService', () => {
       await expect(service.create(1, input)).resolves.toEqual({
         ...storedBooking,
         tables: [{ tableNumber: 1, assignedSeats: 2 }],
+        requirements: [],
       });
     });
 
@@ -97,21 +99,24 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
-        requirements: null,
+        requirements: [],
       });
     });
 
-    it('stores the requirements of the party', async () => {
-      await service.create(1, { ...input, requirements: 'no nuts' });
-      expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: 'no nuts' }),
-      );
+    it('stores the requirements of the party and returns them', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      const result = await service.create(1, { ...input, requirements });
+      expect(repo.createBooking).toHaveBeenCalledWith(expect.objectContaining({ requirements }));
+      expect(result.requirements).toEqual(requirements);
     });
 
-    it('stores empty requirements as none', async () => {
-      await service.create(1, { ...input, requirements: '' });
+    it('stores an empty list of requirements as none', async () => {
+      await service.create(1, { ...input, requirements: [] });
       expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: null }),
+        expect.objectContaining({ requirements: [] }),
       );
     });
 
@@ -270,10 +275,11 @@ describe('BookingsService', () => {
       hikerId: 7,
       slotId: 3,
       partySize: 2,
-      requirements: 'vegan',
       status: 'CONFIRMED' as const,
     };
-    const currentTables = [{ tableNumber: 1, assignedSeats: 2 }];
+    // The requirements are a list (MH-05), stored apart from the booking.
+    const currentNeeds = [{ allergies: false, description: 'vegan' }];
+    const noNuts = { allergies: true, description: 'no nuts' };
     const updated = { id: 9, slotId: 3, partySize: 3, status: 'CONFIRMED' as const };
 
     beforeEach(() => {
@@ -281,12 +287,12 @@ describe('BookingsService', () => {
       repo.lockSlotAndGetStart.mockImplementation((id: number) =>
         Promise.resolve(starts.get(id) ?? null),
       );
-      repo.findBookingTables.mockResolvedValue(currentTables);
       repo.findFreeSeatsByTable.mockResolvedValue([
         { tableNumber: 1, freeSeats: 4 },
         { tableNumber: 2, freeSeats: 6 },
       ]);
       repo.updateBooking.mockResolvedValue(updated);
+      repo.findRequirements.mockResolvedValue(currentNeeds);
       confirmationSender.sendChange.mockResolvedValue(undefined);
     });
 
@@ -294,13 +300,14 @@ describe('BookingsService', () => {
       expect(repo.deleteBookingTables).not.toHaveBeenCalled();
       expect(repo.updateBooking).not.toHaveBeenCalled();
       expect(repo.createBookingTables).not.toHaveBeenCalled();
+      expect(repo.replaceRequirements).not.toHaveBeenCalled();
     };
 
     describe('when the change is admitted', () => {
       it('returns the changed booking with its requirements and tables', async () => {
         await expect(service.change(1, 9, { partySize: 3 })).resolves.toEqual({
           ...updated,
-          requirements: 'vegan',
+          requirements: currentNeeds,
           tables: [{ tableNumber: 1, assignedSeats: 3 }],
         });
       });
@@ -339,8 +346,13 @@ describe('BookingsService', () => {
         expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
       });
 
-      it('keeps the party at its table while the larger party still fits there', async () => {
-        // Table 2 would also fit 3 people, but the party already sits at table 1.
+      it('seats the party again with the MH-01 rules even when it still fits at its table (issues #38, #48)', async () => {
+        // The party could stay at table 2 (8 seats), but as a new booking the smallest table that
+        // fits 3 people is table 1.
+        repo.findFreeSeatsByTable.mockResolvedValue([
+          { tableNumber: 1, freeSeats: 4 },
+          { tableNumber: 2, freeSeats: 8 },
+        ]);
         await service.change(1, 9, { partySize: 3 });
         expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
           { tableNumber: 1, assignedSeats: 3 },
@@ -366,34 +378,32 @@ describe('BookingsService', () => {
         expectNothingChanged();
       });
 
-      it('does not read the free seats when only the requirements change', async () => {
-        await service.change(1, 9, { requirements: 'no nuts' });
-        expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
-        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, currentTables);
+      it('seats the party again when only the requirements change (issue #48)', async () => {
+        await service.change(1, 9, { requirements: [noNuts] });
+        expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 1, assignedSeats: 2 },
+        ]);
       });
     });
 
     describe('requirements', () => {
       it('keeps the requirements when the change does not mention them', async () => {
-        await service.change(1, 9, { partySize: 3 });
-        expect(repo.updateBooking).toHaveBeenCalledWith(9, {
-          slotId: 3,
-          partySize: 3,
-          requirements: 'vegan',
-        });
+        const result = await service.change(1, 9, { partySize: 3 });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 3 });
+        expect(repo.replaceRequirements).not.toHaveBeenCalled();
+        expect(result.requirements).toEqual(currentNeeds);
       });
 
       it.each([
-        ['new text', 'no nuts', 'no nuts'],
-        ['null', null, null],
-        ['an empty text', '', null],
-      ])('stores %s as the new requirements', async (_name, requirements, stored) => {
-        await service.change(1, 9, { requirements });
-        expect(repo.updateBooking).toHaveBeenCalledWith(9, {
-          slotId: 3,
-          partySize: 2,
-          requirements: stored,
-        });
+        ['a new list', [noNuts]],
+        ['an empty list', []],
+      ])('stores %s as the new requirements', async (_name, requirements) => {
+        const result = await service.change(1, 9, { requirements });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 2 });
+        expect(repo.replaceRequirements).toHaveBeenCalledWith(9, requirements);
+        expect(calledInRun(repo.replaceRequirements)).toBe(true);
+        expect(result.requirements).toEqual(requirements);
       });
     });
 
@@ -448,6 +458,16 @@ describe('BookingsService', () => {
         expectNothingChanged();
       });
 
+      it('answers 422 when the new slot starts in less than 48 hours (issue #43)', async () => {
+        starts.set(6, new Date(NOW.getTime() + 48 * HOUR - 1));
+        await expect(service.change(1, 9, { slotId: 6 })).rejects.toMatchObject({
+          code: 'UNPROCESSABLE',
+          message: 'The new slot must start at least 48 hours from now',
+        });
+        starts.delete(6);
+        expectNothingChanged();
+      });
+
       it('answers 409 when the hiker already has a booking in the new slot', async () => {
         repo.hasActiveBooking.mockResolvedValue(true);
         await expect(service.change(1, 9, { slotId: 5 })).rejects.toMatchObject({
@@ -468,7 +488,7 @@ describe('BookingsService', () => {
 
       it.each([
         ['the party size', { partySize: 3 }],
-        ['the requirements', { requirements: 'no nuts' }],
+        ['the requirements', { requirements: [noNuts] }],
         ['the slot', { slotId: 5 }],
       ])(
         'refuses to change %s less than 48 hours before the booked slot',

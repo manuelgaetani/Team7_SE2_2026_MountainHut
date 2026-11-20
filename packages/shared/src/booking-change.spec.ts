@@ -3,6 +3,9 @@ import { changeBookingSchema } from './bookings.js';
 
 const MAX_DB_INT = 2_147_483_647;
 
+// One entry of the MH-05 requirements list.
+const need = (description: string, allergies = false) => ({ allergies, description });
+
 // TODO(MH-06-whitebox): add white-box unit tests covering internal Zod validation pipelines and custom issue formatters
 // TODO(MH-06-graybox): add gray-box schema tests verifying database schema column type alignments and constraints
 describe('changeBookingSchema (Black-box)', () => {
@@ -20,9 +23,9 @@ describe('changeBookingSchema (Black-box)', () => {
     });
 
     it('accepts changing only requirements', () => {
-      const res = changeBookingSchema.safeParse({ requirements: 'Gluten-free diet' });
+      const res = changeBookingSchema.safeParse({ requirements: [need('Gluten-free diet')] });
       expect(res.success).toBe(true);
-      expect(res.data).toEqual({ requirements: 'Gluten-free diet' });
+      expect(res.data).toEqual({ requirements: [need('Gluten-free diet')] });
     });
 
     it('accepts changing both slotId and partySize', () => {
@@ -32,21 +35,23 @@ describe('changeBookingSchema (Black-box)', () => {
     });
 
     it('accepts changing all fields simultaneously (date/time, party size, and requirements)', () => {
-      const payload = { slotId: 15, partySize: 3, requirements: 'No nuts' };
+      const payload = { slotId: 15, partySize: 3, requirements: [need('No nuts', true)] };
       const res = changeBookingSchema.safeParse(payload);
       expect(res.success).toBe(true);
       expect(res.data).toEqual(payload);
     });
 
-    it('accepts clearing requirements by passing null', () => {
-      const res = changeBookingSchema.safeParse({ requirements: null });
+    it('accepts clearing requirements by passing an empty list', () => {
+      const res = changeBookingSchema.safeParse({ requirements: [] });
       expect(res.success).toBe(true);
-      expect(res.data).toEqual({ requirements: null });
+      expect(res.data).toEqual({ requirements: [] });
     });
 
     it('trims whitespace from requirements', () => {
-      const res = changeBookingSchema.parse({ requirements: '   vegan and dairy free   ' });
-      expect(res.requirements).toBe('vegan and dairy free');
+      const res = changeBookingSchema.parse({
+        requirements: [need('   vegan and dairy free   ')],
+      });
+      expect(res.requirements).toEqual([need('vegan and dairy free')]);
     });
 
     it('strips unrecognized extraneous fields', () => {
@@ -107,19 +112,19 @@ describe('changeBookingSchema (Black-box)', () => {
 
   describe('Boundary Value Analysis (BVA): requirements', () => {
     it('accepts requirements at the exact maximum boundary of 500 characters', () => {
-      const requirements = 'a'.repeat(500);
+      const requirements = [need('a'.repeat(500))];
       const res = changeBookingSchema.safeParse({ requirements });
       expect(res.success).toBe(true);
     });
 
     it('rejects requirements exceeding 500 characters (501 chars)', () => {
-      const requirements = 'a'.repeat(501);
+      const requirements = [need('a'.repeat(501))];
       const res = changeBookingSchema.safeParse({ requirements });
       expect(res.success).toBe(false);
     });
 
     it('rejects requirements containing a NUL byte', () => {
-      const res = changeBookingSchema.safeParse({ requirements: 'peanut\u0000allergy' });
+      const res = changeBookingSchema.safeParse({ requirements: [need('peanut\u0000allergy')] });
       expect(res.success).toBe(false);
     });
   });

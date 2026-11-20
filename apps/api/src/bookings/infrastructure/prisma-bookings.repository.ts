@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MAX_DB_INT } from '@mountain-hut/shared';
+import type { MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
@@ -79,6 +80,57 @@ export class PrismaBookingsRepository extends BookingsRepository {
     }));
   }
 
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  async findUpcomingBookingsOfHiker(
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]> {
+    const rows = await this.db().$queryRaw<
+      {
+        id: number;
+        slot_id: number;
+        date: string;
+        start_time: string;
+        end_time: string;
+        party_size: number;
+        requirements: PartyRequirement[];
+        status: MyBooking['status'];
+      }[]
+    >`
+      SELECT b.id,
+             b.slot_id,
+             to_char(s.date, 'YYYY-MM-DD') AS date,
+             to_char(s.start_time, 'HH24:MI') AS start_time,
+             to_char(s.end_time, 'HH24:MI') AS end_time,
+             b.party_size,
+             -- The MH-05 requirements as a JSON list, in the order the hiker entered them.
+             COALESCE(
+               (SELECT json_agg(json_build_object('allergies', pr.allergies,
+                                                  'description', pr.description) ORDER BY pr.id)
+                FROM party_requirements pr
+                WHERE pr.booking_id = b.id),
+               '[]'::json
+             ) AS requirements,
+             b.status::text AS status
+      FROM bookings b
+      JOIN slots s ON s.id = b.slot_id
+      WHERE b.hiker_id = ${hikerId}
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.date, s.start_time, b.id`;
+
+    return rows.map((r) => ({
+      id: r.id,
+      slotId: r.slot_id,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      partySize: r.party_size,
+      requirements: r.requirements,
+      status: r.status,
+    }));
+  }
+
   // Blocca la riga dello slot (le altre prenotazioni dello stesso slot aspettano)
   // e restituisce quando lo slot inizia. null se lo slot non esiste.
   async lockSlotAndGetStart(slotId: number, timeZone: string): Promise<Date | null> {
@@ -104,6 +156,35 @@ export class PrismaBookingsRepository extends BookingsRepository {
       FOR UPDATE OF s_other`;
 
     return rows[0]?.starts_at ?? null;
+  }
+
+  // MH-04: the slot that includes a hut-local date and time (start included, end excluded) and
+  // has not started yet. Slots of a day cannot overlap (MH-02); slots created before that rule
+  // could, and then the earliest one is taken, the oldest if they start together.
+  async findSlotAt(
+    date: string,
+    time: string,
+    timeZone: string,
+    now: Date,
+  ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null> {
+    const rows = await this.db().$queryRaw<
+      { id: number; starts_at: Date; start_time: string; end_time: string }[]
+    >`
+      SELECT s.id,
+             ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at,
+             to_char(s.start_time, 'HH24:MI') AS start_time,
+             to_char(s.end_time, 'HH24:MI') AS end_time
+      FROM slots s
+      WHERE s.date = ${date}::date
+        AND s.start_time <= ${time}::time
+        AND s.end_time > ${time}::time
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.start_time, s.id
+      LIMIT 1`;
+    const row = rows[0];
+    return row
+      ? { id: row.id, startsAt: row.starts_at, startTime: row.start_time, endTime: row.end_time }
+      : null;
   }
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
@@ -141,7 +222,15 @@ export class PrismaBookingsRepository extends BookingsRepository {
   }
 
   async createBooking(data: NewBooking): Promise<StoredBooking> {
-    const booking = await this.db().booking.create({ data: { ...data, status: 'PENDING' } });
+    const { requirements, ...fields } = data;
+    const booking = await this.db().booking.create({
+      data: {
+        ...fields,
+        status: 'PENDING',
+        // One insert: the ids follow the order in which the hiker entered the requirements.
+        requirements: { createMany: { data: requirements } },
+      },
+    });
     return {
       id: booking.id,
       slotId: booking.slotId,
@@ -184,11 +273,10 @@ export class PrismaBookingsRepository extends BookingsRepository {
         hiker_id: number;
         slot_id: number;
         party_size: number;
-        requirements: string | null;
         status: LockedBooking['status'];
       }[]
     >`
-      SELECT id, hiker_id, slot_id, party_size, requirements, status
+      SELECT id, hiker_id, slot_id, party_size, status
       FROM bookings
       WHERE id = ${bookingId}
       FOR UPDATE`;
@@ -199,17 +287,8 @@ export class PrismaBookingsRepository extends BookingsRepository {
       hikerId: row.hiker_id,
       slotId: row.slot_id,
       partySize: row.party_size,
-      requirements: row.requirements,
       status: row.status,
     };
-  }
-
-  async findBookingTables(bookingId: number): Promise<SeatAllocation[]> {
-    return this.db().bookingTable.findMany({
-      where: { bookingId },
-      select: { tableNumber: true, assignedSeats: true },
-      orderBy: { tableNumber: 'asc' },
-    });
   }
 
   async deleteBookingTables(bookingId: number): Promise<void> {
@@ -224,5 +303,21 @@ export class PrismaBookingsRepository extends BookingsRepository {
       partySize: booking.partySize,
       status: booking.status,
     };
+  }
+
+  async findRequirements(bookingId: number): Promise<PartyRequirement[]> {
+    return this.db().partyRequirement.findMany({
+      where: { bookingId },
+      select: { allergies: true, description: true },
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  async replaceRequirements(bookingId: number, requirements: PartyRequirement[]): Promise<void> {
+    await this.db().partyRequirement.deleteMany({ where: { bookingId } });
+    // One insert: the ids follow the order of the list, as in createBooking.
+    await this.db().partyRequirement.createMany({
+      data: requirements.map((r) => ({ bookingId, ...r })),
+    });
   }
 }

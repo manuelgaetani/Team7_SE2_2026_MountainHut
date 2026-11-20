@@ -73,7 +73,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     // Verify confirmation and display in schedule
     await expect(page.getByText('Slot created: 11:30–13:00, 10 seats.')).toBeVisible();
     const slotCard = page.locator('.schedule__slot', { hasText: '11:30–13:00' });
-    await expect(slotCard).toContainText('2 tables · 10 seats');
+    await expect(slotCard).toContainText('2 tables · 0/10 seats taken');
     await expect(slotCard).toContainText('Table 1 · 4 seats');
     await expect(slotCard).toContainText('Table 2 · 6 seats');
 
@@ -99,7 +99,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await page.getByRole('button', { name: 'Save the tables' }).click();
 
     await expect(page.getByText('Tables saved for 13:00–14:30, 8 seats.')).toBeVisible();
-    await expect(emptyCard).toContainText('1 table · 8 seats');
+    await expect(emptyCard).toContainText('1 table · 0/8 seats taken');
     await expect(emptyCard).toContainText('Table 1 · 8 seats');
 
     // 4. Create another slot copying tables from 11:30–13:00
@@ -111,7 +111,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
 
     await expect(page.getByText('Slot created: 19:00–20:30, 10 seats.')).toBeVisible();
     const copiedCard = page.locator('.schedule__slot', { hasText: '19:00–20:30' });
-    await expect(copiedCard).toContainText('2 tables · 10 seats');
+    await expect(copiedCard).toContainText('2 tables · 0/10 seats taken');
   });
 
   test('warden also has staff access to time slots management', async ({ page, wardenUser }) => {

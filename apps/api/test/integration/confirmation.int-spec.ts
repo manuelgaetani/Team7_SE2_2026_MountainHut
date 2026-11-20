@@ -52,6 +52,17 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
   const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
   const service = new BookingsService(uow, repo, sender, config);
 
+  // The confirmation is sent after the booking is stored, and not awaited. Each test waits for
+  // its own sends before the next one empties the database: a late send would otherwise look for
+  // a booking or a user that no longer exists.
+  const pending: Promise<void>[] = [];
+  const send = sender.send.bind(sender);
+  sender.send = (bookingId) => {
+    const sending = send(bookingId);
+    pending.push(sending);
+    return sending;
+  };
+
   const originalDelays = [...CONFIRMATION_RETRY_DELAYS_MS];
 
   // A hiker with an account and a name, so each email can be told from the others.
@@ -79,7 +90,8 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
     CONFIRMATION_RETRY_DELAYS_MS.splice(0, CONFIRMATION_RETRY_DELAYS_MS.length, 5, 5, 5);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await Promise.allSettled(pending.splice(0));
     CONFIRMATION_RETRY_DELAYS_MS.splice(0, CONFIRMATION_RETRY_DELAYS_MS.length, ...originalDelays);
   });
 
@@ -95,7 +107,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 3,
-        requirements: 'One nut allergy',
+        requirements: [{ allergies: true, description: 'One nut allergy' }],
       });
       expect(booking.status).toBe('PENDING');
       await untilConfirmed(booking.id);
@@ -109,7 +121,9 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       expect(message.text).toMatch(DATE_IN_EMAIL);
       expect(message.text).toContain('Time: 19:00 - 21:00');
       expect(message.text).toContain('People: 3 people');
-      expect(message.text).toContain('Requirements: One nut allergy');
+      expect(message.text).toContain(
+        'Requirements: Allergies (special care needed): One nut allergy',
+      );
     });
 
     it('records the sent email in the notifications', async () => {
@@ -243,21 +257,31 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 2,
-        requirements: 'Vegetarian',
+        requirements: [
+          { allergies: true, description: '1 shellfish allergy' },
+          { allergies: false, description: 'Vegetarian' },
+        ],
       });
 
-      const stored = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(stored.requirements).toBe('Vegetarian');
+      const stored = await prisma.partyRequirement.findMany({
+        where: { bookingId: booking.id },
+        orderBy: { id: 'asc' },
+        select: { allergies: true, description: true },
+      });
+      expect(stored).toEqual([
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: 'Vegetarian' },
+      ]);
     });
 
-    it.each([undefined, ''])('are stored as null when they are %j', async (requirements) => {
+    it.each([undefined, []])('are not stored when they are %j', async (requirements) => {
       const anna = await hiker('anna@example.test', 'Anna Rossi');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
 
       const booking = await service.create(anna.userId, { slotId, partySize: 2, requirements });
 
-      const stored = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
-      expect(stored.requirements).toBeNull();
+      expect(booking.requirements).toEqual([]);
+      expect(await prisma.partyRequirement.count({ where: { bookingId: booking.id } })).toBe(0);
     });
   });
 

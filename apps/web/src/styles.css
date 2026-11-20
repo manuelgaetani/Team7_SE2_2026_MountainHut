@@ -52,8 +52,7 @@ body {
   gap: 16px;
 }
 
-.nav-link,
-.nav-user {
+.nav-link {
   color: var(--muted);
   font-size: 0.8rem;
   text-decoration: none;
@@ -70,6 +69,22 @@ body {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* Main link of the signed-in hiker: stands out from the other actions. */
+.nav-cta {
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.nav-cta:hover,
+.nav-cta.active {
+  background: #0f2a23;
 }
 
 /* Shared */
