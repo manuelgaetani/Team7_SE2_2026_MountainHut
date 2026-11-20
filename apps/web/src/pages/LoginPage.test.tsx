@@ -55,6 +55,41 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Sign in failed');
   });
 
+  it('redirects to the safe next path after signing in and preserves next on register links', async () => {
+    const next = '/book?date=2030-01-15&time=19%3A00&partySize=3';
+    const fetchMock = stubApi({
+      '/api/auth/login': () => json(user),
+      '/api/slots': () => json([]),
+    });
+    const router = renderAt(`/login?next=${encodeURIComponent(next)}`);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/refresh', expect.anything()),
+    );
+
+    const registerLinks = screen.getAllByRole('link', { name: 'Register' });
+    for (const link of registerLinks) {
+      expect(link).toHaveAttribute('href', `/register?${new URLSearchParams({ next }).toString()}`);
+    }
+
+    fill(user.email, 'secret');
+    submit();
+    await waitFor(() =>
+      expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(next),
+    );
+  });
+
+  it('ignores an unsafe external next query param and goes to home after signing in', async () => {
+    const fetchMock = stubApi({ '/api/auth/login': () => json(user) });
+    const router = renderAt('/login?next=https%3A%2F%2Fevil.example');
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/refresh', expect.anything()),
+    );
+
+    fill(user.email, 'secret');
+    submit();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+  });
+
   it('shows that the request is running', async () => {
     let answer: (response: Response) => void = () => undefined;
     const fetchMock = stubApi();
