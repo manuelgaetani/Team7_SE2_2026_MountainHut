@@ -1,4 +1,4 @@
-import type { BookingStatus, PartyRequirement } from '@mountain-hut/shared';
+import type { BookingStatus, MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
 export interface NewBooking {
@@ -50,6 +50,13 @@ export abstract class BookingsRepository {
     timeZone: string,
     now: Date,
   ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null>;
+
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  abstract findUpcomingBookingsOfHiker(
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]>;
 
   // Locks the slot and the overlapping slots that share a table with it, so the other bookings
   // on those tables wait until the run ends, and returns when the slot starts.

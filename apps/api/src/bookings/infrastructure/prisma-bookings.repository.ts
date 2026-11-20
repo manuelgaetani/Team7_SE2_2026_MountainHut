@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MAX_DB_INT } from '@mountain-hut/shared';
-import type { PartyRequirement } from '@mountain-hut/shared';
+import type { MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
@@ -77,6 +77,57 @@ export class PrismaBookingsRepository extends BookingsRepository {
       endTime: r.end_time,
       startsAt: r.starts_at,
       freeSeats: r.free_seats,
+    }));
+  }
+
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  async findUpcomingBookingsOfHiker(
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]> {
+    const rows = await this.db().$queryRaw<
+      {
+        id: number;
+        slot_id: number;
+        date: string;
+        start_time: string;
+        end_time: string;
+        party_size: number;
+        requirements: PartyRequirement[];
+        status: MyBooking['status'];
+      }[]
+    >`
+      SELECT b.id,
+             b.slot_id,
+             to_char(s.date, 'YYYY-MM-DD') AS date,
+             to_char(s.start_time, 'HH24:MI') AS start_time,
+             to_char(s.end_time, 'HH24:MI') AS end_time,
+             b.party_size,
+             -- The MH-05 requirements as a JSON list, in the order the hiker entered them.
+             COALESCE(
+               (SELECT json_agg(json_build_object('allergies', pr.allergies,
+                                                  'description', pr.description) ORDER BY pr.id)
+                FROM party_requirements pr
+                WHERE pr.booking_id = b.id),
+               '[]'::json
+             ) AS requirements,
+             b.status::text AS status
+      FROM bookings b
+      JOIN slots s ON s.id = b.slot_id
+      WHERE b.hiker_id = ${hikerId}
+        AND ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) > ${now}
+      ORDER BY s.date, s.start_time, b.id`;
+
+    return rows.map((r) => ({
+      id: r.id,
+      slotId: r.slot_id,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      partySize: r.party_size,
+      requirements: r.requirements,
+      status: r.status,
     }));
   }
 

@@ -2,7 +2,7 @@
 
 |                |                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------- |
-| **Status**     | API complete; web app pending                                                                   |
+| **Status**     | API and web app complete; web e2e tests pending                                                 |
 | **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation), MH-05 (party requirements) |
 
 ## User story
@@ -139,7 +139,13 @@ Response `200 OK`:
 
 ## Web app
 
-Not done yet (frontend task of MH-06). `e2e/tests/web/booking-change.spec.ts` describes the expected page.
+**Route:** `/bookings` ("My bookings", in the navigation bar of a hiker). Visitors without a session are asked to log in; staff accounts are told they have no bookings.
+
+- **List.** `GET /api/bookings/me` gives the upcoming bookings of the hiker, the soonest first: date, time, party, status and the MH-05 requirements (with an "Allergies" badge). Tabs split upcoming and cancelled bookings. A `CONFIRMED` or `PENDING` booking shows **Modify** and **Cancel** (Cancel is wired by MH-08).
+- **48-hour rule.** Less than 48 hours before the slot, **Modify** is disabled and the card says _"This booking can no longer be changed: changes are admitted up to 48 hours before the booked date."_ The API checks the same rule (`422`); the page only spares a request that would be refused.
+- **Change dialog** (`ModifyBookingDialog`). It starts from the current details: date and time (selects over the upcoming slots), number of people and the list of requirements (one row each, with its "Allergies" flag; rows can be added up to 20 and removed). The booked slot can always be kept; another slot can be chosen only when it has seats and starts at least 48 hours from now, otherwise it is shown as `(full)`, `(too late)` or `(within 48 hours)` and disabled.
+- **What is sent.** `PATCH /api/bookings/:id` with only the details that changed (`ChangeBookingInput` of the shared package); the requirements are sent as the whole new list (`[]` when all rows are removed). Nothing changed: _"Change at least one detail of the booking."_ Party size and empty or too long requirements are checked in the form first.
+- **Feedback.** While saving the button says _"Saving changes…"_. On success the dialog closes, the list and the slots are loaded again and the card says _"Booking updated. We'll email you the new details."_ On `403`, `404`, `409` or `422` the dialog stays open and shows the message of the API (for example _"Insufficient seats available for the updated booking"_); on `401` it asks to log in again; any other error gives a generic message.
 
 ## Data model
 
@@ -171,6 +177,15 @@ Migrations:
 | `apps/api/test/booking-change.int-spec.ts`                                  | Integration tests on PostgreSQL                                                                                                |
 | `e2e/tests/api/booking-change.spec.ts`                                      | E2E black-box API tests for booking change REST endpoint                                                                       |
 | `e2e/tests/web/booking-change.spec.ts`                                      | E2E black-box Web UI tests for hiker booking modification workflow                                                             |
+| `packages/shared/src/bookings.ts`                                           | `MyBooking`, `MyBookingStatus`: a booking as listed in `GET /api/bookings/me`                                                  |
+| `apps/api/src/bookings/application/list-my-bookings.ts`                     | `ListMyBookings`: upcoming bookings of the logged hiker                                                                        |
+| `apps/api/src/bookings/presentation/bookings.controller.ts`                 | `GET /api/bookings/me` (`listMine`)                                                                                            |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts`        | `findUpcomingBookingsOfHiker`, with the requirements read from `party_requirements`                                            |
+| `apps/web/src/pages/MyBookingsPage.tsx`                                     | `/bookings`: tabs, list, login and staff notices                                                                               |
+| `apps/web/src/components/MyBookingCard.tsx`                                 | One booking: details, requirements, Modify and Cancel, 48-hour notice, "Booking updated"                                       |
+| `apps/web/src/components/ModifyBookingDialog.tsx`                           | The change form and the `PATCH` request                                                                                        |
+| `apps/web/src/lib/bookingChange.ts`                                         | `isChangeOpen`: the 48-hour rule in the web app                                                                                |
+| `apps/web/src/api/bookings.ts`, `useBookings.ts`                            | `fetchMyBookings`, `changeBooking`, `useMyBookings`, `useChangeBooking`                                                        |
 
 ## Testing
 
@@ -199,6 +214,11 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 | `apps/api/test/booking-change.int-spec.ts`                                | On PostgreSQL: party seated again with the MH-01 rules on every change (issues #38, #48), refused increase unchanged, freed seats, move to another slot, move + size, same-slot and missing-slot refusals, requirements, 48-hour boundary and refusals for the booked and the new slot (issue #43), ownership, rejected booking, parallel changes and bookings without overbooking, no deadlock on swapped slots, change email `BOOKING_CHANGE` sent or failed (issue #41), rollback on a failed write |
 | `e2e/tests/api/booking-change.spec.ts`                                    | Black-box API: date/time change, party size, requirements list, 48h cutoff (422), target slot cutoff, availability conflict (409), RBAC, Mailpit email                                                                                                                                                                                                                                                                                                                                                 |
 | `e2e/tests/web/booking-change.spec.ts`                                    | Black-box Web: UI booking edit, slot picker, 48h cutoff warning, capacity conflict notice, login redirection (stubs with `test.skip` pending web frontend integration)                                                                                                                                                                                                                                                                                                                                 |
+| `apps/web/src/lib/bookingChange.test.ts`                                  | 48-hour rule: exactly 48 hours, later, one minute before, tomorrow, already started                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `apps/web/src/pages/MyBookingsPage.test.tsx`                              | List, tabs, empty states, errors, actions; Modify disabled with the notice within 48 hours                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `apps/web/src/components/ModifyBookingDialog.test.tsx`                    | Dialog: current details, slot choice (full, too late, within 48 hours), form checks, only the changed details sent, success and API errors                                                                                                                                                                                                                                                                                                                                                             |
+| `apps/api/src/bookings/application/list-my-bookings.spec.ts`              | `ListMyBookings`: hiker profile lookup, time zone and now                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | `findUpcomingBookingsOfHiker`: mapping, requirements from `party_requirements`, upcoming only, order                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ### Test Coverage Roadmap & Pending Tests
 
@@ -224,8 +244,11 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/booking-change.spec.ts
 6. Send `PATCH /api/bookings/:id` with the `slotId` of another slot at least 48 hours away: the seats move to the new slot (check `freeSeats` in `GET /api/slots`). A slot less than 48 hours away: `422`.
 7. Change a booking of a slot starting in less than 48 hours: `422`.
 8. Open Mailpit at http://localhost:8025: after each change there is a "Booking n. X changed" email with the new details.
+9. In the web app, log in as the hiker and open http://localhost:3000/bookings: press **Modify** on a booking, change the number of people, add a requirement with "Allergies" ticked and confirm. The card shows the new details and "Booking updated". A booking less than 48 hours away has Modify disabled and the 48-hour notice.
 
 ## Open points
 
-- **Web app:** frontend integration of MH-06 pending; then unskip `e2e/tests/web/booking-change.spec.ts` and complete [Web app](#web-app).
+- **Web e2e tests:** the web app is integrated; `e2e/tests/web/booking-change.spec.ts` is still skipped and its selectors must be aligned to the real page (for example "Number of people" instead of "Party size", requirement rows added with "+ Add a requirement", date and time as selects) before it is unskipped.
+- **48 hours in the browser:** the web app reads the slot date and time as local time of the browser, so a hiker outside the hut's time zone may see Modify enabled a little longer or shorter; the API is the authority and answers `422`.
+- **Requirements editor:** the change dialog has its own rows; it could reuse the MH-05 `RequirementsEditor` in a later refactor.
 - **`canAccommodatePartyChange`:** its optional `current` parameter (keep the party at its tables) is no longer used by the service since issues #38 and #48; it is kept for its white-box tests and can be removed together with them.

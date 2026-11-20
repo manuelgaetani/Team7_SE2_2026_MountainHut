@@ -20,7 +20,11 @@ async function toApiError(response: Response, method: string, path: string): Pro
   return new ApiError(response.status, message);
 }
 
-async function send<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+async function send<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH',
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const isGet = method === 'GET';
   const response = await fetch(`${API_BASE}${path}`, {
     ...(isGet ? {} : { method }),
@@ -38,3 +42,6 @@ export const apiGet = <T>(path: string): Promise<T> => send<T>('GET', path);
 export const apiPost = <T>(path: string, body?: unknown): Promise<T> => send<T>('POST', path, body);
 
 export const apiPut = <T>(path: string, body?: unknown): Promise<T> => send<T>('PUT', path, body);
+
+export const apiPatch = <T>(path: string, body: unknown): Promise<T> =>
+  send<T>('PATCH', path, body);
