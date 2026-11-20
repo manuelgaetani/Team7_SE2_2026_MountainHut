@@ -26,6 +26,20 @@ export const createBookingSchema = z.object({
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
+// What a hiker can change in a booking: the slot (date and time), the party size and the
+// requirements, in any combination. The requirements are the whole new list (MH-05): it replaces
+// the old one, and `[]` removes them all.
+export const changeBookingSchema = z
+  .object({
+    slotId: z.number().int().positive().max(MAX_DB_INT).optional(),
+    partySize: z.number().int().positive().max(MAX_DB_INT).optional(),
+    requirements: z.array(partyRequirementSchema).max(MAX_REQUIREMENTS_COUNT).optional(),
+  })
+  .refine((c) => Object.values(c).some((v) => v !== undefined), {
+    message: 'At least one field (slotId, partySize, requirements) must be provided',
+  });
+export type ChangeBookingInput = z.infer<typeof changeBookingSchema>;
+
 export type SlotAvailability = 'AVAILABLE' | 'FULL' | 'TOO_LATE';
 
 export interface SlotSummary {

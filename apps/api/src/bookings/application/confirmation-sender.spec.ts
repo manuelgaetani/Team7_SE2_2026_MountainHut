@@ -6,7 +6,7 @@ import { ConfirmationSender, Sleeper } from './confirmation-sender.js';
 
 describe('ConfirmationSender', () => {
   let sender: ConfirmationSender;
-  const notifier = { notify: vi.fn() };
+  const notifier = { notify: vi.fn(), notifyChange: vi.fn() };
   const repo = { confirmBooking: vi.fn() };
   const sleeper = { sleep: vi.fn() };
 
@@ -82,5 +82,29 @@ describe('ConfirmationSender', () => {
     notifier.notify.mockRejectedValue(new Error('database down'));
     await expect(sender.send(9)).resolves.toBeUndefined();
     expect(repo.confirmBooking).not.toHaveBeenCalled();
+  });
+
+  // MH-06: the email that tells the hiker about a change.
+  describe('sendChange', () => {
+    it('sends the change once and does not confirm anything', async () => {
+      notifier.notifyChange.mockResolvedValue('SENT');
+      await sender.sendChange(9);
+      expect(notifier.notifyChange).toHaveBeenCalledOnce();
+      expect(notifier.notifyChange).toHaveBeenCalledWith(9);
+      expect(notifier.notify).not.toHaveBeenCalled();
+      expect(repo.confirmBooking).not.toHaveBeenCalled();
+    });
+
+    it('does not retry a failed email', async () => {
+      notifier.notifyChange.mockResolvedValue('FAILED');
+      await sender.sendChange(9);
+      expect(notifier.notifyChange).toHaveBeenCalledOnce();
+      expect(sleeper.sleep).not.toHaveBeenCalled();
+    });
+
+    it('never rejects, even when the notifier throws', async () => {
+      notifier.notifyChange.mockRejectedValue(new Error('SMTP down'));
+      await expect(sender.sendChange(9)).resolves.toBeUndefined();
+    });
   });
 });

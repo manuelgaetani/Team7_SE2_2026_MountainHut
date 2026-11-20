@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { MAX_DB_INT } from '@mountain-hut/shared';
+import type { PartyRequirement } from '@mountain-hut/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
 import type {
+  BookingChange,
+  LockedBooking,
   NewBooking,
   StoredBooking,
   UpcomingSlot,
@@ -11,13 +15,18 @@ import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.j
 
 // Seats already assigned on a table, over every slot of the same day that overlaps the given one.
 // slotAlias is the alias of the slot being measured; the table number is a SQL expression.
-const bookedSeatsOnTable = (tableNumberSql: Prisma.Sql, slotAlias: Prisma.Sql) => Prisma.sql`
+// excluded: an extra condition on the bookings, e.g. to leave out a booking being changed.
+const bookedSeatsOnTable = (
+  tableNumberSql: Prisma.Sql,
+  slotAlias: Prisma.Sql,
+  excluded: Prisma.Sql = Prisma.empty,
+) => Prisma.sql`
   SELECT SUM(bt.assigned_seats)
   FROM booking_tables bt
   JOIN bookings b ON b.id = bt.booking_id
   JOIN slots s_other ON s_other.id = bt.slot_id
   WHERE bt.table_number = ${tableNumberSql}
-    AND b.status IN ('CONFIRMED', 'PENDING')
+    AND b.status IN ('CONFIRMED', 'PENDING')${excluded}
     AND s_other.date = ${slotAlias}.date
     AND s_other.start_time < ${slotAlias}.end_time
     AND s_other.end_time > ${slotAlias}.start_time`;
@@ -129,11 +138,17 @@ export class PrismaBookingsRepository extends BookingsRepository {
 
   // Posti liberi per ogni tavolo: posti del tavolo meno quelli già assegnati
   // alle prenotazioni confermate.
-  async findFreeSeatsByTable(slotId: number): Promise<TableFreeSeats[]> {
+  // excludeBookingId: a booking being changed, whose own seats count as free. Ids start at 1,
+  // so the default 0 excludes no booking.
+  async findFreeSeatsByTable(slotId: number, excludeBookingId = 0): Promise<TableFreeSeats[]> {
     const rows = await this.db().$queryRaw<{ table_number: number; free_seats: number }[]>`
       SELECT st.table_number,
              (st.seats - COALESCE((
-               ${bookedSeatsOnTable(Prisma.sql`st.table_number`, Prisma.sql`s_target`)}
+               ${bookedSeatsOnTable(
+                 Prisma.sql`st.table_number`,
+                 Prisma.sql`s_target`,
+                 Prisma.sql` AND b.id <> ${excludeBookingId}`,
+               )}
              ), 0))::int AS free_seats
       FROM slots s_target
       JOIN slot_tables st ON st.slot_id = s_target.id
@@ -194,6 +209,64 @@ export class PrismaBookingsRepository extends BookingsRepository {
         tableNumber: a.tableNumber,
         assignedSeats: a.assignedSeats,
       })),
+    });
+  }
+
+  // Locks the booking row until the end of the transaction, so two changes of the same booking
+  // run one after the other. null if the booking does not exist.
+  async lockBooking(bookingId: number): Promise<LockedBooking | null> {
+    if (!Number.isInteger(bookingId) || bookingId < 1 || bookingId > MAX_DB_INT) return null;
+    const rows = await this.db().$queryRaw<
+      {
+        id: number;
+        hiker_id: number;
+        slot_id: number;
+        party_size: number;
+        status: LockedBooking['status'];
+      }[]
+    >`
+      SELECT id, hiker_id, slot_id, party_size, status
+      FROM bookings
+      WHERE id = ${bookingId}
+      FOR UPDATE`;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      hikerId: row.hiker_id,
+      slotId: row.slot_id,
+      partySize: row.party_size,
+      status: row.status,
+    };
+  }
+
+  async deleteBookingTables(bookingId: number): Promise<void> {
+    await this.db().bookingTable.deleteMany({ where: { bookingId } });
+  }
+
+  async updateBooking(bookingId: number, change: BookingChange): Promise<StoredBooking> {
+    const booking = await this.db().booking.update({ where: { id: bookingId }, data: change });
+    return {
+      id: booking.id,
+      slotId: booking.slotId,
+      partySize: booking.partySize,
+      status: booking.status,
+    };
+  }
+
+  async findRequirements(bookingId: number): Promise<PartyRequirement[]> {
+    return this.db().partyRequirement.findMany({
+      where: { bookingId },
+      select: { allergies: true, description: true },
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  async replaceRequirements(bookingId: number, requirements: PartyRequirement[]): Promise<void> {
+    await this.db().partyRequirement.deleteMany({ where: { bookingId } });
+    // One insert: the ids follow the order of the list, as in createBooking.
+    await this.db().partyRequirement.createMany({
+      data: requirements.map((r) => ({ bookingId, ...r })),
     });
   }
 }

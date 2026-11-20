@@ -17,6 +17,13 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
 - Repeat a weekly schedule (MH-09): `POST /api/slots/repeat-weekly` (staff only) copies the slots and tables of the 7 days starting at `sourceStartDate` into each of the next `repeatWeeks` weeks (1 to 12). A target week that already has slots is replaced completely, unless one of its slots has pending or confirmed bookings: then the answer is `409` and nothing changes (course issue #45). An empty source week answers `422`.
 - From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
+- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
+- Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+
+### Changed
+
+- Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
+- The seed creates three slots a day that do not overlap: 12:00–13:00, 13:00–14:00 and 19:00–20:30. A database seeded before keeps its old slots.
 
 ## [release-1] - 2026-11-06
 
