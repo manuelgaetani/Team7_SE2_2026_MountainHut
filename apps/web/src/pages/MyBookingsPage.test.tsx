@@ -62,10 +62,13 @@ describe('MyBookingsPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('asks visitors without a session to log in', async () => {
+  it('asks visitors without a session to log in, coming back here afterwards', async () => {
     stubApi();
     renderAt('/bookings');
-    expect(await screen.findByRole('link', { name: TEXT.logIn })).toHaveAttribute('href', '/login');
+    expect(await screen.findByRole('link', { name: TEXT.logIn })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fbookings',
+    );
   });
 
   it.each(['EMPLOYEE', 'WARDEN'])(

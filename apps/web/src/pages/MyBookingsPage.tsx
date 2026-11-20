@@ -5,6 +5,7 @@ import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useMyBookings } from '../api/useBookings.ts';
 import { MyBookingCard } from '../components/MyBookingCard.tsx';
+import { authPath } from '../lib/bookingRedirect.ts';
 import './MyBookingsPage.css';
 
 type Tab = 'upcoming' | 'cancelled';
@@ -86,7 +87,8 @@ export function MyBookingsPage() {
     if (!user) {
       content = (
         <p className="notice notice--ok">
-          <Link to="/login">Log in</Link> to see your bookings.
+          {/* After signing in the hiker comes back here, not to the home page. */}
+          <Link to={authPath('/login', '/bookings')}>Log in</Link> to see your bookings.
         </p>
       );
     } else if (isStaff) {
