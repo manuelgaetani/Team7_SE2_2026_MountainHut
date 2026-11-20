@@ -9,8 +9,6 @@ import { createSlot, deleteSlot } from '../../fixtures/db.js';
 // Changes are admitted within 48 hours from the date booked.
 // Changes to party size are subject to the automatic verification of availability.
 //
-// TODO(MH-06-whitebox): add white-box component tests for BookingChangeModal, PartySizeStepper, and SlotPicker state management
-// TODO(MH-06-graybox): add gray-box frontend tests for TanStack Query mutation lifecycle and cache invalidation
 // TODO(MH-06-integration): add web frontend integration tests when the /bookings UI page and components are integrated with the API
 
 interface ListedSlot {

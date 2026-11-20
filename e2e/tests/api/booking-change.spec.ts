@@ -8,10 +8,6 @@ import { bookingStatus, createImminentSlot, createSlot, deleteSlot } from '../..
 // Spec MH-06: As a hiker, I want to change the date, time, party size, or requirements of my booking.
 // Changes are admitted within 48 hours from the date booked.
 // Changes to party size are subject to the automatic verification of availability.
-//
-// TODO(MH-06-whitebox): add white-box API unit tests for BookingsController.change and BookingsService.change decision branches
-// TODO(MH-06-graybox): add gray-box tests verifying DB transaction row locks (SELECT FOR UPDATE) and cascade deletes on booking_tables
-// TODO(MH-06-integration): add PostgreSQL integration tests (test/booking-change.int-spec.ts) for atomic concurrent seat allocation
 
 interface TableAllocation {
   tableNumber: number;

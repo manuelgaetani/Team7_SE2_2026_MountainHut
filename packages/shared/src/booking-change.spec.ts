@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { changeBookingSchema } from './bookings.js';
-
-const MAX_DB_INT = 2_147_483_647;
+import {
+  MAX_REQUIREMENTS_COUNT,
+  MAX_REQUIREMENTS_LENGTH,
+  changeBookingSchema,
+} from './bookings.js';
+import { MAX_DB_INT } from './primitives.js';
 
 // One entry of the MH-05 requirements list.
 const need = (description: string, allergies = false) => ({ allergies, description });
 
-// TODO(MH-06-whitebox): add white-box unit tests covering internal Zod validation pipelines and custom issue formatters
-// TODO(MH-06-graybox): add gray-box schema tests verifying database schema column type alignments and constraints
 describe('changeBookingSchema (Black-box)', () => {
   describe('Equivalence Partitioning: Valid Change Payloads', () => {
     it('accepts changing only slotId (moving to another date/time slot)', () => {
@@ -127,5 +128,115 @@ describe('changeBookingSchema (Black-box)', () => {
       const res = changeBookingSchema.safeParse({ requirements: [need('peanut\u0000allergy')] });
       expect(res.success).toBe(false);
     });
+  });
+});
+
+describe('changeBookingSchema (White-box Zod pipeline and issue formatting)', () => {
+  it('rejects explicit undefined values for every optional field via refinement', () => {
+    const res = changeBookingSchema.safeParse({
+      slotId: undefined,
+      partySize: undefined,
+      requirements: undefined,
+    });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues[0]).toMatchObject({
+      code: 'custom',
+      message: 'At least one field (slotId, partySize, requirements) must be provided',
+    });
+  });
+
+  it('reports field-specific issue paths for nested requirement and numeric errors', () => {
+    const res = changeBookingSchema.safeParse({
+      slotId: 0,
+      partySize: -1,
+      requirements: [need('   '), { allergies: 'yes', description: 'vegan' }],
+    });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues.map((i) => i.path)).toEqual(
+      expect.arrayContaining([
+        ['slotId'],
+        ['partySize'],
+        ['requirements', 0, 'description'],
+        ['requirements', 1, 'allergies'],
+      ]),
+    );
+  });
+
+  it('enforces MAX_REQUIREMENTS_COUNT (20 accepted, 21 rejected)', () => {
+    const atLimit = Array.from({ length: MAX_REQUIREMENTS_COUNT }, (_, i) => need(`req-${i}`));
+    expect(changeBookingSchema.safeParse({ requirements: atLimit }).success).toBe(true);
+
+    const overLimit = Array.from({ length: MAX_REQUIREMENTS_COUNT + 1 }, (_, i) =>
+      need(`req-${i}`),
+    );
+    const res = changeBookingSchema.safeParse({ requirements: overLimit });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues[0]).toMatchObject({
+      code: 'too_big',
+      path: ['requirements'],
+    });
+  });
+
+  it('trims description before validating min/max length bounds', () => {
+    expect(changeBookingSchema.safeParse({ requirements: [need('   ')] }).success).toBe(false);
+
+    const exact = changeBookingSchema.parse({
+      requirements: [need(`  ${'x'.repeat(MAX_REQUIREMENTS_LENGTH)}  `)],
+    });
+    expect(exact.requirements?.[0]?.description).toHaveLength(MAX_REQUIREMENTS_LENGTH);
+
+    expect(
+      changeBookingSchema.safeParse({
+        requirements: [need(`  ${'x'.repeat(MAX_REQUIREMENTS_LENGTH + 1)}  `)],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects malformed requirement containers and strips unknown keys inside requirements', () => {
+    for (const bad of ['no nuts', null, {}, [{ description: 'no nuts' }], [null]]) {
+      expect(changeBookingSchema.safeParse({ requirements: bad }).success).toBe(false);
+    }
+
+    const stripped = changeBookingSchema.parse({
+      requirements: [{ allergies: true, description: 'celiac', bookingId: 99, id: 1 }],
+    });
+    expect(stripped.requirements).toEqual([{ allergies: true, description: 'celiac' }]);
+  });
+
+  it('rejects non-finite and oversized partySize values', () => {
+    for (const bad of [MAX_DB_INT + 1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(changeBookingSchema.safeParse({ partySize: bad }).success).toBe(false);
+    }
+  });
+});
+
+describe('changeBookingSchema (Gray-box PostgreSQL schema alignment)', () => {
+  it('aligns slotId and partySize to signed 32-bit PostgreSQL INT4 bounds', () => {
+    expect(changeBookingSchema.safeParse({ slotId: 1, partySize: 1 }).success).toBe(true);
+    expect(
+      changeBookingSchema.safeParse({ slotId: MAX_DB_INT, partySize: MAX_DB_INT }).success,
+    ).toBe(true);
+    expect(changeBookingSchema.safeParse({ slotId: MAX_DB_INT + 1 }).success).toBe(false);
+    expect(changeBookingSchema.safeParse({ partySize: MAX_DB_INT + 1 }).success).toBe(false);
+  });
+
+  it('blocks NUL bytes anywhere in requirement descriptions while allowing UTF-8 text', () => {
+    for (const withNul of ['\u0000vegan', 've\u0000gan', 'vegan\u0000']) {
+      expect(changeBookingSchema.safeParse({ requirements: [need(withNul)] }).success).toBe(false);
+    }
+
+    const utf8 = changeBookingSchema.parse({
+      requirements: [need('2 celiaci — menu senza glutine')],
+    });
+    expect(utf8.requirements).toEqual([
+      { allergies: false, description: '2 celiaci — menu senza glutine' },
+    ]);
+  });
+
+  it('emits PartyRequirement items with exact non-nullable party_requirements column fields', () => {
+    const parsed = changeBookingSchema.parse({
+      requirements: [need('lactose free', true)],
+    });
+    expect(Object.keys(parsed.requirements![0]!).sort()).toEqual(['allergies', 'description']);
   });
 });

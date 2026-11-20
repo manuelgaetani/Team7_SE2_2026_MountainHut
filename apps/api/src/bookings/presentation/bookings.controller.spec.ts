@@ -214,6 +214,12 @@ describe('BookingsController', () => {
       });
     });
 
+    it('allows clearing requirements with an empty list', async () => {
+      bookings.change.mockResolvedValue({ ...changed, requirements: [] });
+      await patch('9', { requirements: [] }).expect(200);
+      expect(bookings.change).toHaveBeenCalledWith(1, 9, { requirements: [] });
+    });
+
     it('ignores a hiker or user id sent in the body', async () => {
       bookings.change.mockResolvedValue(changed);
       await patch('9', { partySize: 4, hikerId: 99, userId: 99 });
@@ -223,8 +229,36 @@ describe('BookingsController', () => {
     it.each([
       ['an empty change', {}],
       ['a party of 0', { partySize: 0 }],
+      ['a party above Postgres int max', { partySize: 2_147_483_648 }],
       ['a slot id of 0', { slotId: 0 }],
-      ['requirements longer than 500 characters', { requirements: 'A'.repeat(501) }],
+      ['a slot id above Postgres int max', { slotId: 2_147_483_648 }],
+      ['requirements that are not a list', { requirements: 'no nuts' }],
+      [
+        'a requirement description longer than 500 characters',
+        { requirements: [{ allergies: false, description: 'A'.repeat(501) }] },
+      ],
+      [
+        'an empty requirement description',
+        { requirements: [{ allergies: false, description: '   ' }] },
+      ],
+      [
+        'a requirement with a non-boolean allergies flag',
+        { requirements: [{ allergies: 'yes', description: 'no nuts' }] },
+      ],
+      ['a requirement without an allergies flag', { requirements: [{ description: 'no nuts' }] }],
+      [
+        'more than 20 requirements',
+        {
+          requirements: Array.from({ length: 21 }, () => ({
+            allergies: false,
+            description: 'vegan',
+          })),
+        },
+      ],
+      [
+        'a requirement containing a NUL byte',
+        { requirements: [{ allergies: true, description: 'no\u0000nuts' }] },
+      ],
     ])('answers 400 without calling the service for %s', async (_name, body) => {
       await patch('9', body).expect(400);
       expect(bookings.change).not.toHaveBeenCalled();
@@ -232,6 +266,12 @@ describe('BookingsController', () => {
 
     it('answers 400 without calling the service when the id is not a number', async () => {
       await patch('abc', { partySize: 4 }).expect(400);
+      expect(bookings.change).not.toHaveBeenCalled();
+    });
+
+    it('checks the role before validating the change body', async () => {
+      role = 'EMPLOYEE';
+      await patch('9', {}).expect(403);
       expect(bookings.change).not.toHaveBeenCalled();
     });
 
