@@ -123,6 +123,12 @@
   font-size: 12px;
 }
 
+.schedule-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 14px;
+}
+
 .slot-form {
   display: grid;
   gap: 14px;

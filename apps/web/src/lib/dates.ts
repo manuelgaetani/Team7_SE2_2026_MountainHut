@@ -14,6 +14,13 @@ export function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** A YYYY-MM-DD date moved by a number of days, in local time like the slot dates. */
+export function addDays(iso: string, days: number): string {
+  const d = fromIsoDate(iso);
+  d.setDate(d.getDate() + days);
+  return toIsoDate(d);
+}
+
 export const weekdayShort = (d: Date): string =>
   capitalize(new Intl.DateTimeFormat(LOCALE, { weekday: 'short' }).format(d).replace('.', ''));
 
