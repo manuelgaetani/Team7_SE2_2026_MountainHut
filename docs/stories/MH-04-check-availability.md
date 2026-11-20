@@ -182,6 +182,7 @@ The check never writes to the database.
 ```bash
 # Unit tests
 npm test -w @mountain-hut/api
+npm test -w @mountain-hut/web
 # Integration tests (PostgreSQL, uses the "<db>_test" database)
 npm run test:int -w @mountain-hut/api -- availability
 # E2E tests on Docker Compose stack
@@ -189,17 +190,23 @@ docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                                      | Covers                                                                                                                                                                       |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/bookings/domain/booking-policy.spec.ts`                     | `checkAvailability` and the 2-hour limit: exact fit, one seat over, full or overbooked tables, decision table (white-box)                                                    |
-| `apps/api/src/bookings/application/availability.service.spec.ts`          | Results `NO_SLOT`, `INSUFFICIENT_SEATS`, `TOO_LATE` with seating, tables/breakdown alignment, configured time zone, no alternative slots                                     |
-| `apps/api/src/bookings/presentation/availability.controller.spec.ts`      | Public route without auth guard, party size as a number, unknown query parameters removed, 500 on unexpected errors                                                          |
-| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | `findSlotAt` (slot that includes the time, earliest then oldest slot, started slots ignored) and `findFreeSeatsByTable` (PENDING and CONFIRMED only), bound values           |
-| `apps/api/test/availability.int-spec.ts`                                  | Real PostgreSQL: slot lookup in the hut time zone, contiguous slots, PENDING/CONFIRMED vs REJECTED seats, read-only check                                                    |
-| `e2e/tests/api/availability.spec.ts` (Black-Box)                          | Requirements R1..R7: public access, multi-table breakdown, capacity limits, BVA, stateless cookies                                                                           |
-| `e2e/tests/api/availability.spec.ts` (Gray-Box)                           | Direct DB seeding: `<2h` imminent slots (`TOO_LATE`), past slots (`NO_SLOT`), empty slots, PENDING seats                                                                     |
-| `e2e/tests/api/availability.spec.ts` (White-Box)                          | Internal branches: `formatBreakdown` singular/plural, `smallestFit` tie-breaker, greedy table layout                                                                         |
-| `e2e/tests/web/availability.spec.ts`                                      | Black-box Web UI: public form, seat layout display, unavailable feedback, no alternative suggestions, from the result to registration and booking (still in `describe.skip`) |
+| Spec                                                                      | Covers                                                                                                                                                                        |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/bookings/domain/booking-policy.spec.ts`                     | `checkAvailability` and the 2-hour limit: exact fit, one seat over, full or overbooked tables, decision table (white-box)                                                     |
+| `apps/api/src/bookings/application/availability.service.spec.ts`          | Results `NO_SLOT`, `INSUFFICIENT_SEATS`, `TOO_LATE` with seating, tables/breakdown alignment, configured time zone, no alternative slots                                      |
+| `apps/api/src/bookings/presentation/availability.controller.spec.ts`      | Public route without auth guard, party size as a number, unknown query parameters removed, 500 on unexpected errors                                                           |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | `findSlotAt` (slot that includes the time, earliest then oldest slot, started slots ignored) and `findFreeSeatsByTable` (PENDING and CONFIRMED only), bound values            |
+| `apps/web/src/api/availability.test.ts`                                   | `fetchAvailability`: query parameter encoding for `/api/availability`, `ApiError` status propagation                                                                          |
+| `apps/web/src/lib/availability.test.ts`                                   | `peopleLabel`, `askedLabel`, `unavailableReason` (`NO_SLOT`, `TOO_LATE`, `INSUFFICIENT_SEATS`), and `availabilityError` formatting                                            |
+| `apps/web/src/lib/bookingRedirect.test.ts`                                | `bookingPath`, `authPath`, `safeNext` open-redirect guard, and `draftFromSearch` query parsing                                                                                |
+| `apps/web/src/pages/AvailabilityPage.test.tsx`                            | Public `/availability` form, client validation, loading state, available/unavailable cards, anonymous vs signed-in links, field reset, API/network errors (`useAvailability`) |
+| `apps/web/src/pages/BookingPage.test.tsx`                                 | Prefill date/slot/party size from availability `?date=&time=&partySize=`, fallback when slot is missing, staff access check                                                   |
+| `apps/web/src/pages/LoginPage.test.tsx`, `RegisterPage.test.tsx`          | Preserving safe `?next=` across sign-in and registration (`AuthTabs`) and rejecting unsafe external redirects                                                                 |
+| `apps/api/test/availability.int-spec.ts`                                  | Real PostgreSQL: slot lookup in the hut time zone, contiguous slots, PENDING/CONFIRMED vs REJECTED seats, read-only check                                                     |
+| `e2e/tests/api/availability.spec.ts` (Black-Box)                          | Requirements R1..R7: public access, multi-table breakdown, capacity limits, BVA, stateless cookies                                                                            |
+| `e2e/tests/api/availability.spec.ts` (Gray-Box)                           | Direct DB seeding: `<2h` imminent slots (`TOO_LATE`), past slots (`NO_SLOT`), empty slots, PENDING seats                                                                      |
+| `e2e/tests/api/availability.spec.ts` (White-Box)                          | Internal branches: `formatBreakdown` singular/plural, `smallestFit` tie-breaker, greedy table layout                                                                          |
+| `e2e/tests/web/availability.spec.ts`                                      | Black-box Web UI: public form, seat layout display, unavailable feedback, no alternative suggestions, from the result to registration and booking (still in `describe.skip`)  |
 
 ### Try it manually
 
