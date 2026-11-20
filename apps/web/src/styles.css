@@ -254,6 +254,13 @@ a.button-primary {
   gap: 24px;
 }
 
+/* Staff home: the buttons stacked, all as wide as the longest one. */
+.home-hero__actions {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .api-status {
   margin: 0;
   padding: 16px 24px;

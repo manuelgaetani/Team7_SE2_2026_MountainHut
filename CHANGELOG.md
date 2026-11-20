@@ -17,6 +17,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Password recovery by email (MH-07): `POST /api/auth/password-reset/request` sends a link valid for 24 hours and only once, `POST /api/auth/password-reset/confirm` sets the new password and closes every session.
 - New environment variable: `WEB_URL` (default `http://localhost:3000`), the address of the web app in the links of the emails.
 - Database (MH-07): hikers without an account may have no phone, new column `users.must_change_password`, new table `password_reset_tokens` and notification type `PASSWORD_RESET` (migrations `reserve_for_hiker` and `password_reset_notification`).
+- Web app (MH-07): the staff page _New booking_ (`/staff/bookings/new`) with hiker search, quick entry and full profile, and the generated password shown once; the forced change of the password after the first login (`/change-password`); the pages to ask for a reset link (`/forgot-password`) and to set a new password (`/reset-password?token=`).
 - Documentation of MH-07 in [docs/stories](docs/stories/MH-07-reserve-for-a-hiker.md).
 
 ### Changed

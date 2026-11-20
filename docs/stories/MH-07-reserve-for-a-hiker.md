@@ -2,7 +2,7 @@
 
 |                |                                                                                                                                            |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Status**     | API complete; web app in progress                                                                                                          |
+| **Status**     | Complete                                                                                                                                   |
 | **Depends on** | MH-58 (authentication), MH-01 (book a table, seat allocation), MH-03 (confirmation email), MH-05 (party requirements), MH-02 (staff roles) |
 
 ## User story
@@ -37,21 +37,21 @@ Team assumptions:
 
 ## Requirements
 
-| #   | Requirement                                                                                         | Status      | Implemented in                                                                 |
-| --- | --------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
-| R1  | Only the staff (`EMPLOYEE`, `WARDEN`) search hikers and enter reservations                          | Done        | `HikersController`, `StaffBookingsController` (`@Roles('EMPLOYEE', 'WARDEN')`) |
-| R2  | Find a hiker already in the system by name, phone or email                                          | Done        | `GET /api/hikers`, `SearchHikers`, `PrismaHikersRepository.search`             |
-| R3  | Reservation for a hiker already in the system, with or without an account                           | Done        | `CreateStaffBooking` (`kind: 'EXISTING'`)                                      |
-| R4  | Quick entry: name and optional phone create a temporary hiker, who cannot log in                    | Done        | `temporaryHikerSchema`, `PrismaHikersRepository.createTemporary`               |
-| R5  | Full details create a regular hiker profile, who can later use the web app                          | Done        | `newHikerAccountSchema`, `PrismaHikersRepository.createAccount`                |
-| R6  | The password of a new account is randomly generated and given to the staff, to tell the hiker       | Done        | `CryptoPasswordGenerator`, `StaffBookingResult.generatedPassword`              |
-| R7  | The hiker must change the generated password at the next login                                      | Done        | `users.must_change_password`, `Login`, `GetCurrentUser`, `ChangePassword`      |
-| R8  | The hiker can recover the password by email, with a link valid for 24 hours                         | Done        | `RequestPasswordReset`, `ConfirmPasswordReset`, `passwordResetEmail`           |
-| R9  | The only time limit: no reservation after the beginning of the slot                                 | Done        | `decideStaffBooking`                                                           |
-| R10 | The party is seated with the MH-01 rules; not enough seats refuse the reservation                   | Done        | `decideStaffBooking` (`allocateSeats`)                                         |
-| R11 | A refused reservation stores nothing, not even the new hiker; one active booking per hiker and slot | Done        | `CreateStaffBooking` (one transaction), `bookings_hiker_id_slot_id_active_key` |
-| R12 | A hiker with an email receives the booking confirmation                                             | Done        | `CreateStaffBooking`, `ConfirmationSender` (MH-03)                             |
-| R13 | Web app: hiker search, reservation form, generated password, forced change and password recovery    | In progress | Frontend integration (MOU-118)                                                 |
+| #   | Requirement                                                                                         | Status | Implemented in                                                                                                                                 |
+| --- | --------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Only the staff (`EMPLOYEE`, `WARDEN`) search hikers and enter reservations                          | Done   | `HikersController`, `StaffBookingsController` (`@Roles('EMPLOYEE', 'WARDEN')`)                                                                 |
+| R2  | Find a hiker already in the system by name, phone or email                                          | Done   | `GET /api/hikers`, `SearchHikers`, `PrismaHikersRepository.search`                                                                             |
+| R3  | Reservation for a hiker already in the system, with or without an account                           | Done   | `CreateStaffBooking` (`kind: 'EXISTING'`)                                                                                                      |
+| R4  | Quick entry: name and optional phone create a temporary hiker, who cannot log in                    | Done   | `temporaryHikerSchema`, `PrismaHikersRepository.createTemporary`                                                                               |
+| R5  | Full details create a regular hiker profile, who can later use the web app                          | Done   | `newHikerAccountSchema`, `PrismaHikersRepository.createAccount`                                                                                |
+| R6  | The password of a new account is randomly generated and given to the staff, to tell the hiker       | Done   | `CryptoPasswordGenerator`, `StaffBookingResult.generatedPassword`                                                                              |
+| R7  | The hiker must change the generated password at the next login                                      | Done   | `users.must_change_password`, `Login`, `GetCurrentUser`, `ChangePassword`                                                                      |
+| R8  | The hiker can recover the password by email, with a link valid for 24 hours                         | Done   | `RequestPasswordReset`, `ConfirmPasswordReset`, `passwordResetEmail`                                                                           |
+| R9  | The only time limit: no reservation after the beginning of the slot                                 | Done   | `decideStaffBooking`                                                                                                                           |
+| R10 | The party is seated with the MH-01 rules; not enough seats refuse the reservation                   | Done   | `decideStaffBooking` (`allocateSeats`)                                                                                                         |
+| R11 | A refused reservation stores nothing, not even the new hiker; one active booking per hiker and slot | Done   | `CreateStaffBooking` (one transaction), `bookings_hiker_id_slot_id_active_key`                                                                 |
+| R12 | A hiker with an email receives the booking confirmation                                             | Done   | `CreateStaffBooking`, `ConfirmationSender` (MH-03)                                                                                             |
+| R13 | Web app: hiker search, reservation form, generated password, forced change and password recovery    | Done   | `StaffBookingPage`, `HikerPicker`, `StaffBookingDoneDialog`, `App` (redirect), `ChangePasswordPage`, `ForgotPasswordPage`, `ResetPasswordPage` |
 
 ### Decisions
 
@@ -243,7 +243,28 @@ Public. Body: `token` (the code of the link, 1 to 200 characters), `password` (t
 
 ## Web app
 
-In progress (frontend integration, MOU-118): hiker search and reservation form for the staff, the generated password shown once, the forced change after the first login, and the pages to ask for a reset link and to set a new password (`/reset-password?token=`).
+### New booking (`/staff/bookings/new`)
+
+- **Access.** Only `EMPLOYEE` and `WARDEN` (`isStaff`). An anonymous visitor sees _"Log in with a staff account to enter a booking."_ with a link to `/login`; a hiker sees _"This page is for the hut staff."_ The staff home page links here with **New booking**.
+- **1. Hiker** (`HikerPicker`), three tabs:
+  - _Existing hiker_: the search box calls `GET /api/hikers?search=` 300 ms after the last key, and only from 2 characters. The matches are listed as cards (_"Select Luca Rossi"_); the selected one shows its phone, email, notes and emergency contact. No match: _"No hiker matches “…”"_.
+  - _Quick entry_: full name and optional phone, sent as `kind: 'TEMPORARY'`.
+  - _Full profile_: full name, email, mobile number, optional notes and emergency contact, sent as `kind: 'ACCOUNT'`.
+- **2. Reservation details.** Date (from today), time slot from `GET /api/slots/schedule?date=` (the slots that have started or have no tables are shown but disabled), number of people and the MH-05 `RequirementsEditor`. A recap shows date, time, people and requirements.
+- **Validation.** `createStaffBookingSchema.safeParse` before sending: no hiker selected, an empty requirement, an invalid email or phone are shown as field errors (`role="alert"`, `aria-invalid`) and nothing is sent.
+- **Outcome.** `StaffBookingDoneDialog` shows _"Booking created"_ with the hiker, date, time, people and tables. For a new account it shows the generated password once, with the advice to tell it to the hiker now. **Done** empties the form.
+- **Errors.** `401` _"The session has expired. Please log in again."_; `403`, `404`, `409` and `422` show the message of the API (e.g. _"Insufficient seats available for this slot"_, _"Email already registered"_, _"The slot has already started"_).
+
+### Forced change (`/change-password`)
+
+- `App` sends a user with `mustChangePassword: true` to `/change-password` from any page, until the password is changed. The page explains that the account was created by the staff and asks for the _Temporary password_ and a _New password_.
+- Any logged-in user can also open it to change the password (_Current password_). Anonymous visitors see a link to `/login`.
+- `POST /api/auth/change-password`; on success the session user is replaced (`mustChangePassword: false`) and **Continue** goes to the home page. Errors: `403` _"The current password is wrong."_, `422` _"Choose a password different from the current one."_, `401` session expired.
+
+### Password recovery (`/forgot-password`, `/reset-password?token=`)
+
+- The login page links to _"Forgot your password?"_. The page asks for the email and always answers _"If the email is registered, a link has been sent. It is valid for 24 hours."_, so it does not reveal who is registered.
+- The link of the email opens `/reset-password?token=<code>`: a new password, sent with the code to `POST /api/auth/password-reset/confirm`. Then _"Your password has been changed. Sign in with the new password."_. A link without a code, or a `422`, shows _"The link is invalid or has expired."_ with a link to ask for a new one.
 
 ## Data model
 
@@ -310,6 +331,16 @@ Migrations:
 | `apps/api/src/notifications/infrastructure/password-reset.adapter.ts`                 | Sends the reset email through the notification service                                       |
 | `apps/api/src/notifications/templates/password-reset.ts`                              | `passwordResetEmail`: text and HTML of the reset email                                       |
 | `apps/api/src/config/app-config.ts`                                                   | `WEB_URL`                                                                                    |
+| `apps/web/src/pages/StaffBookingPage.tsx`                                             | New booking page of the staff: hiker, reservation details, validation and errors             |
+| `apps/web/src/components/HikerPicker.tsx`                                             | Existing hiker search, quick entry and full profile tabs                                     |
+| `apps/web/src/components/StaffBookingDoneDialog.tsx`                                  | Outcome of the booking and the generated password, shown once                                |
+| `apps/web/src/lib/hikerDraft.ts`, `lib/useDebouncedValue.ts`                          | Form state of the hiker; search started when the staff stop typing                           |
+| `apps/web/src/api/staffBookings.ts`, `api/useStaffBookings.ts`                        | `GET /api/hikers`, `POST /api/staff/bookings` and their TanStack Query hooks                 |
+| `apps/web/src/api/auth.ts`, `api/useAuth.ts`                                          | Change password and password reset requests and hooks                                        |
+| `apps/web/src/App.tsx`                                                                | Redirect to `/change-password` while `mustChangePassword` is `true`                          |
+| `apps/web/src/pages/ChangePasswordPage.tsx`                                           | Forced change after the first login, and change password for any user                        |
+| `apps/web/src/pages/ForgotPasswordPage.tsx`, `pages/ResetPasswordPage.tsx`            | Ask for a reset link; set a new password with the code of the link                           |
+| `apps/web/src/router.tsx`                                                             | Routes `staff/bookings/new`, `change-password`, `forgot-password`, `reset-password`          |
 | `apps/api/prisma/schema.prisma`                                                       | `mustChangePassword`, `PasswordResetToken`, optional `phone`, `PASSWORD_RESET`               |
 
 ## Testing
@@ -319,6 +350,7 @@ Run unit tests:
 ```bash
 npm run test -w @mountain-hut/shared
 npm run test -w @mountain-hut/api
+npm run test -w @mountain-hut/web
 ```
 
 Run integration tests against PostgreSQL:
@@ -353,6 +385,9 @@ npm run test:e2e
 | `apps/api/src/auth/infrastructure/prisma-password-reset-token.repository.spec.ts`, `prisma-users.repository.spec.ts`                                                        | White box: conditional `UPDATE` of the link (unused, not expired), no read when no row changed, spending the open links; `updatePassword` ends the forced change                                                                                                                                                                                                                                                          |
 | `apps/api/src/notifications/infrastructure/password-reset.adapter.spec.ts`, `notification.service.spec.ts`, `templates/password-reset.spec.ts`, `config/app-config.spec.ts` | Black box: link `WEB_URL/reset-password?token=` with the code encoded, `PASSWORD_RESET` recorded without the link, email content and time zone, `WEB_URL` default, final `/` removed, invalid URL                                                                                                                                                                                                                         |
 | `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts`                                                                                                   | White box: the given status (`CONFIRMED`) is stored instead of `PENDING`                                                                                                                                                                                                                                                                                                                                                  |
+| `apps/web/src/pages/StaffBookingPage.test.tsx`                                                                                                                              | Frontend (R13): anonymous and hiker notices, loading, no bookable slot, started and empty slots disabled, search from 2 characters and no match, selection, booking for an existing hiker with requirements, temporary hiker, full profile with the generated password, field errors that send nothing, `409` and `401`                                                                                                   |
+| `apps/web/src/pages/ChangePasswordPage.test.tsx`                                                                                                                            | Frontend (R7, R13): anonymous notice, loading, redirect of a staff-created account from any page, password rules, change and continue, `403`, `422`, `401`                                                                                                                                                                                                                                                                |
+| `apps/web/src/pages/ForgotPasswordPage.test.tsx`, `pages/ResetPasswordPage.test.tsx`                                                                                        | Frontend (R8, R13): link from the login page, invalid email, same answer for every email, failure; link without a code, password rules, new password with the code, `422` expired link                                                                                                                                                                                                                                    |
 
 ### Try it manually
 
@@ -363,9 +398,10 @@ npm run test:e2e
 5. Log in with the new email and the generated password: the answer has `mustChangePassword: true`. Change it with `POST /api/auth/change-password`.
 6. Ask for a reset link with `POST /api/auth/password-reset/request`, open the email in Mailpit and send the code of the link to `POST /api/auth/password-reset/confirm`.
 7. Search the hikers you created with `GET /api/hikers?search=<part of the name>`.
+8. In the browser, log in as an employee at http://localhost:3000/login and choose **New booking**: search a hiker, or use _Quick entry_ or _Full profile_, choose the slot and create the booking. With _Full profile_ the dialog shows the generated password.
+9. Log out and log in with the new account: the web app opens _Change password_ and does not let you leave it until the temporary password is replaced.
+10. Log out, choose _Forgot your password?_, open the email in Mailpit and follow the link to set a new password.
 
 ## Open points
 
-- **Web app.** The staff pages and the password pages are in progress (MOU-118); update `## Web app` and the code map when they are merged.
-- **Unit tests.** The unit tests of the new schemas and use cases are on `test/MH-07-unit-testing` (MOU-122), not merged into the feature branch yet; add them to `## Testing` when they are.
 - **Forced change on the server.** The API reports `mustChangePassword` but does not block the other endpoints until the password is changed: the web app enforces it. If the forced change must hold also for API clients, the guard should refuse every endpoint except change password and logout while it is `true`.

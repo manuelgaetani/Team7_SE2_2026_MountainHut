@@ -37,6 +37,10 @@ export function HomePage() {
                   <span>Manage time slots</span>
                   <span aria-hidden="true">→</span>
                 </Link>
+                <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
+                  <span>New booking</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
               </>
             ) : (
               <>
