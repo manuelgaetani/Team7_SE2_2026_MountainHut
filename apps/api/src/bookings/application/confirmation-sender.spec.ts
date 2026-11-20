@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingConfirmationNotifier } from './booking-confirmation.port.js';
 import { BookingsRepository } from './bookings.repository.port.js';
-import { ConfirmationSender, Sleeper } from './confirmation-sender.js';
+import { ConfirmationSender, Sleeper, TimerSleeper } from './confirmation-sender.js';
 
 describe('ConfirmationSender', () => {
   let sender: ConfirmationSender;
@@ -105,6 +105,26 @@ describe('ConfirmationSender', () => {
     it('never rejects, even when the notifier throws', async () => {
       notifier.notifyChange.mockRejectedValue(new Error('SMTP down'));
       await expect(sender.sendChange(9)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('TimerSleeper', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('resolves after the given delay in milliseconds', async () => {
+      vi.useFakeTimers();
+      const sleeper = new TimerSleeper();
+      let settled = false;
+      const pending = sleeper.sleep(50).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(49);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+      expect(settled).toBe(true);
     });
   });
 });

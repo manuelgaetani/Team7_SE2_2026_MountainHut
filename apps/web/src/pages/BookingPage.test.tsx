@@ -116,6 +116,17 @@ describe('BookingPage', () => {
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
   });
 
+  it.each(['EMPLOYEE', 'WARDEN'] as const)(
+    'tells a %s that staff accounts cannot book a table',
+    async (role) => {
+      const fetchMock = stubApi({ me: () => json({ ...user, role }) });
+      renderPage();
+      expect(await screen.findByText('Staff accounts cannot book a table.')).toBeVisible();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/slots', expect.anything());
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    },
+  );
+
   it('says so when there are no slots', async () => {
     stubApi({ slots: () => json([]) });
     renderPage();

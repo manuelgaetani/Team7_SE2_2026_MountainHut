@@ -23,10 +23,8 @@ const expectValidAssignment = (
 };
 
 // Spec MH-06: Changes to party size are subject to the automatic verification of availability.
-// TODO(PO): when party size increases, should the allocation prefer keeping current tables if possible,
-// or reallocate entirely to minimize table fragmentation?
-// TODO(MH-06-whitebox): add white-box unit tests covering internal heuristic branches and tie-breaker sorting
-// TODO(MH-06-graybox): add gray-box tests verifying table assignment consistency with DB slot_tables
+// Course issues #38 and #48: every change is treated as a new booking and reallocated from
+// scratch with MH-01 rules; `BookingsService.change` omits `current`.
 describe('canAccommodatePartyChange (Black-box automatic availability verification)', () => {
   describe('party fits at one table', () => {
     it('uses the single table when it fits the new party size exactly', () => {
@@ -163,5 +161,121 @@ describe('canAccommodatePartyChange (Black-box automatic availability verificati
       ]);
       expect(result).toEqual([{ tableNumber: 1, assignedSeats: 3 }]);
     });
+  });
+});
+
+describe('canAccommodatePartyChange (White-box heuristic branches and tie-breaker sorting)', () => {
+  it('breaks smallest-fit single-table ties by lowest tableNumber on unsorted tables', () => {
+    const available: TableFreeSeats[] = [
+      { tableNumber: 7, freeSeats: 4 },
+      { tableNumber: 2, freeSeats: 4 },
+      { tableNumber: 5, freeSeats: 6 },
+    ];
+    expect(canAccommodatePartyChange(available, 3)).toEqual([{ tableNumber: 2, assignedSeats: 3 }]);
+  });
+
+  it('breaks largest-first multi-table ties by lowest tableNumber and seats remainder with smallestFit', () => {
+    const available: TableFreeSeats[] = [
+      { tableNumber: 4, freeSeats: 4 },
+      { tableNumber: 1, freeSeats: 4 },
+      { tableNumber: 3, freeSeats: 2 },
+      { tableNumber: 2, freeSeats: 2 },
+    ];
+    expect(canAccommodatePartyChange(available, 5)).toEqual([
+      { tableNumber: 1, assignedSeats: 4 },
+      { tableNumber: 2, assignedSeats: 1 },
+    ]);
+  });
+
+  it('fills multiple largest tables before picking the smallest table for the last remainder', () => {
+    const available: TableFreeSeats[] = [
+      { tableNumber: 1, freeSeats: 1 },
+      { tableNumber: 2, freeSeats: 4 },
+      { tableNumber: 3, freeSeats: 3 },
+      { tableNumber: 4, freeSeats: 4 },
+    ];
+    expect(canAccommodatePartyChange(available, 9)).toEqual([
+      { tableNumber: 2, assignedSeats: 4 },
+      { tableNumber: 4, assignedSeats: 4 },
+      { tableNumber: 1, assignedSeats: 1 },
+    ]);
+  });
+
+  it('ignores non-positive freeSeats entries when computing capacity and allocations', () => {
+    const available: TableFreeSeats[] = [
+      { tableNumber: 1, freeSeats: -2 },
+      { tableNumber: 2, freeSeats: 0 },
+      { tableNumber: 3, freeSeats: 3 },
+    ];
+    expect(canAccommodatePartyChange(available, 4)).toBeNull();
+    expect(canAccommodatePartyChange(available, 3)).toEqual([{ tableNumber: 3, assignedSeats: 3 }]);
+  });
+
+  it('produces identical allocations regardless of caller table array order', () => {
+    const ascending: TableFreeSeats[] = [
+      { tableNumber: 2, freeSeats: 3 },
+      { tableNumber: 5, freeSeats: 4 },
+      { tableNumber: 8, freeSeats: 2 },
+    ];
+    const reversed = [...ascending].reverse();
+    expect(canAccommodatePartyChange(ascending, 6)).toEqual(canAccommodatePartyChange(reversed, 6));
+  });
+
+  it('treats explicit empty current allocation identically to omitted current', () => {
+    const available = tables(6, 4);
+    expect(canAccommodatePartyChange(available, 3, [])).toEqual(
+      canAccommodatePartyChange(available, 3),
+    );
+  });
+});
+
+describe('canAccommodatePartyChange (Gray-box DB slot_tables consistency invariants)', () => {
+  it('preserves booking_tables PK/FK and slot_tables capacity invariants on sparse partially occupied tables', () => {
+    // Simulates rows returned by findFreeSeatsByTable (st.seats - booked seats excluding this booking).
+    const slotTables = [
+      { tableNumber: 10, seats: 6, otherBooked: 2 },
+      { tableNumber: 25, seats: 8, otherBooked: 8 },
+      { tableNumber: 40, seats: 4, otherBooked: 1 },
+      { tableNumber: 55, seats: 5, otherBooked: 0 },
+    ];
+    const free: TableFreeSeats[] = slotTables.map((t) => ({
+      tableNumber: t.tableNumber,
+      freeSeats: t.seats - t.otherBooked,
+    }));
+
+    const allocation = canAccommodatePartyChange(free, 8);
+    expectValidAssignment(allocation, free, 8);
+
+    const byTable = new Map(slotTables.map((t) => [t.tableNumber, t]));
+    for (const entry of allocation!) {
+      const row = byTable.get(entry.tableNumber);
+      expect(row).toBeDefined();
+      expect(row!.otherBooked + entry.assignedSeats).toBeLessThanOrEqual(row!.seats);
+    }
+    expect(allocation).toEqual([
+      { tableNumber: 55, assignedSeats: 5 },
+      { tableNumber: 40, assignedSeats: 3 },
+    ]);
+  });
+
+  it('never oversells total slot_tables seats across sequential re-allocations', () => {
+    const slotCapacity = new Map<number, number>([
+      [1, 4],
+      [2, 6],
+    ]);
+    const available = [...slotCapacity.entries()].map(([tableNumber, freeSeats]) => ({
+      tableNumber,
+      freeSeats,
+    }));
+
+    const first = canAccommodatePartyChange(available, 4)!;
+    const afterFirst = available.map((t) => {
+      const taken = first.find((a) => a.tableNumber === t.tableNumber)?.assignedSeats ?? 0;
+      return { tableNumber: t.tableNumber, freeSeats: t.freeSeats - taken };
+    });
+
+    const second = canAccommodatePartyChange(afterFirst, 6)!;
+    expectValidAssignment(second, afterFirst, 6);
+    expect(canAccommodatePartyChange(afterFirst, 7)).toBeNull();
   });
 });

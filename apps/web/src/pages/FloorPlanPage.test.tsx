@@ -476,4 +476,36 @@ describe('FloorPlanPage', () => {
       },
     );
   });
+
+  it('uses singular labels when a slot has one group with one guest', async () => {
+    const singleGroupPlan: FloorPlan = {
+      slot,
+      tables: [
+        {
+          tableNumber: 1,
+          capacity: 4,
+          occupiedSeats: 1,
+          freeSeats: 3,
+          groups: [{ label: 'A', seats: 1 }],
+        },
+      ],
+      groups: [
+        {
+          label: 'A',
+          bookingId: 1,
+          fullName: 'Rossi',
+          partySize: 1,
+          status: 'CONFIRMED',
+          startTime: '12:30',
+          endTime: '13:30',
+          tables: [{ tableNumber: 1, seats: 1 }],
+        },
+      ],
+      totals: { capacity: 4, occupiedSeats: 1, freeSeats: 3, confirmedGroups: 1, splitGroups: 0 },
+    };
+    stubApi({ floor: () => json(singleGroupPlan) });
+    renderFloorPage();
+
+    expect(await screen.findByText('1 group · 1 guest')).toBeVisible();
+  });
 });

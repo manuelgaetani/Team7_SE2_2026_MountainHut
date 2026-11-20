@@ -28,6 +28,7 @@ const TEXT = {
   updated: "Booking updated. We'll email you the new details.",
   sessionExpired: 'The session has expired. Please log in again.',
   changeFailed: 'The booking could not be changed. Please try again.',
+  chooseTime: 'Choose a time.',
 } as const;
 
 const CHANGE_URL = '/api/bookings/1';
@@ -400,5 +401,151 @@ describe('ModifyBookingDialog', () => {
     const dialog = await openDialog();
     fireEvent.click(dialog);
     expect(screen.getByRole('dialog')).toBeVisible();
+  });
+
+  it('exposes accessible modal attributes and stays open on non-Escape keys', async () => {
+    setup();
+    const dialog = await openDialog();
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', 'modify-dialog-title');
+
+    fireEvent.keyDown(document, { key: 'Enter' });
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('dialog')).toBeVisible();
+  });
+
+  it('displays too-late slots as disabled with the (too late) note', async () => {
+    setup(() =>
+      json([
+        ...slots,
+        slot({ id: 31, date: '2026-11-29', startTime: '14:00', availability: 'TOO_LATE' }),
+      ]),
+    );
+    await openDialog();
+    fireEvent.change(await screen.findByLabelText(TEXT.date), {
+      target: { value: '2026-11-29' },
+    });
+    const tooLate = within(select(TEXT.time)).getByRole<HTMLOptionElement>('option', {
+      name: '14:00 (too late)',
+    });
+    expect(tooLate.disabled).toBe(true);
+  });
+
+  it('asks to choose a time when no slot is selectable on the chosen date', async () => {
+    const fetchMock = setup(() =>
+      json([...slots, slot({ id: 30, date: '2026-11-16', startTime: '19:00' })]),
+    );
+    await openDialog();
+    fireEvent.change(await screen.findByLabelText(TEXT.date), {
+      target: { value: '2026-11-16' },
+    });
+    expect(select(TEXT.time)).toHaveValue('');
+    confirm();
+    expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.chooseTime);
+    expect(changeCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it('allows changing the time select between available slots and clears prior form errors', async () => {
+    const fetchMock = setup(() =>
+      json([...slots, slot({ id: 22, date: '2026-11-29', startTime: '19:30' })]),
+    );
+    await openDialog();
+    await screen.findByLabelText(TEXT.date);
+    confirm();
+    expect(screen.getByRole('alert')).toHaveTextContent(TEXT.unchanged);
+
+    fireEvent.change(screen.getByLabelText(TEXT.date), { target: { value: '2026-11-29' } });
+    fireEvent.change(select(TEXT.time), { target: { value: '22' } });
+    expect(select(TEXT.time)).toHaveValue('22');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    confirm();
+    await waitFor(() => expect(changeCalls(fetchMock)).toHaveLength(1));
+    expect(sentChange(fetchMock)).toEqual({ slotId: 22 });
+  });
+
+  it('restores the booked slot when switching away from and back to the booked date', async () => {
+    setup();
+    await openDialog();
+    fireEvent.change(await screen.findByLabelText(TEXT.date), {
+      target: { value: '2026-11-29' },
+    });
+    expect(select(TEXT.time)).toHaveValue('21');
+
+    fireEvent.change(screen.getByLabelText(TEXT.date), { target: { value: '2026-11-21' } });
+    expect(select(TEXT.time)).toHaveValue('10');
+  });
+
+  it('sends an empty requirements array when all requirements are removed', async () => {
+    const fetchMock = setup();
+    await openDialog();
+    fireEvent.click(screen.getByRole('button', { name: TEXT.remove(1) }));
+    fireEvent.click(screen.getByRole('button', { name: TEXT.remove(1) }));
+    confirm();
+    await waitFor(() => expect(changeCalls(fetchMock)).toHaveLength(1));
+    expect(sentChange(fetchMock)).toEqual({ requirements: [] });
+  });
+
+  it('sends slotId, partySize, and requirements together when all three change', async () => {
+    const fetchMock = setup();
+    await openDialog();
+    fireEvent.change(await screen.findByLabelText(TEXT.date), {
+      target: { value: '2026-11-29' },
+    });
+    fireEvent.change(screen.getByLabelText(TEXT.people), { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: TEXT.remove(2) }));
+    confirm();
+    await waitFor(() => expect(changeCalls(fetchMock)).toHaveLength(1));
+    expect(sentChange(fetchMock)).toEqual({
+      slotId: 21,
+      partySize: 6,
+      requirements: [{ allergies: true, description: '1 vegan, peanut allergy' }],
+    });
+  });
+
+  it('clears form error when adding, editing, or removing a requirement', async () => {
+    setup();
+    await openDialog();
+    await screen.findByLabelText(TEXT.date);
+
+    confirm();
+    expect(screen.getByRole('alert')).toHaveTextContent(TEXT.unchanged);
+    fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: TEXT.remove(3) }));
+    confirm();
+    expect(screen.getByRole('alert')).toHaveTextContent(TEXT.unchanged);
+    fireEvent.change(screen.getByLabelText(TEXT.requirement(2)), {
+      target: { value: 'vegan' },
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('reloads both bookings and slots caches after a successful change', async () => {
+    const fetchMock = setup();
+    await openDialog();
+    fireEvent.change(screen.getByLabelText(TEXT.people), { target: { value: '6' } });
+    confirm();
+    await screen.findByText(TEXT.updated);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([url]) => url === '/api/bookings/me')).toHaveLength(2);
+      expect(fetchMock.mock.calls.filter(([url]) => url === '/api/slots')).toHaveLength(2);
+    });
+  });
+
+  it('shows generic fallback message on a non-ApiError network failure', async () => {
+    stubApi({
+      '/api/auth/me': () => json(user),
+      '/api/bookings/me': () => json([booking]),
+      '/api/slots': () => json(slots),
+      [CHANGE_URL]: () => {
+        throw new Error('Network unreachable');
+      },
+    });
+    await openDialog();
+    fireEvent.change(screen.getByLabelText(TEXT.people), { target: { value: '6' } });
+    confirm();
+    expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.changeFailed);
   });
 });

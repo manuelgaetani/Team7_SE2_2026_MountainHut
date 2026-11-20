@@ -217,4 +217,33 @@ describe('MyBookingsPage', () => {
     renderAt('/bookings');
     expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.loadFailed);
   });
+
+  it('shows a generic error when loading bookings fails with a non-ApiError', async () => {
+    stubApi({
+      '/api/auth/me': () => json(user),
+      '/api/bookings/me': () => {
+        throw new Error('Network down');
+      },
+    });
+    renderAt('/bookings');
+    expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.loadFailed);
+  });
+
+  it('switches back from Cancelled tab to Upcoming tab', async () => {
+    asHiker(() => json([confirmed, cancelled]));
+    renderAt('/bookings');
+
+    fireEvent.click(await screen.findByRole('tab', { name: TEXT.cancelled }));
+    expect(card('Sunday 29 November 2026')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('tab', { name: TEXT.upcoming }));
+    expect(screen.getByRole('tab', { name: TEXT.upcoming })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(card('Saturday 21 November 2026')).toBeVisible();
+    expect(
+      screen.queryByRole('article', { name: 'Sunday 29 November 2026' }),
+    ).not.toBeInTheDocument();
+  });
 });
