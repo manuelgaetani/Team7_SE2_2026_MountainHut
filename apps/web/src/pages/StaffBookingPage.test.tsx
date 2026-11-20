@@ -2,7 +2,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HikerProfile, SlotDetails, StaffBookingResult } from '@mountain-hut/shared';
+import type {
+  HikerProfile,
+  SlotDetails,
+  SlotSummary,
+  StaffBookingResult,
+} from '@mountain-hut/shared';
 import { routes } from '../router.tsx';
 
 const TEXT = {
@@ -26,6 +31,7 @@ const TEXT = {
   footerExisting: 'This booking will be linked to the selected hiker.',
   footerQuick: 'A temporary hiker will be saved with this booking.',
   footerFull: 'A regular hiker profile will be created with this booking.',
+  fewSeats: 'Only 3 free seats left in this slot.',
 } as const;
 
 const DAY = '2026-11-21';
@@ -75,19 +81,35 @@ interface Options {
   user?: unknown;
   slots?: SlotDetails[];
   hikers?: HikerProfile[];
+  // Free seats by slot id, as GET /api/slots gives them; by default it lists no slot.
+  free?: Record<number, number>;
   book?: () => Response;
 }
+
+const summaries = (slots: SlotDetails[], free: Record<number, number>): SlotSummary[] =>
+  slots
+    .filter((s) => s.id in free)
+    .map(({ id, date, startTime, endTime }) => ({
+      id,
+      date,
+      startTime,
+      endTime,
+      freeSeats: free[id],
+      availability: free[id] > 0 ? 'AVAILABLE' : 'FULL',
+    }));
 
 function stubApi({
   user = employee,
   slots = [lunch, dinner],
   hikers = [luca, elena],
+  free = {},
   book = () => json(result(), 201),
 }: Options = {}) {
   const fetchMock = vi.fn((url: string) => {
     if (url === '/api/auth/me') return Promise.resolve(user ? json(user) : json({}, 401));
     if (url === '/api/auth/refresh') return Promise.resolve(json({}, 401));
     if (url === SCHEDULE_URL) return Promise.resolve(json(slots));
+    if (url === '/api/slots') return Promise.resolve(json(summaries(slots, free)));
     if (url.startsWith('/api/hikers?')) return Promise.resolve(json(hikers));
     if (url === BOOK_URL) return Promise.resolve(book());
     return Promise.reject(new Error(`Unexpected request ${url}`));
@@ -191,6 +213,29 @@ describe('StaffBookingPage (MH-07)', () => {
     ).toBeDisabled();
     expect(screen.getByRole('option', { name: '15:00–16:00 (no tables)' })).toBeDisabled();
     expect(screen.getByLabelText(TEXT.time)).toHaveValue('2');
+  });
+
+  it('shows the free seats of each slot and does not offer a full one', async () => {
+    stubApi({ free: { 1: 0, 2: 6 } });
+    renderPage();
+
+    expect(await screen.findByRole('option', { name: '12:30–14:00 (full)' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: '19:00–21:00 · 6 free seats' })).toBeEnabled();
+    expect(screen.getByLabelText(TEXT.time)).toHaveValue('2');
+  });
+
+  it('does not send a party larger than the free seats of the slot', async () => {
+    const fetchMock = stubApi({ free: { 1: 3, 2: 8 } });
+    renderPage();
+    await screen.findByRole('option', { name: '12:30–14:00 · 3 free seats' });
+    await selectLuca();
+
+    type(TEXT.people, '4');
+    expect(screen.getByText(TEXT.fewSeats)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(TEXT.fewSeats);
+    expect(bookCalls(fetchMock)).toHaveLength(0);
   });
 
   it('lists the hikers matching the search and shows the selected profile', async () => {
@@ -371,7 +416,27 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    expect(await screen.findByText('Insufficient seats available for this slot')).toBeVisible();
+    const dialog = await screen.findByRole('alertdialog', { name: 'Something to fix' });
+    expect(dialog).toHaveTextContent('Insufficient seats available for this slot');
+
+    // Closing the dialog keeps the form as it was, to fix it and send it again.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'OK' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(TEXT.search)).toHaveValue('Rossi');
+  });
+
+  it('explains in a dialog that the email of a new profile is already registered', async () => {
+    stubApi({ book: () => json({ message: 'Email already registered' }, 409) });
+    renderPage();
+    await waitForSlots();
+
+    fireEvent.click(screen.getByRole('button', { name: TEXT.full }));
+    type('Full name *', 'Alex Brr');
+    type('Email *', 'alex@example.com');
+    type('Mobile number *', '+39 333 111 2222');
+    fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Email already registered');
   });
 
   it('tells when the session has expired', async () => {

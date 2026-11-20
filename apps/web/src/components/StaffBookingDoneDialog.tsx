@@ -35,7 +35,12 @@ export function StaffBookingDoneDialog({ summary, result, onClose }: StaffBookin
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="staff-done-title">
+      <div
+        className="dialog dialog--staff"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="staff-done-title"
+      >
         <p className="dialog__status">{STATUS_LABEL[result.status]}</p>
 
         <h2 id="staff-done-title" className="dialog__title">

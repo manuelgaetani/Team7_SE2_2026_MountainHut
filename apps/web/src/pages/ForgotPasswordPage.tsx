@@ -27,7 +27,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <section className="auth">
+    <section className="auth auth--large">
       <p className="eyebrow">Personal area</p>
       <h1>Forgot your password?</h1>
       <p className="auth-subtitle">We will send you a link to set a new one.</p>

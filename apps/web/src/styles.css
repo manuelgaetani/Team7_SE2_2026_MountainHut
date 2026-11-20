@@ -166,6 +166,39 @@ body {
   text-align: center;
 }
 
+/* MH-07 password pages: larger text than login and registration */
+.auth--large {
+  max-width: 480px;
+}
+.auth--large .eyebrow {
+  font-size: 0.85rem;
+}
+.auth--large .auth-subtitle,
+.auth--large .notice {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+.auth--large .notice {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+}
+.auth--large .field label {
+  font-size: 0.85rem;
+}
+.auth--large .field input {
+  font-size: 1.1rem;
+}
+.auth--large .field-error,
+.auth--large .form-error {
+  font-size: 1rem;
+}
+.auth--large .button-primary {
+  font-size: 1.1rem;
+}
+.auth--large .auth-switch {
+  font-size: 1rem;
+}
+
 .auth-switch a {
   color: var(--ink);
   font-weight: 600;

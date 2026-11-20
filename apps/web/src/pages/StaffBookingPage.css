@@ -312,6 +312,39 @@
   cursor: not-allowed;
 }
 
+/* Dialogs of the staff booking: larger text than the hiker's, read aloud to the hiker */
+.dialog--staff {
+  width: min(100%, 520px);
+  padding: 32px;
+}
+.dialog--staff .dialog__status {
+  font-size: 13px;
+}
+.dialog--staff .dialog__title {
+  font-size: 34px;
+}
+.dialog--staff .dialog__text {
+  font-size: 17px;
+}
+.dialog__status--error,
+.dialog__text--error {
+  color: var(--error);
+}
+.dialog--staff .dialog__request span {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dialog--staff .dialog__request strong {
+  font-size: 18px;
+}
+.dialog--staff .dialog__request code {
+  font-size: 24px;
+  letter-spacing: 0.04em;
+}
+.dialog--staff .cta {
+  font-size: 1.05rem;
+}
+
 @media (max-width: 820px) {
   .staff-booking__grid,
   .card__row {

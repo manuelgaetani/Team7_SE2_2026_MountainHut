@@ -11,12 +11,14 @@ import { ApiError } from '../api/client.ts';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
+import { useBookableSlots } from '../api/useBookings.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
 import { FormField } from '../components/FormField.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
 import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
+import { StaffBookingErrorDialog } from '../components/StaffBookingErrorDialog.tsx';
 import { dateLong, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import {
   emptyHikerDraft,
@@ -42,6 +44,7 @@ const FIELD_MESSAGES: FieldErrors = {
 };
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
+const seats = (n: number): string => (n === 1 ? '1 free seat' : `${n} free seats`);
 
 // MH-05: one entry per subset of the party. The list is left out when there are no needs.
 const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] | undefined =>
@@ -60,9 +63,11 @@ function hasStarted(slot: SlotDetails, now: Date): boolean {
   return start <= now;
 }
 
-function slotNote(slot: SlotDetails, now: Date): string {
+// Why a slot cannot be chosen; empty when it can. freeSeats is unknown until GET /slots answers.
+function slotNote(slot: SlotDetails, now: Date, freeSeats: number | undefined): string {
   if (hasStarted(slot, now)) return ' (already started)';
   if (slot.totalSeats === 0) return ' (no tables)';
+  if (freeSeats === 0) return ' (full)';
   return '';
 }
 
@@ -105,12 +110,20 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const [done, setDone] = useState<{ summary: string; result: StaffBookingResult } | null>(null);
 
   const schedule = useSchedule(date);
+  // The schedule has only the capacity: the free seats come from the slots that can be booked.
+  const upcoming = useBookableSlots();
+  const freeSeats = new Map(upcoming.data?.map((s) => [s.id, s.freeSeats]));
   const now = new Date();
   const slots = schedule.data ?? [];
-  const bookable = slots.filter((s) => !hasStarted(s, now) && s.totalSeats > 0);
+  const bookable = slots.filter((s) => slotNote(s, now, freeSeats.get(s.id)) === '');
   const slot = bookable.find((s) => s.id === chosenSlotId) ?? bookable[0] ?? null;
   const guests = Number(partySize);
   const summary = slot ? `${dateLong(fromIsoDate(date))} · ${slot.startTime}` : null;
+  const slotFree = slot ? freeSeats.get(slot.id) : undefined;
+  const tooFewSeats =
+    slotFree !== undefined && guests > slotFree
+      ? `Only ${seats(slotFree)} left in this slot.`
+      : null;
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,6 +133,10 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
     const chosenHiker = toHiker(hiker);
     if (!chosenHiker) {
       setErrors({ hikerId: 'Select a hiker, or add a new one with Quick entry or Full profile.' });
+      return;
+    }
+    if (tooFewSeats) {
+      setErrors({ slotId: tooFewSeats });
       return;
     }
     if (requirements.some((r) => r.description.trim() === '')) {
@@ -175,41 +192,43 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             }}
           />
 
-          <div className="card__row">
-            <div className="field">
-              <label htmlFor="booking-slot">Time *</label>
-              <select
-                id="booking-slot"
-                value={slot?.id ?? ''}
-                disabled={!schedule.isSuccess || bookable.length === 0}
-                aria-invalid={errors.slotId ? true : undefined}
-                onChange={(e) => setChosenSlotId(Number(e.target.value))}
-              >
-                {bookable.length === 0 && <option value="">No time slots</option>}
-                {slots.map((s) => (
-                  <option key={s.id} value={s.id} disabled={slotNote(s, now) !== ''}>
+          <div className="field">
+            <label htmlFor="booking-slot">Time *</label>
+            <select
+              id="booking-slot"
+              value={slot?.id ?? ''}
+              disabled={!schedule.isSuccess || bookable.length === 0}
+              aria-invalid={errors.slotId ? true : undefined}
+              onChange={(e) => setChosenSlotId(Number(e.target.value))}
+            >
+              {bookable.length === 0 && <option value="">No time slots</option>}
+              {slots.map((s) => {
+                const free = freeSeats.get(s.id);
+                const note = slotNote(s, now, free);
+                return (
+                  <option key={s.id} value={s.id} disabled={note !== ''}>
                     {s.startTime}–{s.endTime}
-                    {slotNote(s, now)}
+                    {note || (free === undefined ? '' : ` · ${seats(free)}`)}
                   </option>
-                ))}
-              </select>
-              {errors.slotId && (
-                <p role="alert" className="field-error">
-                  {errors.slotId}
-                </p>
-              )}
-            </div>
-            <FormField
-              id="booking-party"
-              label="Number of people *"
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={partySize}
-              onChange={(e) => setPartySize(e.target.value)}
-              error={errors.partySize}
-            />
+                );
+              })}
+            </select>
+            {(errors.slotId ?? tooFewSeats) && (
+              <p role="alert" className="field-error">
+                {errors.slotId ?? tooFewSeats}
+              </p>
+            )}
           </div>
+          <FormField
+            id="booking-party"
+            label="Number of people *"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={partySize}
+            onChange={(e) => setPartySize(e.target.value)}
+            error={errors.partySize}
+          />
 
           {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
           {schedule.isError && (
@@ -250,13 +269,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
 
       <div className="action-bar">
         <div className="action-bar__inner">
-          {formError ? (
-            <p role="alert" className="notice notice--error">
-              {formError}
-            </p>
-          ) : (
-            <p className="action-bar__text">{FOOTER_TEXT[hiker.mode]}</p>
-          )}
+          <p className="action-bar__text">{FOOTER_TEXT[hiker.mode]}</p>
           <div className="action-bar__buttons">
             <button type="button" className="pill" onClick={() => void navigate('/')}>
               Cancel
@@ -269,6 +282,9 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
       </div>
 
       {done && <StaffBookingDoneDialog {...done} onClose={onReset} />}
+      {formError && (
+        <StaffBookingErrorDialog message={formError} onClose={() => setFormError(null)} />
+      )}
     </form>
   );
 }

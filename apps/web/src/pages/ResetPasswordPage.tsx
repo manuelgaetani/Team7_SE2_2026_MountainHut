@@ -74,7 +74,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <section className="auth">
+    <section className="auth auth--large">
       <p className="eyebrow">Personal area</p>
       <h1>Set a new password.</h1>
       {content}
