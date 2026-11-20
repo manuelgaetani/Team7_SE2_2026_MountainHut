@@ -6,7 +6,7 @@ export const MY_BOOKINGS_KEY = ['bookings', 'me'] as const;
 // The booking page and the change dialog read the same list of slots.
 export const SLOTS_KEY = ['slots'] as const;
 
-// The slots a hiker can book.
+// The slots a hiker can book or move a booking to.
 export function useBookableSlots() {
   return useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
 }
@@ -22,9 +22,6 @@ export function useCreateBooking() {
 export function useMyBookings() {
   return useQuery({ queryKey: MY_BOOKINGS_KEY, queryFn: fetchMyBookings });
 }
-
-// Upcoming slots, to move a booking to another date or time.
-export const useUpcomingSlots = useBookableSlots;
 
 export function useChangeBooking() {
   const queryClient = useQueryClient();
