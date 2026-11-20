@@ -1,11 +1,14 @@
-import type { BookingStatus } from '@mountain-hut/shared';
+import type { BookingStatus, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
+// status PENDING until the confirmation email is sent (MH-03). MH-07: CONFIRMED at once when the
+// staff enter it.
 export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
-  requirements: string | null;
+  requirements: PartyRequirement[];
+  status?: BookingStatus;
 }
 
 export interface UpcomingSlot {
@@ -29,6 +32,18 @@ export interface StoredBooking {
 export abstract class BookingsRepository {
   // Slots that have not started yet, with the seats left over all their tables.
   abstract findUpcomingSlots(timeZone: string, now: Date): Promise<UpcomingSlot[]>;
+
+  // MH-04: the slot that includes a hut-local date ('YYYY-MM-DD') and time ('HH:MM') and has
+  // not started yet: it starts at or before the time and ends after it, so where two contiguous
+  // slots meet the later one is taken. Slots of a day cannot overlap (MH-02); slots created before
+  // that rule could, and then the earliest one (the oldest if they start together) is taken.
+  // Times as 'HH:MM'. null if there is none.
+  abstract findSlotAt(
+    date: string,
+    time: string,
+    timeZone: string,
+    now: Date,
+  ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null>;
 
   // Locks the slot and the overlapping slots that share a table with it, so the other bookings
   // on those tables wait until the run ends, and returns when the slot starts.

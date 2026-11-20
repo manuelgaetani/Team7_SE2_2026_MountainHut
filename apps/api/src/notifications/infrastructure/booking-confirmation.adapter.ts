@@ -20,7 +20,11 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
       where: { id: bookingId },
       select: {
         partySize: true,
-        requirements: true,
+        // In the order the hiker entered them (ids follow the insert order), only what the email shows.
+        requirements: {
+          select: { allergies: true, description: true },
+          orderBy: { id: 'asc' },
+        },
         hiker: {
           select: { fullName: true, userId: true, user: { select: { email: true } } },
         },

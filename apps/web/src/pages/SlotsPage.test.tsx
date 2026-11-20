@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SlotDetails } from '@mountain-hut/shared';
+import type { FloorPlan, SlotDetails } from '@mountain-hut/shared';
 import { routes } from '../router.tsx';
 
 const employeeUser = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
@@ -37,6 +37,7 @@ interface MockApiOptions {
   schedule?: Record<string, SlotDetails[]>;
   postSlotHandler?: (body: unknown) => Response;
   putTablesHandler?: (id: string, body: unknown) => Response;
+  floorHandler?: (id: string) => Response;
 }
 
 function stubSlotsApi({
@@ -45,6 +46,7 @@ function stubSlotsApi({
   postSlotHandler = (body) => json({ id: 99, ...(body as object), totalSeats: 6 }, 201),
   putTablesHandler = (id, body) =>
     json({ ...emptySlot, id: Number(id), ...(body as object), totalSeats: 4 }, 200),
+  floorHandler = () => json({}, 500),
 }: MockApiOptions = {}) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (url === '/api/auth/me') {
@@ -68,6 +70,8 @@ function stubSlotsApi({
       const parsed = init.body ? JSON.parse(init.body as string) : {};
       return Promise.resolve(putTablesHandler(putMatch[1], parsed));
     }
+    const floorMatch = url.match(/^\/api\/slots\/(\d+)\/floor$/);
+    if (floorMatch) return Promise.resolve(floorHandler(floorMatch[1]!));
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
 
@@ -75,8 +79,8 @@ function stubSlotsApi({
   return fetchMock;
 }
 
-function renderSlotsPage() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/staff/slots'] });
+function renderSlotsPage(path = '/staff/slots') {
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
@@ -562,4 +566,142 @@ describe('SlotsPage', () => {
       'This slot already has tables: changing them is MH-19',
     );
   });
+  it('shows a "Floor plan" link for every slot, with or without tables', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+    await screen.findByText('12:00–13:00');
+
+    expect(screen.getByRole('link', { name: 'Floor plan of 12:00–13:00' })).toHaveAttribute(
+      'href',
+      '/staff/slots/1/floor',
+    );
+    expect(screen.getByRole('link', { name: 'Floor plan of 19:30–21:00' })).toHaveAttribute(
+      'href',
+      '/staff/slots/2/floor',
+    );
+    // The slot without tables keeps its "Define tables" button.
+    expect(
+      screen.getByRole('button', { name: 'Define the tables of 19:30–21:00' }),
+    ).toBeInTheDocument();
+  });
+
+  it('colours each table by how full it is: free, partly taken or full', async () => {
+    const slot: SlotDetails = {
+      ...slotWithTables,
+      tables: [
+        { tableNumber: 1, seats: 4 },
+        { tableNumber: 2, seats: 4 },
+        { tableNumber: 3, seats: 2 },
+      ],
+      totalSeats: 10,
+    };
+    const table = (tableNumber: number, capacity: number, occupiedSeats: number) => ({
+      tableNumber,
+      capacity,
+      occupiedSeats,
+      freeSeats: capacity - occupiedSeats,
+      groups: [],
+    });
+    const floor: FloorPlan = {
+      slot: { id: 1, date: '2026-11-04', startTime: '12:00', endTime: '13:00' },
+      tables: [table(1, 4, 0), table(2, 4, 3), table(3, 2, 2)],
+      groups: [],
+      totals: { capacity: 10, occupiedSeats: 5, freeSeats: 5, confirmedGroups: 0, splitGroups: 0 },
+    };
+    stubSlotsApi({ schedule: { '2026-11-04': [slot] }, floorHandler: () => json(floor) });
+    renderSlotsPage();
+
+    const tableItem = async (text: string) => (await screen.findByText(text)).closest('li');
+    expect(await tableItem(', free')).toHaveClass('schedule__table--free');
+    expect(await tableItem(', partly taken')).toHaveClass('schedule__table--partial');
+    expect(await tableItem(', full')).toHaveClass('schedule__table--full');
+    expect(await tableItem(', free')).toHaveTextContent('Table 1 · 4 seats, free');
+    expect(await tableItem(', full')).toHaveTextContent('Table 3 · 2 seats, full');
+    expect(await tableItem(', partly taken')).toHaveTextContent('Table 2 · 4 seats, partly taken');
+    expect(screen.getByText('3 tables · 5/10 seats taken')).toBeInTheDocument();
+  });
+
+  it('explains the colours of the tables in a legend above the slots', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    const legend = await screen.findByRole('list', { name: 'Table colours' });
+    const items = within(legend).getAllByRole('listitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Free', 'Partly taken', 'Full']);
+    expect(items[0]).toHaveClass('schedule__table--free');
+    expect(items[1]).toHaveClass('schedule__table--partial');
+    expect(items[2]).toHaveClass('schedule__table--full');
+  });
+
+  it('shows no legend when no slot of the day has tables', async () => {
+    stubSlotsApi({ schedule: { '2026-11-04': [emptySlot] } });
+    renderSlotsPage();
+
+    await screen.findByText('19:30–21:00');
+    expect(screen.queryByRole('list', { name: 'Table colours' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the tables neutral when the floor plan cannot be read', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    const item = await screen.findByText('Table 1 · 4 seats');
+    expect(item).toHaveClass('schedule__table');
+    expect(item.className).not.toMatch(/schedule__table--/);
+  });
+
+  it('opens the floor plan of a slot and comes back to the same day', async () => {
+    const tomorrowSlot: SlotDetails = {
+      id: 3,
+      date: '2026-11-05',
+      startTime: '11:00',
+      endTime: '12:00',
+      tables: [{ tableNumber: 1, seats: 2 }],
+      totalSeats: 2,
+    };
+    const floor: FloorPlan = {
+      slot: { id: 3, date: '2026-11-05', startTime: '11:00', endTime: '12:00' },
+      tables: [{ tableNumber: 1, capacity: 2, occupiedSeats: 0, freeSeats: 2, groups: [] }],
+      groups: [],
+      totals: { capacity: 2, occupiedSeats: 0, freeSeats: 2, confirmedGroups: 0, splitGroups: 0 },
+    };
+    const fetchMock = stubSlotsApi({
+      schedule: { '2026-11-04': [slotWithTables], '2026-11-05': [tomorrowSlot] },
+      floorHandler: () => json(floor),
+    });
+    renderSlotsPage();
+    await screen.findByText('12:00–13:00');
+
+    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-11-05' } });
+    fireEvent.click(await screen.findByRole('link', { name: 'Floor plan of 11:00–12:00' }));
+
+    expect(await screen.findByLabelText('Tables of the slot')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/slots/3/floor', expect.anything());
+
+    fireEvent.click(screen.getByRole('link', { name: 'Back to the time slots' }));
+
+    expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-05');
+    expect(await screen.findByText('11:00–12:00')).toBeInTheDocument();
+  });
+
+  it('starts from the day in the URL', async () => {
+    const fetchMock = stubSlotsApi({ schedule: { '2026-11-05': [] } });
+    renderSlotsPage('/staff/slots?date=2026-11-05');
+
+    expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-05');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/slots/schedule?date=2026-11-05',
+      expect.anything(),
+    );
+  });
+
+  it.each(['2026-02-31', 'tomorrow', ''])(
+    'starts from today when the day in the URL is "%s"',
+    async (date) => {
+      stubSlotsApi();
+      renderSlotsPage(`/staff/slots?date=${date}`);
+
+      expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-04');
+    },
+  );
 });
