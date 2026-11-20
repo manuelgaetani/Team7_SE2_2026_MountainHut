@@ -5,6 +5,7 @@ import type { MyBooking, PartyRequirement, SlotSummary } from '@mountain-hut/sha
 import type { ChangeBookingInput } from '../api/bookings.ts';
 import { ApiError } from '../api/client.ts';
 import { useChangeBooking, useUpcomingSlots } from '../api/useBookings.ts';
+import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateLong, fromIsoDate } from '../lib/dates.ts';
 import './ModifyBookingDialog.css';
 
@@ -81,9 +82,17 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
   const daySlots = slots
     .filter((s) => s.date === date)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  // The slot of the booking can always be kept, even when it is full or too close.
+  // The slot of the booking can always be kept, even when it is full or too close. Another slot
+  // must have free seats and start at least 48 hours from now (the API refuses it otherwise).
   const canChoose = (s: SlotSummary): boolean =>
-    s.id === booking.slotId || s.availability === 'AVAILABLE';
+    s.id === booking.slotId ||
+    (s.availability === 'AVAILABLE' && isChangeOpen(s.date, s.startTime));
+  // Why a slot of the list cannot be chosen; empty when it can.
+  const slotNote = (s: SlotSummary): string => {
+    if (s.id === booking.slotId) return '';
+    if (s.availability !== 'AVAILABLE') return UNAVAILABLE[s.availability];
+    return canChoose(s) ? '' : ` (within ${CHANGE_LEAD_HOURS} hours)`;
+  };
 
   function chooseDate(newDate: string) {
     setDate(newDate);
@@ -212,7 +221,7 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
                   {daySlots.map((s) => (
                     <option key={s.id} value={s.id} disabled={!canChoose(s)}>
                       {s.startTime}
-                      {s.id === booking.slotId ? '' : UNAVAILABLE[s.availability]}
+                      {slotNote(s)}
                     </option>
                   ))}
                 </select>
@@ -322,7 +331,8 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
 
         <p className="modify-dialog__warning">
           <span aria-hidden="true">!</span>
-          Changes are admitted up to 48 hours before the booked date.
+          Changes are admitted up to {CHANGE_LEAD_HOURS} hours before the booked date, and a new
+          time must start at least {CHANGE_LEAD_HOURS} hours from now.
         </p>
       </div>
     </div>,

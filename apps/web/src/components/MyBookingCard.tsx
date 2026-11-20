@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { MyBooking, MyBookingStatus } from '@mountain-hut/shared';
+import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateLong, fromIsoDate, monthShort } from '../lib/dates.ts';
 import { ModifyBookingDialog } from './ModifyBookingDialog.tsx';
 
@@ -42,6 +43,8 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
   const title = dateLong(day);
   const titleId = `booking-${booking.id}-title`;
   const active = booking.status === 'CONFIRMED' || booking.status === 'PENDING';
+  // Within 48 hours of the slot the API refuses every change (MH-06).
+  const changeable = active && isChangeOpen(booking.date, booking.startTime);
   const [modifying, setModifying] = useState(false);
   const [updated, setUpdated] = useState(false);
 
@@ -74,6 +77,7 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
               type="button"
               className="pill"
               aria-label={`Modify booking of ${title}`}
+              disabled={!changeable}
               onClick={() => {
                 setUpdated(false);
                 setModifying(true);
@@ -93,6 +97,13 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
       </div>
 
       <CardFooter booking={booking} />
+
+      {active && !changeable && (
+        <p className="notice booking-card__locked">
+          This booking can no longer be changed: changes are admitted up to {CHANGE_LEAD_HOURS}{' '}
+          hours before the booked date.
+        </p>
+      )}
 
       {updated && (
         <p role="status" className="notice notice--ok booking-card__updated">

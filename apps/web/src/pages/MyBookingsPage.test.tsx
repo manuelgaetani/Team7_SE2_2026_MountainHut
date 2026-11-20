@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyBooking } from '@mountain-hut/shared';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -16,6 +16,8 @@ const TEXT = {
   sessionExpired: 'The session has expired. Please log in again.',
   loadFailed: 'Your bookings could not be loaded. Please try again.',
   pendingNote: "We'll email you as soon as the request is confirmed.",
+  locked:
+    'This booking can no longer be changed: changes are admitted up to 48 hours before the booked date.',
 } as const;
 
 const confirmed: MyBooking = {
@@ -49,7 +51,14 @@ const asHiker = (bookings: () => Response) =>
 const card = (title: string) => screen.getByRole('article', { name: title });
 
 describe('MyBookingsPage', () => {
+  // The bookings and slots below are days after this moment, beyond the 48-hour rule of MH-06.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0));
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -120,6 +129,28 @@ describe('MyBookingsPage', () => {
     expect(
       within(article).getByRole('button', { name: 'Cancel booking of Saturday 21 November 2026' }),
     ).toBeEnabled();
+  });
+
+  it('blocks the change of a booking less than 48 hours away, and says why', async () => {
+    // 2026-11-16 12:30 is 24 and a half hours after the fixed now.
+    asHiker(() => json([{ ...confirmed, date: '2026-11-16' }]));
+    renderAt('/bookings');
+    const article = await screen.findByRole('article', { name: 'Monday 16 November 2026' });
+    expect(
+      within(article).getByRole('button', { name: 'Modify booking of Monday 16 November 2026' }),
+    ).toBeDisabled();
+    expect(article).toHaveTextContent(TEXT.locked);
+    // The cancellation follows the rules of MH-08, not this one.
+    expect(
+      within(article).getByRole('button', { name: 'Cancel booking of Monday 16 November 2026' }),
+    ).toBeEnabled();
+  });
+
+  it('does not show the 48-hour notice on a booking that can still change', async () => {
+    asHiker(() => json([confirmed]));
+    renderAt('/bookings');
+    const article = await screen.findByRole('article', { name: 'Saturday 21 November 2026' });
+    expect(article).not.toHaveTextContent(TEXT.locked);
   });
 
   it('shows a rejected booking without actions', async () => {

@@ -131,6 +131,15 @@
 .my-bookings__body .booking-card__updated {
   margin-top: 16px;
 }
+.my-bookings__body .booking-card__locked {
+  margin-top: 16px;
+  background: #f4efe6;
+  color: #6b4e16;
+}
+.booking-card__actions .pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .booking-card__note-title {
   margin: 0 0 6px;
   color: var(--ink);

@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyBooking, SlotSummary } from '@mountain-hut/shared';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -19,7 +19,8 @@ const TEXT = {
   close: 'Close',
   loading: 'Loading time slots…',
   slotsFailed: 'Time slots could not be loaded. Please try again.',
-  cutoff: 'Changes are admitted up to 48 hours before the booked date.',
+  cutoff:
+    'Changes are admitted up to 48 hours before the booked date, and a new time must start at least 48 hours from now.',
   peopleError: 'Enter a whole number of people, at least 1.',
   requirementError: 'A requirement can be at most 500 characters.',
   unchanged: 'Change at least one detail of the booking.',
@@ -90,7 +91,14 @@ const select = (label: string) => screen.getByLabelText<HTMLSelectElement>(label
 const confirm = () => fireEvent.click(screen.getByRole('button', { name: TEXT.confirm }));
 
 describe('ModifyBookingDialog', () => {
+  // The bookings and slots below are days after this moment, beyond the 48-hour rule of MH-06.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0));
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -133,6 +141,20 @@ describe('ModifyBookingDialog', () => {
     expect(current.disabled).toBe(false);
     expect(other).toHaveTextContent('19:00 (full)');
     expect(other.disabled).toBe(true);
+  });
+
+  it('disables another slot that starts in less than 48 hours', async () => {
+    // 2026-11-16 19:00 is 31 hours after the fixed now: it has seats but the API would refuse it.
+    setup(() => json([...slots, slot({ id: 30, date: '2026-11-16', startTime: '19:00' })]));
+    await openDialog();
+    fireEvent.change(await screen.findByLabelText(TEXT.date), {
+      target: { value: '2026-11-16' },
+    });
+    const soon = within(select(TEXT.time)).getByRole<HTMLOptionElement>('option', {
+      name: '19:00 (within 48 hours)',
+    });
+    expect(soon.disabled).toBe(true);
+    expect(select(TEXT.time)).toHaveValue('');
   });
 
   it('chooses the first available time of a new date', async () => {

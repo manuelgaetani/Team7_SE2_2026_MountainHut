@@ -16,8 +16,8 @@ export const createBooking = (input: CreateBookingInput) =>
 export const fetchMyBookings = () => apiGet<MyBooking[]>('/bookings/me');
 
 // Body of PATCH /api/bookings/:id: only the details that change.
-// TODO(MH-06): use ChangeBookingInput of @mountain-hut/shared once the API takes the
-// requirements in the MH-05 format (today it still takes one text).
+// It is the same as ChangeBookingInput of @mountain-hut/shared in feature/MH-06-change-a-booking
+// (the requirements as a list, [] to remove them all).
 export interface ChangeBookingInput {
   slotId?: number;
   partySize?: number;
