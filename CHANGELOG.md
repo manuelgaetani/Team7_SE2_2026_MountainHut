@@ -11,6 +11,13 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 - Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` can be any time inside a slot: the slot that includes it is checked (start included, end excluded), and the answer gives its start and end in `slot`. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
+- Reservation entered by the staff (MH-07): `POST /api/staff/bookings` (employees and warden) books for a hiker already in the system, for a new temporary hiker (name and optional phone, who cannot log in) or for a new hiker with an account, whose password is generated and returned only once. The reservation is `CONFIRMED` at once and can be entered until the slot starts: the 2 hours of the online bookings do not apply. A hiker with an email receives the confirmation.
+- Hiker search for the staff (MH-07): `GET /api/hikers?search=` finds hikers by name, phone or email (at least 2 characters, at most 20 results).
+- Change password (MH-07): `POST /api/auth/change-password`. An account created by the staff must change its password at the first login: the session user has the new field `mustChangePassword`.
+- Password recovery by email (MH-07): `POST /api/auth/password-reset/request` sends a link valid for 24 hours and only once, `POST /api/auth/password-reset/confirm` sets the new password and closes every session.
+- New environment variable: `WEB_URL` (default `http://localhost:3000`), the address of the web app in the links of the emails.
+- Database (MH-07): hikers without an account may have no phone, new column `users.must_change_password`, new table `password_reset_tokens` and notification type `PASSWORD_RESET` (migrations `reserve_for_hiker` and `password_reset_notification`).
+- Documentation of MH-07 in [docs/stories](docs/stories/MH-07-reserve-for-a-hiker.md).
 
 ### Changed
 
