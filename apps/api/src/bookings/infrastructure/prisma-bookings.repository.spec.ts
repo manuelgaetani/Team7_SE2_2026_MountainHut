@@ -142,6 +142,62 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
+  describe('findUpcomingBookingsOfHiker', () => {
+    const now = new Date('2026-11-15T10:00:00Z');
+    const row = {
+      id: 9,
+      slot_id: 3,
+      date: '2026-11-21',
+      start_time: '12:00',
+      end_time: '13:30',
+      party_size: 4,
+      status: 'CONFIRMED',
+    };
+
+    it('maps the rows, with the requirements of MH-05 as they come', async () => {
+      const requirements = [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      client.$queryRaw.mockResolvedValue([{ ...row, requirements }]);
+      await expect(repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now)).resolves.toEqual([
+        {
+          id: 9,
+          slotId: 3,
+          date: '2026-11-21',
+          startTime: '12:00',
+          endTime: '13:30',
+          partySize: 4,
+          requirements,
+          status: 'CONFIRMED',
+        },
+      ]);
+    });
+
+    it('keeps an empty list of requirements', async () => {
+      client.$queryRaw.mockResolvedValue([{ ...row, requirements: [] }]);
+      const [booking] = await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(booking.requirements).toEqual([]);
+    });
+
+    it('reads the requirements from party_requirements, in their order, [] when none', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(queryText()).toContain('FROM party_requirements pr');
+      expect(queryText()).toContain('ORDER BY pr.id');
+      expect(queryText()).toContain("'[]'::json");
+      expect(queryText()).not.toContain('b.requirements');
+    });
+
+    it('only takes the slots not started yet, the soonest first, and binds the values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(queryText()).toContain('WHERE b.hiker_id = ?');
+      expect(queryText()).toContain('ORDER BY s.date, s.start_time, b.id');
+      expect(queryValues()).toEqual([7, 'Europe/Rome', now]);
+    });
+  });
+
   describe('findHikerIdByUserId', () => {
     it('returns the hiker id', async () => {
       client.hiker.findUnique.mockResolvedValue({ id: 7 });

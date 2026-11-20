@@ -63,6 +63,23 @@ export interface BookingResult {
   tables: { tableNumber: number; assignedSeats: number }[];
 }
 
+// CANCELLED is stored only once MH-08 (cancel a booking) is merged.
+export type MyBookingStatus = BookingResult['status'] | 'CANCELLED';
+
+// A booking of the logged hiker, as listed in GET /api/bookings/me.
+export interface MyBooking {
+  id: number;
+  slotId: number;
+  // Local time of the hut.
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  partySize: number;
+  // One entry per subset of the party (MH-05); empty when there are no needs.
+  requirements: PartyRequirement[];
+  status: MyBookingStatus;
+}
+
 // MH-04: public check of the tables available for a date, a time and a party size.
 // Query strings only carry strings: the party size must be written as plain digits.
 export const checkAvailabilityQuerySchema = z.object({

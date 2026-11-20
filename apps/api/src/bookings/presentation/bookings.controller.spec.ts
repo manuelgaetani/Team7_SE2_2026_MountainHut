@@ -13,6 +13,7 @@ import { DomainExceptionFilter } from '../../presentation/domain-exception.filte
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { BookingsController } from './bookings.controller.js';
 import { BookingsService } from '../application/bookings.service.js';
+import { ListMyBookings } from '../application/list-my-bookings.js';
 
 const result = {
   id: 9,
@@ -25,6 +26,7 @@ const result = {
 describe('BookingsController', () => {
   let app: INestApplication<App>;
   const bookings = { create: vi.fn(), change: vi.fn() };
+  const myBookings = { execute: vi.fn() };
   // Role of the fake authenticated user: each test can change it.
   let role: Role;
 
@@ -33,7 +35,10 @@ describe('BookingsController', () => {
     role = 'HIKER';
     const module = await Test.createTestingModule({
       controllers: [BookingsController],
-      providers: [{ provide: BookingsService, useValue: bookings }],
+      providers: [
+        { provide: BookingsService, useValue: bookings },
+        { provide: ListMyBookings, useValue: myBookings },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useValue({
@@ -147,6 +152,29 @@ describe('BookingsController', () => {
       role = 'EMPLOYEE';
       await post({ slotId: 3, partySize: 0 }).expect(403);
       expect(bookings.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // GET /bookings/me: the upcoming bookings of the logged hiker.
+  describe('listMine', () => {
+    it('allows only hikers', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.listMine)).toEqual([
+        'HIKER',
+      ]);
+    });
+
+    it('answers 200 with the bookings of the authenticated user', async () => {
+      const mine = [{ id: 9, slotId: 3, date: '2026-11-21', status: 'CONFIRMED' }];
+      myBookings.execute.mockResolvedValue(mine);
+      const response = await request(app.getHttpServer()).get('/bookings/me').expect(200);
+      expect(response.body).toEqual(mine);
+      expect(myBookings.execute).toHaveBeenCalledWith(1, expect.any(Date));
+    });
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)('answers 403 for a %s', async (staffRole) => {
+      role = staffRole;
+      await request(app.getHttpServer()).get('/bookings/me').expect(403);
+      expect(myBookings.execute).not.toHaveBeenCalled();
     });
   });
 
