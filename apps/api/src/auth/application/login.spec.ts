@@ -90,4 +90,15 @@ describe('Login', () => {
       mustChangePassword: false,
     });
   });
+
+  // MH-07: the first login of an account created by the staff.
+  it('reports the forced change of the password in the session', async () => {
+    users.findByEmail.mockResolvedValue({ ...record, mustChangePassword: true });
+    hasher.compare.mockResolvedValue(true);
+    sessions.issue.mockResolvedValue(session);
+    await login.execute({ email: 'a@b.it', password: 'k7mq-x3tz-9pwa' });
+    expect(sessions.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ mustChangePassword: true }),
+    );
+  });
 });

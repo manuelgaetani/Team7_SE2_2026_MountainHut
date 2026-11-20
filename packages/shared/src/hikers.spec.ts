@@ -216,11 +216,41 @@ describe('createStaffBookingSchema', () => {
     expect(parse({ partySize: 2.5 })).toBe(false);
   });
 
-  it('accepts optional requirements, trimmed, up to 500 characters', () => {
-    const parse = (requirements: string) =>
+  // MH-05: the requirements are a list, one entry per part of the party.
+  describe('requirements', () => {
+    const entry = (description: string, allergies = false) => ({ allergies, description });
+    const parse = (requirements: unknown) =>
       createStaffBookingSchema.safeParse({ ...forExisting, requirements });
-    expect(parse('a'.repeat(500)).success).toBe(true);
-    expect(parse('a'.repeat(501)).success).toBe(false);
-    expect(parse('  gluten free  ').data?.requirements).toBe('gluten free');
+
+    it('are optional', () => {
+      expect(createStaffBookingSchema.parse(forExisting).requirements).toBeUndefined();
+    });
+
+    it('accept an empty list and a list of 20 entries, not 21', () => {
+      expect(parse([]).success).toBe(true);
+      expect(parse(Array.from({ length: 20 }, () => entry('vegetarian'))).success).toBe(true);
+      expect(parse(Array.from({ length: 21 }, () => entry('vegetarian'))).success).toBe(false);
+    });
+
+    it('accept a description of 1 and of 500 characters, not 0 or 501', () => {
+      expect(parse([entry('a')]).success).toBe(true);
+      expect(parse([entry('a'.repeat(500))]).success).toBe(true);
+      expect(parse([entry('')]).success).toBe(false);
+      expect(parse([entry('a'.repeat(501))]).success).toBe(false);
+    });
+
+    it('trim the description', () => {
+      expect(parse([entry('  1 nut allergy  ', true)]).data?.requirements).toEqual([
+        entry('1 nut allergy', true),
+      ]);
+    });
+
+    it('need the allergies flag', () => {
+      expect(parse([{ description: 'vegetarian' }]).success).toBe(false);
+    });
+
+    it('reject the old free text of a single string', () => {
+      expect(parse('gluten free').success).toBe(false);
+    });
   });
 });

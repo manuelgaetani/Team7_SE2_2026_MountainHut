@@ -130,4 +130,18 @@ describe('RefreshSession', () => {
       mustChangePassword: false,
     });
   });
+
+  // MH-07: refreshing the session does not end the forced change of the password.
+  it('keeps the forced change of the password in the new session', async () => {
+    tokens.findByHash.mockResolvedValue({
+      ...valid(),
+      user: { ...user, mustChangePassword: true },
+    });
+    tokens.revokeIfActive.mockResolvedValue(true);
+    sessions.issue.mockResolvedValue(session);
+    await refresh.execute('valido');
+    expect(sessions.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ mustChangePassword: true }),
+    );
+  });
 });
