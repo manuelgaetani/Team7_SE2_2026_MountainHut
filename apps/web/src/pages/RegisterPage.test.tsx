@@ -40,6 +40,17 @@ describe('RegisterPage', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
   });
 
+  it('explains when the phone number contains disallowed characters', () => {
+    const fetchMock = stubApi();
+    renderAt('/register');
+    fill({ ...required, Phone: '123-abc-4567' });
+    submit();
+    expect(
+      screen.getByText('The phone number can only contain digits, spaces, dashes and a leading +.'),
+    ).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
+  });
+
   it('keeps the first message of a field and handles unknown fields', () => {
     stubApi();
     const issues = [
