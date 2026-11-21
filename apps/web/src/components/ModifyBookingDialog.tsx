@@ -8,7 +8,7 @@ import type {
   SlotSummary,
 } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
-import { useChangeBooking, useUpcomingSlots } from '../api/useBookings.ts';
+import { useBookableSlots, useChangeBooking } from '../api/useBookings.ts';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateFull, fromIsoDate } from '../lib/dates.ts';
 import './ModifyBookingDialog.css';
@@ -58,7 +58,7 @@ const UNAVAILABLE: Record<SlotSummary['availability'], string> = {
 };
 
 export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBookingDialogProps) {
-  const slotsQuery = useUpcomingSlots();
+  const slotsQuery = useBookableSlots();
   const change = useChangeBooking();
   const dialogRef = useRef<HTMLDivElement>(null);
 

@@ -23,9 +23,6 @@ export function useMyBookings() {
   return useQuery({ queryKey: MY_BOOKINGS_KEY, queryFn: fetchMyBookings });
 }
 
-// Upcoming slots, to move a booking to another date or time.
-export const useUpcomingSlots = useBookableSlots;
-
 export function useChangeBooking() {
   const queryClient = useQueryClient();
   return useMutation({
