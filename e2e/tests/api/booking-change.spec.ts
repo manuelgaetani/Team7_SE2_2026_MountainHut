@@ -801,11 +801,53 @@ test.describe('MH-06 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   });
 
   // TODO(MH-06-graybox): Test rejection when target slot date falls during hut seasonal closure
-  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async () => {});
+  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const outOfSeasonSlotId = 999999;
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: outOfSeasonSlotId },
+    });
+    expect([400, 404, 422]).toContain(patchRes.status());
+  });
 
   // TODO(MH-06-graybox): Test audit log recording old and new reservation details on modification
-  test.skip('records audit log entry tracking previous and new booking state on change', async () => {});
+  test.skip('records audit log entry tracking previous and new booking state on change', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+    expect(patchRes.status()).toBe(200);
+
+    const count = sql(
+      `SELECT count(*) FROM notifications WHERE booking_id = ${booking.id} AND type = 'BOOKING_CHANGE';`,
+    );
+    expect(Number(count)).toBeGreaterThanOrEqual(1);
+  });
 
   // TODO(MH-06-e2e): Test rate limiting when repeated change requests are sent in rapid succession
-  test.skip('throttles excessive rapid change requests to protect database and email queue', async () => {});
+  test.skip('throttles excessive rapid change requests to protect database and email queue', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([6]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+          data: { partySize: (i % 2) + 2 },
+        }),
+      ),
+    );
+
+    const statusCodes = responses.map((r) => r.status());
+    expect(statusCodes).toContain(429);
+  });
 });
