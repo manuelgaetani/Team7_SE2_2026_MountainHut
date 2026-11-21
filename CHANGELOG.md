@@ -10,6 +10,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 ### Added
 
 - Repeat a weekly schedule (MH-09): `POST /api/slots/repeat-weekly` (staff only) copies the slots and tables of the 7 days starting at `sourceStartDate` into each of the next `repeatWeeks` weeks (1 to 12). A target week that already has slots is replaced completely, unless one of its slots has pending or confirmed bookings: then the answer is `409` and nothing changes (course issue #45). An empty source week answers `422`.
+- Documentation of MH-09 in [docs/stories](docs/stories/MH-09-repeat-a-weekly-schedule.md).
+- Integration and end-to-end tests for repeating a weekly schedule (MH-09).
 
 ## [release-1] - 2026-11-06
 
