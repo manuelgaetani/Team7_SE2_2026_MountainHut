@@ -7,6 +7,13 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Cancel a booking (MH-08): `POST /api/bookings/:id/cancel` (hiker only, no body) cancels a `PENDING` or `CONFIRMED` booking of the hiker, at any time, and answers the booking with status `CANCELLED`. Its seats are free for other guests at once, and the hiker can book the same slot again. Another hiker's booking answers `404`; a booking already cancelled or rejected answers `409`.
+- New booking status `CANCELLED` (MH-08): migrations `booking_cancelled_status` and `one_booking_per_slot_ignores_cancelled`. A cancelled booking keeps its table assignments as history, but no longer holds seats.
+- Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
+- Integration and end-to-end tests for cancelling a booking (MH-08).
+
 ## [release-1] - 2026-11-06
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).

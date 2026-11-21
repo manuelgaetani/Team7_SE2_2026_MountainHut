@@ -1,9 +1,9 @@
 # MH-08 — Cancel a booking
 
-|                |                                                                        |
-| -------------- | ---------------------------------------------------------------------- |
-| **Status**     | Unit test suite defined (black-box with stubs); implementation pending |
-| **Depends on** | MH-01 (bookings domain, book a table), MH-03 (receive confirmation)    |
+|                |                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| **Status**     | API complete; web page pending (MOU-125)                                                             |
+| **Depends on** | MH-58 (authentication), MH-01 (book a table, seat allocation), MH-03 (confirmation email and status) |
 
 ## User story
 
@@ -11,76 +11,65 @@
 
 As a hiker,  
 I want to cancel a table booking,  
-So that the hut can make the places available to other guests.
+so that the hut can make the places available to other guests.
 
-### Notes & Clarifications
+### Clarifications
 
-- **Advance Notice Cutoff:** Cancellations must be requested with sufficient notice before the booked slot start time so the kitchen does not prepare unwanted food and staff can reallocate seats. Baseline policy assumes 24 hours prior to slot start.
-- **Seat Liberation:** When a reservation is cancelled, all seats allocated across any tables are released immediately and become available for new bookings in that slot.
-- **Ownership Check:** A hiker can only cancel their own reservations.
-- **Clarifications:**
-  - _Timezone calculation:_ The cancellation cutoff is evaluated against the slot's absolute start instant computed in the hut local timezone (`Europe/Rome`).
-  - _Status eligibility:_ Both `CONFIRMED` and `PENDING` reservations can be cancelled. `CANCELLED` and `REJECTED` bookings cannot be cancelled again.
-  - _Past slots:_ Bookings for slots that have already started or concluded in the past cannot be cancelled.
+- There are no time constraints, hikers can cancel a reservation at any time.
+
+Team assumptions:
+
+- _Own bookings only:_ a hiker cancels only their own bookings. The booking of another hiker answers like a missing one (`404`), so its id is not revealed.
+- _Which bookings:_ a `PENDING` or `CONFIRMED` booking can be cancelled. A `CANCELLED` booking cannot be cancelled again, and a `REJECTED` one has never held seats.
+- _Hiker cancellation only:_ the staff do not use this endpoint. The warden cancelling a reservation is MH-15.
 
 ## Requirements
 
-| #   | Requirement                                                                                                      | Status  | Implemented in                                                          |
-| --- | ---------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------- |
-| R1  | Hiker role restriction: only authenticated hikers can cancel bookings (`HIKER` role, RBAC)                       | Pending | `DELETE /api/bookings/:id`, `BookingsController.cancel`                 |
-| R2  | Ownership check: hikers can only cancel reservations belonging to their own hiker profile                        | Pending | `BookingsService.cancel`                                                |
-| R3  | Target identification: booking ID must be a positive integer within PostgreSQL limits                            | Pending | `cancelBookingSchema`, `packages/shared/src/booking-cancel.spec.ts`     |
-| R4  | Cancellation cutoff: cancellations requested after the cutoff time are rejected (422)                            | Pending | `booking-cancellation-cutoff.ts`, `booking-cancellation-cutoff.spec.ts` |
-| R5  | State eligibility: bookings in `CONFIRMED` or `PENDING` state can be cancelled; already cancelled rejected (409) | Pending | `booking-cancellation-policy.ts`, `booking-cancellation-policy.spec.ts` |
-| R6  | Seat restoration: allocated table seats are restored to the slot table capacity atomically                       | Pending | `cancel-seat-release.ts`, `cancel-seat-release.spec.ts`                 |
-| R7  | Atomic cancellation: booking status update and seat liberation occur within a single database transaction        | Pending | `BookingsService.cancel`, `BookingsRepository`                          |
-| R8  | Not found handling: returns 404 if the booking does not exist                                                    | Pending | `BookingsService.cancel`, `NotFoundException`                           |
+| #   | Requirement                                                                        | Status  | Implemented in                                                                    |
+| --- | ---------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| R1  | Only a logged-in hiker with a hiker profile cancels                                | Done    | `BookingsController.cancel` (`@Roles('HIKER')`), `BookingsService.cancel`         |
+| R2  | A hiker cancels only their own bookings                                            | Done    | `BookingsService.cancel` (owner check, `404`)                                     |
+| R3  | Cancellation is allowed at any time, also after the slot has started               | Done    | `decideCancellation` (no time check)                                              |
+| R4  | Only a `PENDING` or `CONFIRMED` booking can be cancelled                           | Done    | `decideCancellation` (`409` for `CANCELLED` and `REJECTED`)                       |
+| R5  | The seats of the cancelled booking are free for other guests as soon as it commits | Done    | Seat queries count only `CONFIRMED` and `PENDING` bookings (`bookedSeatsOnTable`) |
+| R6  | The hiker can book the same slot again after cancelling                            | Done    | `hasActiveBooking`, index `bookings_hiker_id_slot_id_active_key`                  |
+| R7  | Two cancellations of the same booking at the same time: only one succeeds          | Done    | `PrismaBookingsRepository.lockBooking` (`FOR UPDATE`) inside one unit of work     |
+| R8  | Web app: the hiker sees their bookings and cancels one                             | Pending | MOU-125                                                                           |
 
 ### Decisions
 
-- **HTTP Method:** `DELETE /api/bookings/:id` is adopted for cancelling a booking.
-- **Cutoff Policy:** Baseline cutoff is set at 24 hours prior to the slot start time. Requests submitted within the 24-hour window return `422 Unprocessable Entity`.
-- **Concurrency & Atomicity:** The booking and its associated slot tables are locked using `SELECT ... FOR UPDATE` inside `prisma.$transaction` to guarantee consistency against concurrent modification or re-allocation.
-- **Seat Release:** Seat liberation restores free seats without reallocating other unrelated bookings at shared tables.
-- **Language:** All API error messages and UI feedback are in English.
+- **Endpoint.** `POST /api/bookings/:id/cancel`, without a body. The booking is not deleted: it becomes `CANCELLED`, so the hut keeps its history. `POST` on an action, not `DELETE`, because nothing is removed.
+- **No time limit.** The Clarifications allow cancelling at any time, so there is no cutoff: a booking for a slot that starts in one hour, or has already started, can still be cancelled.
+- **Seat release.** The `booking_tables` rows of the booking stay as history. The free seats of a slot are computed only from `CONFIRMED` and `PENDING` bookings, so a `CANCELLED` booking stops holding seats as soon as its status changes. A table shared with another booking keeps the seats of the other booking, also in an overlapping slot that shares the table number (MH-01 rule).
+- **Booking again.** A cancelled booking does not count as active, like a rejected one: the partial unique index on `(hiker_id, slot_id)` now ignores `REJECTED` and `CANCELLED`, so the hiker can book the same slot again.
+- **Someone else's booking.** It answers `404 Booking not found`, the same as a missing booking, so a hiker cannot find out which ids exist. The booking stays as it was.
+- **Concurrency.** One transaction: the booking row is locked (`SELECT ... FOR UPDATE`), then the owner and the status are checked and the status becomes `CANCELLED`. A second cancellation of the same booking waits for the first one and then answers `409`. Cancellations of different bookings do not wait for each other.
+- **Response.** The cancelled booking: `id`, `slotId`, `partySize` and `status: "CANCELLED"`.
+- **Email.** No email is sent for a cancellation.
+- **Language.** All API messages are in English.
 
 ## How it works
 
-1. **Request Reception:** `DELETE /api/bookings/:id` receives the target booking ID along with the session cookie.
-2. **Authentication & RBAC:** `AuthGuard` verifies the session cookie; `RolesGuard` verifies the caller is a `HIKER`.
-3. **Payload Validation:** Path parameters and optional payload are validated against `cancelBookingSchema`.
-4. **Transaction & Verification:**
-   - Hiker profile existence is retrieved from the caller's session.
-   - The booking record is loaded and verified for ownership (returns `403 Forbidden` if not owned).
-   - If the booking does not exist, `404 Not Found` is returned.
-   - Booking eligibility is evaluated via `decideCancellation`:
-     - If already cancelled or rejected, returns `409 Conflict`.
-     - If slot is in the past, returns `422 Unprocessable Entity`.
-     - If within the cutoff window, returns `422 Unprocessable Entity`.
-5. **Seat Liberation & Persistence:**
-   - Table seat allocations for the booking are released.
-   - Booking status is updated to `CANCELLED` in PostgreSQL.
-   - The transaction commits, immediately freeing seats for future reservations.
+1. `POST /api/bookings/:id/cancel` arrives with the session cookie. `AuthGuard` checks the session, `RolesGuard` the `HIKER` role, `ParseIntPipe` the id.
+2. In one transaction, `BookingsService.cancel`:
+   1. finds the hiker profile of the user (`403` if there is none);
+   2. locks the booking row; an id that does not exist, is out of the `INTEGER` range or belongs to another hiker answers `404`;
+   3. decides with `decideCancellation`: `409` if the booking is already `CANCELLED` or is `REJECTED`;
+   4. sets the status to `CANCELLED`.
+3. After the commit, the seats are free: `GET /api/slots` shows them again and `POST /api/bookings` can use them.
 
 ## API
 
-### `DELETE /api/bookings/:id`
+### `POST /api/bookings/:id/cancel`
 
-Protected endpoint, requires session cookie of an authenticated `HIKER`.
+Hiker only (`HIKER`). No body.
 
-| Param / Body Field | Type    | Rules                                         |
-| ------------------ | ------- | --------------------------------------------- |
-| `id` (path)        | integer | Positive integer, ID of the booking to cancel |
-| `reason` (body)    | string  | Optional string, max 500 characters, no NUL   |
-
-#### Example Request: Cancel a booking
+| Param       | Type    | Rules                       |
+| ----------- | ------- | --------------------------- |
+| `id` (path) | integer | ID of the booking to cancel |
 
 ```bash
-curl -X DELETE -b cookies.txt -H 'Content-Type: application/json' \
-  http://localhost:3000/api/bookings/10 \
-  -d '{
-    "reason": "Family emergency, unable to attend"
-  }'
+curl -X POST -b cookies.txt http://localhost:3000/api/bookings/10/cancel
 ```
 
 Response `200 OK`:
@@ -89,85 +78,96 @@ Response `200 OK`:
 {
   "id": 10,
   "slotId": 1,
-  "status": "CANCELLED",
-  "freedSeats": 4
+  "partySize": 4,
+  "status": "CANCELLED"
 }
 ```
 
 ### Errors
 
-| Status | When                                                          | `message`                                                     |
-| ------ | ------------------------------------------------------------- | ------------------------------------------------------------- |
-| `400`  | Invalid booking ID (negative, zero, non-integer, float)       | `Invalid booking ID`                                          |
-| `401`  | Missing or expired session cookie                             | `Unauthorized`                                                |
-| `403`  | User is not a `HIKER`, lacks profile, or does not own booking | `You can only cancel your own bookings`                       |
-| `404`  | Booking does not exist                                        | `Booking not found`                                           |
-| `409`  | Booking is already cancelled or rejected                      | `Booking is already cancelled`                                |
-| `422`  | Cancellation requested inside cutoff window or in past        | `Cancellations are only admitted up to 24 hours before start` |
+| Status | When                                                    | `message`                                         |
+| ------ | ------------------------------------------------------- | ------------------------------------------------- |
+| `400`  | The id is not a number                                  | `Validation failed (numeric string is expected)`  |
+| `401`  | No valid session                                        | `Not authenticated`                               |
+| `403`  | The user is not a hiker (employee, warden)              | `Operation not allowed for your role`             |
+| `403`  | The user has no hiker profile                           | `A hiker profile is required to cancel a booking` |
+| `404`  | The booking does not exist, or belongs to another hiker | `Booking not found`                               |
+| `409`  | The booking is already cancelled                        | `This booking is already cancelled`               |
+| `409`  | The booking was rejected                                | `A rejected booking cannot be cancelled`          |
+
+## Data model
+
+| Table / type     | Change                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `booking_status` | New value `CANCELLED`                                                                                         |
+| `bookings`       | Index `bookings_hiker_id_slot_id_active_key` (one active booking per hiker and slot) also ignores `CANCELLED` |
+
+Prisma cannot express a partial index in `schema.prisma`, so the index exists only in the migrations.
+
+Migrations:
+
+- `20261113185151_booking_cancelled_status`
+- `20261113185256_one_booking_per_slot_ignores_cancelled`
 
 ## Code map
 
-| Path                                                        | Content                                                                |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `docs/stories/MH-08-cancel-a-booking.md`                    | Living User Story documentation                                        |
-| `packages/shared/src/bookings.ts`                           | Stub `cancelBookingSchema` and TypeScript type `CancelBookingInput`    |
-| `packages/shared/src/booking-cancel.spec.ts`                | Black-box schema unit tests: BVA, equivalence partitioning             |
-| `apps/api/src/bookings/booking-cancellation-cutoff.ts`      | Domain stub: cancellation cutoff rule (`isCancellationAdmitted`)       |
-| `apps/api/src/bookings/booking-cancellation-cutoff.spec.ts` | Black-box domain unit tests: BVA on cancellation cutoff boundary       |
-| `apps/api/src/bookings/cancel-seat-release.ts`              | Domain stub: seat release logic (`releaseCancelledSeats`)              |
-| `apps/api/src/bookings/cancel-seat-release.spec.ts`         | Black-box domain unit tests: seat restoration, single & multi-table    |
-| `apps/api/src/bookings/booking-cancellation-policy.ts`      | Domain stub: status & timing policy decision (`decideCancellation`)    |
-| `apps/api/src/bookings/booking-cancellation-policy.spec.ts` | Black-box domain unit tests: eligibility, precedence, state partitions |
+| Path                                                                 | Content                                                                 |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `docs/stories/MH-08-cancel-a-booking.md`                             | This document                                                           |
+| `packages/shared/src/bookings.ts`                                    | `CancelledBooking`, the response                                        |
+| `apps/api/src/bookings/presentation/bookings.controller.ts`          | `POST /api/bookings/:id/cancel`, hiker only                             |
+| `apps/api/src/bookings/application/bookings.service.ts`              | `BookingsService.cancel`: the transaction of a cancellation             |
+| `apps/api/src/bookings/application/bookings.repository.port.ts`      | `lockBooking`, `cancelBooking`, `BookingToCancel`                       |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | Row lock of the booking, new status; active bookings ignore `CANCELLED` |
+| `apps/api/src/bookings/domain/booking-cancellation-policy.ts`        | `decideCancellation`: only `PENDING` and `CONFIRMED`, at any time       |
+| `apps/api/src/bookings/domain/cancel-seat-release.ts`                | `releaseCancelledSeats`: pure helper, used only by its tests            |
+| `apps/api/prisma/schema.prisma`                                      | `CANCELLED` in `BookingStatus`                                          |
 
 ## Testing
 
 Run unit tests:
 
 ```bash
-# Shared package schema tests
-npm run test -w @mountain-hut/shared -- src/booking-cancel.spec.ts
-
-# API domain cutoff, seat release, and cancellation policy tests
-npm run test -w @mountain-hut/api -- apps/api/src/bookings/booking-cancellation-cutoff.spec.ts
-npm run test -w @mountain-hut/api -- apps/api/src/bookings/cancel-seat-release.spec.ts
-npm run test -w @mountain-hut/api -- apps/api/src/bookings/booking-cancellation-policy.spec.ts
+npm run test -w @mountain-hut/shared
+npm run test -w @mountain-hut/api
 ```
 
-| Spec                                                        | Covers                                                                                               |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/booking-cancel.spec.ts`                | Black-box schema tests: BVA for bookingId and reason, equivalence partitions, whitespace trimming    |
-| `apps/api/src/bookings/booking-cancellation-cutoff.spec.ts` | Black-box domain cutoff: BVA on 24h boundary (exact, +1ms, -1min, midnight, month boundary)          |
-| `apps/api/src/bookings/cancel-seat-release.spec.ts`         | Black-box seat release: single-table restoration, multi-table split restoration, immutability        |
-| `apps/api/src/bookings/booking-cancellation-policy.spec.ts` | Black-box cancellation policy: status transitions (CONFIRMED/PENDING/CANCELLED/REJECTED), precedence |
+Run integration tests against PostgreSQL:
 
-### Test Coverage Roadmap & Pending Tests
+```bash
+docker compose up -d db
+npm run test:int
+```
 
-- **TODO(MH-08-whitebox):**
-  - White-box unit tests for `booking-cancellation-cutoff.ts`: decision condition coverage, MC/DC branch coverage.
-  - White-box unit tests for `cancel-seat-release.ts`: branch coverage, table mapping loops, and defensive boundary assertions.
-  - White-box unit tests for `booking-cancellation-policy.ts`: exhaustive predicate condition coverage.
-  - White-box unit tests for `bookings.service.ts`: internal transaction rollback verification, error logging paths, audit trail.
-  - White-box unit tests for `bookings.controller.ts`: NestJS exception filter pipeline and custom validation pipe bindings.
-- **TODO(MH-08-graybox):**
-  - Gray-box unit tests verifying Italian CET/CEST daylight saving transitions across the cancellation cutoff boundary.
-  - Gray-box unit tests verifying Prisma SQL row locking order (`SELECT ... FOR UPDATE`) during cancellation transactions.
-  - Gray-box unit tests for HTTP response headers and session cookie preservation.
-- **TODO(MH-08-integration):**
-  - PostgreSQL integration tests (`test/booking-cancel.int-spec.ts`) verifying concurrent cancellation requests and row-level locking on real DB.
-  - Integration tests verifying that freed seats immediately become available to subsequent booking requests.
-- **TODO(MH-08-e2e):**
-  - Playwright API E2E tests (`e2e/tests/api/booking-cancel.spec.ts`) testing complete HTTP flows and RBAC enforcement.
-  - Playwright Web E2E tests (`e2e/tests/web/booking-cancel.spec.ts`) testing hiker cancellation button, confirmation modal, and UI status updates.
+Run end-to-end tests:
+
+```bash
+docker compose up --build -d --wait
+npm run test:e2e
+```
+
+| Spec                                                                      | Covers                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/test/booking-cancel.int-spec.ts`                                | Real PostgreSQL. Confirmed and pending bookings cancelled, table assignments kept as history, started slot (no cutoff), `409` twice and for a rejected booking, `404`/`403`, seats of every table freed, shared table and overlapping slot, freed seats booked again, the index, row lock, two concurrent cancellations, rollback |
+| `e2e/tests/api/booking-cancel.spec.ts`                                    | Running stack. Cancel and free seats, freed seats to another hiker, the same slot booked again, slots starting in about 3 hours and 1 hour, `409` twice and rejected, another hiker's booking `404` and still active, missing and out-of-range id `404`, `400`, `401`, employee and no profile `403`                              |
+| `apps/api/src/bookings/application/bookings.service.spec.ts`              | Black box and white box of `cancel`: `PENDING`/`CONFIRMED` cancelled, inside one unit of work, lock before the update, `403`, `404` missing and not owned, `409`, failed write rethrown                                                                                                                                           |
+| `apps/api/src/bookings/presentation/bookings.controller.spec.ts`          | Black box of `POST /bookings/:id/cancel`: hiker only, `200` with the cancelled booking, the id as a number, `400` for an id that is not a number, `403`/`404`/`409` from the service                                                                                                                                              |
+| `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | White box: `lockBooking` and `cancelBooking`, ids out of range not queried, active bookings ignore `CANCELLED`                                                                                                                                                                                                                    |
+| `apps/api/src/bookings/domain/booking-cancellation-policy.spec.ts`        | Black box of `decideCancellation`: the four statuses and their precedence                                                                                                                                                                                                                                                         |
+| `apps/api/src/bookings/domain/cancel-seat-release.spec.ts`                | Black box of `releaseCancelledSeats`: one table, split party, untouched tables, limits, purity, unknown table and negative seats                                                                                                                                                                                                  |
 
 ### Try it manually
 
-1. Start stack with `docker compose up -d`.
-2. Login as a hiker via `POST /api/auth/login`.
-3. Create a booking for a slot 5 days in the future via `POST /api/bookings`.
-4. Send `DELETE /api/bookings/:id` to cancel the booking: verify `200 OK` and status `CANCELLED`.
-5. Check `GET /api/slots`: verify free seats have increased by the party size.
-6. Attempt `DELETE /api/bookings/:id` again: verify `409 Conflict` (already cancelled).
+1. Start the stack with `docker compose up --build -d`.
+2. Log in as a hiker and keep the cookies: `curl -c cookies.txt -H 'Content-Type: application/json' http://localhost:3000/api/auth/login -d '{"email":"<hiker email>","password":"<password>"}'`.
+3. Find a slot with `curl -b cookies.txt http://localhost:3000/api/slots` and book it with `POST /api/bookings`. Note the `id` of the booking and the `freeSeats` of the slot.
+4. Cancel it: `curl -X POST -b cookies.txt http://localhost:3000/api/bookings/<id>/cancel`. The answer is `200` with `status: "CANCELLED"`.
+5. `GET /api/slots` again: `freeSeats` is back to the value before the booking.
+6. Cancel it again: `409 This booking is already cancelled`.
+7. Book the same slot again with `POST /api/bookings`: it is accepted.
 
 ## Open points
 
-- **Cutoff duration:** Confirm with PO whether the cancellation cutoff window is 24 hours, 48 hours (matching MH-06 changes), or 2 hours (matching MH-01 booking lead time). Modeled with a 24-hour baseline.
+- **Web app.** There is no cancel button yet (MOU-125). The hiker needs a list of their bookings: `GET /api/bookings/me` of MH-06 is not on this branch yet. The web E2E test of the cancellation waits for this page.
+- **Confirmation retries.** If the confirmation email of a new booking failed and is retried (MH-03: after 1, 5 and 25 seconds), a cancellation during the retries does not stop them: the hiker may still receive the confirmation of a cancelled booking. The booking stays `CANCELLED`, because only a `PENDING` booking becomes `CONFIRMED`.
+- **Leftovers of the first design.** `booking-cancellation-cutoff.ts` (a 24-hour cutoff stub that throws), `cancelBookingSchema` in `packages/shared/src/bookings.ts` (with a `reason`) and their specs, which are skipped, belong to the first design. They are not used, because the Clarifications allow cancelling at any time.
