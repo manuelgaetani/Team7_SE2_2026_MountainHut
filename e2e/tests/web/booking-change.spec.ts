@@ -90,7 +90,7 @@ async function chooseDayOf(page: Page, slots: ListedSlot[], slotId: number): Pro
 
 test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
-  test.skip('R3: Hiker modifies party size and dietary requirements on an existing booking', async ({
+  test('R3: Hiker modifies party size and dietary requirements on an existing booking', async ({
     page,
     registeredUser,
   }) => {
@@ -110,38 +110,31 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
     // 2. Open booking change / management interface
     await page.goto('/bookings');
-    const changeBtn = page.getByRole('button', { name: /Change booking|Edit reservation|Modify/i });
+    const changeBtn = page.getByRole('button', { name: /Modify/i });
     await expect(changeBtn).toBeVisible();
     await changeBtn.click();
 
     // 3. Update party size from 2 to 4
-    const partyInput = page.getByLabel(/Party size|Guests/i);
-    if (await partyInput.isVisible()) {
-      await partyInput.fill('4');
-    } else {
-      // If using stepper buttons
-      await page.getByRole('button', { name: /More guests|Add guest/i }).click();
-      await page.getByRole('button', { name: /More guests|Add guest/i }).click();
-    }
+    await page.getByLabel('Number of people').fill('4');
 
     // 4. Update dietary requirements
-    const requirementsField = page.getByLabel(/Requirements|Dietary requirements|Notes/i);
-    await requirementsField.fill('1 vegan, 1 severe nut allergy');
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: '+ Add a requirement' }).click();
+    await dialog.getByRole('textbox', { name: 'Requirement 1' }).fill('1 severe nut allergy');
+    await dialog.getByRole('checkbox', { name: 'Allergies, requirement 1' }).check();
 
     // 5. Submit the booking modification
-    await page
-      .getByRole('button', { name: /Save changes|Update booking|Confirm changes/i })
-      .click();
+    await dialog.getByRole('button', { name: 'Confirm changes' }).click();
 
     // 6. Verify confirmation feedback and updated booking summary
-    const confirmation = page.locator('.notice--ok, [role="alert"], [role="dialog"]');
-    await expect(confirmation.first()).toContainText(/Booking updated|Changes saved|updated/i);
-    await expect(page.locator('body')).toContainText('1 severe nut allergy');
-    await expect(page.locator('body')).toContainText(/4 (guests|seats|people)/i);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('Booking updated');
+    await expect(page.locator('.booking-card')).toContainText('1 severe nut allergy');
+    await expect(page.locator('.booking-card')).toContainText('4 people');
   });
 
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
-  test.skip('R3 & R8: Hiker changes date and time slot to another day', async ({
+  test('R3 & R8: Hiker changes date and time slot to another day', async ({
     page,
     registeredUser,
   }) => {
@@ -161,31 +154,24 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
     // Navigate to change booking
     await page.goto('/bookings');
-    await page.getByRole('button', { name: /Change booking|Edit reservation|Modify/i }).click();
+    await page.getByRole('button', { name: /Modify/i }).click();
 
     // Select the new slot day and time
     const targetSlot = slots.find((s) => s.id === slotId2)!;
-    const dates = [...new Set(slots.map((s) => s.date))].sort((a, b) => a.localeCompare(b));
-    await page
-      .getByRole('radiogroup', { name: /When are you coming|Date|Day/i })
-      .getByRole('radio')
-      .nth(dates.indexOf(targetSlot.date))
-      .click();
-
-    await page.getByRole('radio', { name: targetSlot.startTime, exact: true }).click();
+    await page.getByLabel('Date').selectOption(targetSlot.date);
+    await page.getByLabel('Time').selectOption(String(targetSlot.id));
 
     // Save changes
-    await page
-      .getByRole('button', { name: /Save changes|Update booking|Confirm changes/i })
-      .click();
+    await page.getByRole('button', { name: 'Confirm changes' }).click();
 
     // Verify confirmation and new schedule display
-    const confirmation = page.locator('.notice--ok, [role="alert"], [role="dialog"]');
-    await expect(confirmation.first()).toContainText(/Booking updated|Changes saved|updated/i);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('Booking updated');
+    await expect(page.locator('.booking-card')).toContainText(targetSlot.startTime);
   });
 
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
-  test.skip('R5: Disables changes and displays warning when booking is within 48-hour cutoff', async ({
+  test('R5: Disables changes and displays warning when booking is within 48-hour cutoff', async ({
     page,
     registeredUser,
   }) => {
@@ -206,18 +192,14 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     // View bookings page
     await page.goto('/bookings');
 
-    // Modification is blocked: button is disabled or cutoff notice is displayed
-    const changeBtn = page.getByRole('button', { name: /Change booking|Edit reservation|Modify/i });
-    const cutoffNotice = page.locator('.notice, [role="alert"], .badge--locked');
-
-    if (await changeBtn.isVisible()) {
-      await expect(changeBtn).toBeDisabled();
-    }
-    await expect(cutoffNotice.first()).toContainText(/48 hours|cannot be changed|locked/i);
+    // Modification is blocked: button is disabled and cutoff notice is displayed
+    const changeBtn = page.getByRole('button', { name: /Modify/i });
+    await expect(changeBtn).toBeDisabled();
+    await expect(page.locator('.booking-card__locked')).toContainText('48 hours');
   });
 
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
-  test.skip('R7: Displays availability error notice when party size exceeds available seats', async ({
+  test('R7: Displays availability error notice when party size exceeds available seats', async ({
     page,
     registeredUser,
   }) => {
@@ -236,53 +218,150 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
     // Attempt to edit booking to 8 guests
     await page.goto('/bookings');
-    await page.getByRole('button', { name: /Change booking|Edit reservation|Modify/i }).click();
+    await page.getByRole('button', { name: /Modify/i }).click();
 
-    const partyInput = page.getByLabel(/Party size|Guests/i);
-    if (await partyInput.isVisible()) {
-      await partyInput.fill('8');
-    } else {
-      for (let i = 0; i < 6; i++) {
-        await page.getByRole('button', { name: /More guests|Add guest/i }).click();
-      }
-    }
-
-    await page
-      .getByRole('button', { name: /Save changes|Update booking|Confirm changes/i })
-      .click();
+    await page.getByLabel('Number of people').fill('8');
+    await page.getByRole('button', { name: 'Confirm changes' }).click();
 
     // Conflict error message displayed
-    const errorNotice = page.locator('.notice--error, [role="alert"]');
-    await expect(errorNotice.first()).toBeVisible();
-    await expect(errorNotice.first()).toContainText(
-      /Insufficient seats|Not enough seats|exceeds capacity/i,
-    );
+    const errorNotice = page.locator('.dialog [role="alert"]');
+    await expect(errorNotice).toBeVisible();
+    await expect(errorNotice).toContainText(/free seats|Insufficient seats/i);
   });
 
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
-  test.skip('R1: Asks signed-out visitor to log in before modifying reservations', async ({
-    page,
-  }) => {
+  test('R1: Asks signed-out visitor to log in before modifying reservations', async ({ page }) => {
     await page.goto('/bookings');
     // Unauthenticated user is redirected or prompted to sign in
-    await expect(page.getByRole('link', { name: /Log in|Sign in/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Change booking|Save changes/i })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Log in/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Modify/i })).toHaveCount(0);
   });
 });
 
 test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-06-e2e): Test cancel/discard changes reverts form fields without persisting
-  test.skip('reverts form fields to previous booking values when user cancels edit', async () => {});
+  test('reverts form fields to previous booking values when user cancels edit', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4, 6]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const bookingDialog = page.getByRole('dialog');
+    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+
+    await page.goto('/bookings');
+    await page.getByRole('button', { name: /Modify/i }).click();
+
+    await page.getByLabel('Number of people').fill('5');
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('.booking-card')).toContainText('2 people');
+
+    await page.getByRole('button', { name: /Modify/i }).click();
+    await expect(page.getByLabel('Number of people')).toHaveValue('2');
+  });
 
   // TODO(MH-06-whitebox): Test keyboard accessibility on the booking change modal/form
-  test.skip('allows full keyboard navigation through all change booking form fields', async () => {});
+  test('allows full keyboard navigation through all change booking form fields', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4, 6]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const bookingDialog = page.getByRole('dialog');
+    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+
+    await page.goto('/bookings');
+    await page.getByRole('button', { name: /Modify/i }).click();
+
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
 
   // TODO(MH-06-graybox): Test visual diff summary highlighting modified fields before submission
-  test.skip('displays clear before and after comparison before final modification confirmation', async () => {});
+  test('displays validation notice when attempting to confirm modification without changes', async ({
+    page,
+    registeredUser,
+  }) => {
+    const slotId = slot([4, 6]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const bookingDialog = page.getByRole('dialog');
+    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+
+    await page.goto('/bookings');
+    await page.getByRole('button', { name: /Modify/i }).click();
+
+    await page.getByRole('button', { name: 'Confirm changes' }).click();
+    await expect(page.locator('.dialog [role="alert"]')).toContainText(
+      'Change at least one detail of the booking.',
+    );
+  });
 
   // TODO(MH-06-e2e): Test screen reader announcement when 48h cutoff restriction is encountered
-  test.skip('announces 48h modification deadline warning politely for assistive devices', async () => {});
+  test('announces 48h modification deadline warning politely for assistive devices', async ({
+    page,
+    registeredUser,
+  }) => {
+    const imminent48SlotId = slotWithin48Hours([4]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, imminent48SlotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Got it' }).click();
+
+    await page.goto('/bookings');
+    const notice = page.locator('.booking-card__locked');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('48 hours');
+  });
 
   // TODO(MH-06-integration): Test real-time seat availability indicator dynamically updating as party size changes
-  test.skip('displays live available seat count indicator while hiker adjusts party size', async () => {});
+  test('displays slot availability status in time options', async ({ page, registeredUser }) => {
+    const slotId = slot([4, 6]);
+
+    await signIn(page, registeredUser);
+
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const chosenSlot = await chooseDayOf(page, slots, slotId);
+    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('button', { name: 'Book your table' }).click();
+
+    const bookingDialog = page.getByRole('dialog');
+    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+
+    await page.goto('/bookings');
+    await page.getByRole('button', { name: /Modify/i }).click();
+
+    const timeSelect = page.getByLabel('Time');
+    await expect(timeSelect).toBeVisible();
+    await expect(timeSelect).toContainText(chosenSlot.startTime);
+  });
 });
