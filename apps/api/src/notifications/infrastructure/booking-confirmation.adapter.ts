@@ -4,6 +4,8 @@ import type { ConfirmationStatus } from '../../bookings/application/booking-conf
 import { fromDbDate, fromDbTime } from '../../infrastructure/prisma/db-time.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { NotificationService } from '../notification.service.js';
+import type { Recipient } from '../notification.service.js';
+import type { BookingConfirmationData } from '../templates/booking-confirmation.js';
 
 // Loads the recipient and the booking data itself, then sends the confirmation email.
 @Injectable()
@@ -16,6 +18,21 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
   }
 
   async notify(bookingId: number): Promise<ConfirmationStatus> {
+    const data = await this.load(bookingId);
+    if (!data) return 'SKIPPED';
+    return this.notifications.sendBookingConfirmation(data.recipient, data.booking);
+  }
+
+  async notifyChange(bookingId: number): Promise<ConfirmationStatus> {
+    const data = await this.load(bookingId);
+    if (!data) return 'SKIPPED';
+    return this.notifications.sendBookingChange(data.recipient, data.booking);
+  }
+
+  // The recipient and what the email shows. null if the booking does not exist.
+  private async load(
+    bookingId: number,
+  ): Promise<{ recipient: Recipient; booking: BookingConfirmationData } | null> {
     const row = await this.context.client().booking.findUnique({
       where: { id: bookingId },
       select: {
@@ -31,11 +48,11 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
         slot: { select: { date: true, startTime: true, endTime: true } },
       },
     });
-    if (!row) return 'SKIPPED';
+    if (!row) return null;
 
-    return this.notifications.sendBookingConfirmation(
-      { userId: row.hiker.userId, email: row.hiker.user?.email ?? null },
-      {
+    return {
+      recipient: { userId: row.hiker.userId, email: row.hiker.user?.email ?? null },
+      booking: {
         bookingId,
         fullName: row.hiker.fullName,
         date: fromDbDate(row.slot.date),
@@ -44,6 +61,6 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
         partySize: row.partySize,
         requirements: row.requirements,
       },
-    );
+    };
   }
 }

@@ -8,8 +8,15 @@ describe('PrismaBookingsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     hiker: { findUnique: vi.fn() },
-    booking: { create: vi.fn(), count: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
-    bookingTable: { createMany: vi.fn() },
+    booking: {
+      create: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      update: vi.fn(),
+    },
+    bookingTable: { createMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+    partyRequirement: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
   };
   // Outside a unit of work the context gives the plain client.
   const repository = new PrismaBookingsRepository(
@@ -123,7 +130,71 @@ describe('PrismaBookingsRepository', () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.findFreeSeatsByTable(3);
       expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
-      expect(queryValues()).toEqual([3]);
+      // No booking has id 0: every booking counts.
+      expect(queryValues()).toEqual([0, 3]);
+    });
+
+    it('leaves out the seats of a booking being changed', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFreeSeatsByTable(3, 9);
+      expect(queryText()).toContain('b.id <> ?');
+      expect(queryValues()).toEqual([9, 3]);
+    });
+  });
+
+  describe('findUpcomingBookingsOfHiker', () => {
+    const now = new Date('2026-11-15T10:00:00Z');
+    const row = {
+      id: 9,
+      slot_id: 3,
+      date: '2026-11-21',
+      start_time: '12:00',
+      end_time: '13:30',
+      party_size: 4,
+      status: 'CONFIRMED',
+    };
+
+    it('maps the rows, with the requirements of MH-05 as they come', async () => {
+      const requirements = [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      client.$queryRaw.mockResolvedValue([{ ...row, requirements }]);
+      await expect(repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now)).resolves.toEqual([
+        {
+          id: 9,
+          slotId: 3,
+          date: '2026-11-21',
+          startTime: '12:00',
+          endTime: '13:30',
+          partySize: 4,
+          requirements,
+          status: 'CONFIRMED',
+        },
+      ]);
+    });
+
+    it('keeps an empty list of requirements', async () => {
+      client.$queryRaw.mockResolvedValue([{ ...row, requirements: [] }]);
+      const [booking] = await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(booking.requirements).toEqual([]);
+    });
+
+    it('reads the requirements from party_requirements, in their order, [] when none', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(queryText()).toContain('FROM party_requirements pr');
+      expect(queryText()).toContain('ORDER BY pr.id');
+      expect(queryText()).toContain("'[]'::json");
+      expect(queryText()).not.toContain('b.requirements');
+    });
+
+    it('only takes the slots not started yet, the soonest first, and binds the values', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now);
+      expect(queryText()).toContain('WHERE b.hiker_id = ?');
+      expect(queryText()).toContain('ORDER BY s.date, s.start_time, b.id');
+      expect(queryValues()).toEqual([7, 'Europe/Rome', now]);
     });
   });
 
@@ -213,6 +284,121 @@ describe('PrismaBookingsRepository', () => {
           { bookingId: 9, slotId: 3, tableNumber: 2, assignedSeats: 2 },
         ],
       });
+    });
+  });
+
+  // MH-06: change a booking.
+  describe('lockBooking', () => {
+    const row = {
+      id: 9,
+      hiker_id: 7,
+      slot_id: 3,
+      party_size: 2,
+      status: 'CONFIRMED',
+    };
+
+    it('maps the locked booking', async () => {
+      client.$queryRaw.mockResolvedValue([row]);
+      await expect(repository.lockBooking(9)).resolves.toEqual({
+        id: 9,
+        hikerId: 7,
+        slotId: 3,
+        partySize: 2,
+        status: 'CONFIRMED',
+      });
+    });
+
+    it('returns null when the booking does not exist', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.lockBooking(9)).resolves.toBeNull();
+    });
+
+    it('locks the row and binds the id instead of concatenating it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(9);
+      expect(queryText()).toContain('FOR UPDATE');
+      expect(queryValues()).toEqual([9]);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, 2_147_483_648])(
+      'returns null for the id %s without querying the database',
+      async (bookingId) => {
+        await expect(repository.lockBooking(bookingId)).resolves.toBeNull();
+        expect(client.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it('queries the largest id Postgres can store', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(2_147_483_647);
+      expect(queryValues()).toEqual([2_147_483_647]);
+    });
+  });
+
+  describe('deleteBookingTables', () => {
+    it('deletes only the table assignments of the booking', async () => {
+      await repository.deleteBookingTables(9);
+      expect(client.bookingTable.deleteMany).toHaveBeenCalledWith({ where: { bookingId: 9 } });
+    });
+  });
+
+  describe('updateBooking', () => {
+    const change = { slotId: 4, partySize: 5 };
+
+    it('stores the new slot and party size', async () => {
+      client.booking.update.mockResolvedValue({
+        id: 9,
+        hikerId: 7,
+        status: 'CONFIRMED',
+        ...change,
+      });
+      await repository.updateBooking(9, change);
+      expect(client.booking.update).toHaveBeenCalledWith({ where: { id: 9 }, data: change });
+    });
+
+    it('returns the changed booking without the hiker id, keeping its status', async () => {
+      client.booking.update.mockResolvedValue({
+        id: 9,
+        hikerId: 7,
+        status: 'CONFIRMED',
+        ...change,
+      });
+      await expect(repository.updateBooking(9, change)).resolves.toEqual({
+        id: 9,
+        slotId: 4,
+        partySize: 5,
+        status: 'CONFIRMED',
+      });
+    });
+  });
+
+  describe('findRequirements', () => {
+    it('reads the requirements of the booking in the order they were entered', async () => {
+      const needs = [{ allergies: true, description: '1 shellfish allergy' }];
+      client.partyRequirement.findMany.mockResolvedValue(needs);
+      await expect(repository.findRequirements(9)).resolves.toBe(needs);
+      expect(client.partyRequirement.findMany).toHaveBeenCalledWith({
+        where: { bookingId: 9 },
+        select: { allergies: true, description: true },
+        orderBy: { id: 'asc' },
+      });
+    });
+  });
+
+  describe('replaceRequirements', () => {
+    it('deletes the old requirements, then stores the new list in one insert', async () => {
+      const needs = [
+        { allergies: false, description: '2 vegetarians' },
+        { allergies: true, description: '1 shellfish allergy' },
+      ];
+      await repository.replaceRequirements(9, needs);
+      expect(client.partyRequirement.deleteMany).toHaveBeenCalledWith({ where: { bookingId: 9 } });
+      expect(client.partyRequirement.createMany).toHaveBeenCalledWith({
+        data: needs.map((n) => ({ bookingId: 9, ...n })),
+      });
+      expect(client.partyRequirement.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+        client.partyRequirement.createMany.mock.invocationCallOrder[0]!,
+      );
     });
   });
 
