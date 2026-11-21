@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
@@ -12,6 +12,7 @@ import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
 import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
+import { draftFromSearch } from '../lib/bookingRedirect.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
@@ -38,9 +39,12 @@ function BookingFlow() {
   const slotsQuery = useBookableSlots();
   const book = useCreateBooking();
 
-  const [chosenDate, setChosenDate] = useState<string | null>(null);
-  const [requestedGuests, setRequestedGuests] = useState(2);
-  const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
+  // A booking chosen in the availability check (MH-04) arrives in the address.
+  const draft = draftFromSearch(useSearchParams()[0]);
+  const [chosenDate, setChosenDate] = useState<string | null>(() => draft?.date ?? null);
+  const [requestedGuests, setRequestedGuests] = useState(() => draft?.partySize ?? 2);
+  // undefined: nothing chosen yet, so the slot of the address is taken.
+  const [chosenSlotId, setChosenSlotId] = useState<number | null | undefined>(undefined);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{
@@ -69,7 +73,11 @@ function BookingFlow() {
   );
   const guests = Math.min(requestedGuests, maxGuests);
 
-  const slot = daySlots.find((s) => s.id === chosenSlotId && isBookable(s, guests)) ?? null;
+  const linkedSlotId = draft
+    ? (slots?.find((s) => s.date === draft.date && s.startTime === draft.time)?.id ?? null)
+    : null;
+  const selectedId = chosenSlotId === undefined ? linkedSlotId : chosenSlotId;
+  const slot = daySlots.find((s) => s.id === selectedId && isBookable(s, guests)) ?? null;
 
   const handle =
     <T,>(set: (v: T) => void) =>

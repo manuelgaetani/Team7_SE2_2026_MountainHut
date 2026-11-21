@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerSchema } from '@mountain-hut/shared';
 import { json, renderAt, sentBody, stubApi, user } from '../test/app.tsx';
@@ -113,6 +113,24 @@ describe('RegisterPage', () => {
     fill(required);
     submit();
     expect(await screen.findByRole('alert')).toHaveTextContent('Registration failed');
+  });
+
+  it('preserves a safe next path across registration to login and auth tabs', async () => {
+    const next = '/book?date=2030-01-15&time=19%3A00&partySize=3';
+    stubApi({ '/api/auth/register': () => json(user, 201) });
+    const router = renderAt(`/register?next=${encodeURIComponent(next)}`);
+
+    const authSection = screen.getByRole('heading', { name: 'Start here.' }).closest('section')!;
+    const signInLinks = within(authSection).getAllByRole('link', { name: 'Sign in' });
+    expect(signInLinks).toHaveLength(2);
+    for (const link of signInLinks) {
+      expect(link).toHaveAttribute('href', `/login?${new URLSearchParams({ next }).toString()}`);
+    }
+
+    fill(required);
+    submit();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(new URLSearchParams(router.state.location.search).get('next')).toBe(next);
   });
 
   it('shows that the request is running', async () => {

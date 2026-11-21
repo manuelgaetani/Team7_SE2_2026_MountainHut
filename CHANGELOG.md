@@ -13,6 +13,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
 - Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
 - Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+- Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
+- From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
 
 ### Changed
 
