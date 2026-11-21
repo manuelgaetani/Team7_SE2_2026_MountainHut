@@ -5,4 +5,7 @@ export type ConfirmationStatus = 'SENT' | 'FAILED' | 'SKIPPED';
 
 export abstract class BookingConfirmationNotifier {
   abstract notify(bookingId: number): Promise<ConfirmationStatus>;
+
+  // MH-06: tells the hiker the new details of a changed booking.
+  abstract notifyChange(bookingId: number): Promise<ConfirmationStatus>;
 }

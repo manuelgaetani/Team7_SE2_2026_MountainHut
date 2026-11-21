@@ -135,4 +135,57 @@ describe('SlotsController', () => {
       await request(app.getHttpServer()).get('/slots/99/floor').expect(404);
     });
   });
+
+  describe('GET /slots/:id', () => {
+    it.each(['EMPLOYEE', 'WARDEN'] as const)('lets a %s read a slot by id', async (staffRole) => {
+      role = staffRole;
+      const details = { id: 5, ...body, tables: [], totalSeats: 0 };
+      slots.findOne.mockResolvedValue(details);
+      const response = await request(app.getHttpServer()).get('/slots/5').expect(200);
+      expect(response.body).toEqual(details);
+      expect(slots.findOne).toHaveBeenCalledWith(5);
+    });
+
+    it('answers 400 without calling the service when the id is not a number', async () => {
+      await request(app.getHttpServer()).get('/slots/abc').expect(400);
+      expect(slots.findOne).not.toHaveBeenCalled();
+    });
+
+    it('propagates 404 when the slot does not exist', async () => {
+      slots.findOne.mockRejectedValue(new DomainError('NOT_FOUND', 'Slot not found'));
+      await request(app.getHttpServer()).get('/slots/99').expect(404);
+    });
+  });
+
+  describe('PUT /slots/:id/tables', () => {
+    const tablesInput = { tables: [{ tableNumber: 1, seats: 4 }] };
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'lets a %s define tables on an existing slot',
+      async (staffRole) => {
+        role = staffRole;
+        const updated = { id: 5, ...body, ...tablesInput, totalSeats: 4 };
+        slots.defineTables.mockResolvedValue(updated);
+        const response = await request(app.getHttpServer())
+          .put('/slots/5/tables')
+          .send(tablesInput)
+          .expect(200);
+        expect(response.body).toEqual(updated);
+        expect(slots.defineTables).toHaveBeenCalledWith(5, tablesInput);
+      },
+    );
+
+    it('answers 400 without calling the service when the body or id is invalid', async () => {
+      await request(app.getHttpServer()).put('/slots/5/tables').send({}).expect(400);
+      await request(app.getHttpServer()).put('/slots/abc/tables').send(tablesInput).expect(400);
+      expect(slots.defineTables).not.toHaveBeenCalled();
+    });
+
+    it('propagates 409 when the slot already has tables', async () => {
+      slots.defineTables.mockRejectedValue(
+        new DomainError('CONFLICT', 'This slot already has tables: changing them is MH-19'),
+      );
+      await request(app.getHttpServer()).put('/slots/5/tables').send(tablesInput).expect(409);
+    });
+  });
 });
