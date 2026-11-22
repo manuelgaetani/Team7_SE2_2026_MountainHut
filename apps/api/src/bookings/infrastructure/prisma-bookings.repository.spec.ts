@@ -343,16 +343,24 @@ describe('PrismaBookingsRepository', () => {
     it.each(['CONFIRMED', 'PENDING', 'REJECTED', 'CANCELLED'] as const)(
       'returns the status %s as read',
       async (status) => {
-        client.$queryRaw.mockResolvedValue([{ hiker_id: 7, status }]);
-        await expect(repository.lockBooking(9)).resolves.toEqual({ hikerId: 7, status });
+        client.$queryRaw.mockResolvedValue([{ ...row, status }]);
+        await expect(repository.lockBooking(9)).resolves.toStrictEqual({
+          id: 9,
+          hikerId: 7,
+          slotId: 3,
+          partySize: 2,
+          status,
+        });
       },
     );
 
-    it('reads the status as text from the bookings table only', async () => {
+    it('reads only the bookings table, by id', async () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.lockBooking(9);
-      expect(queryText()).toContain('status::text AS status');
-      expect(queryText()).toContain('FROM bookings WHERE id = ?');
+      const sql = queryText().replace(/\s+/g, ' ');
+      expect(sql).toContain('SELECT id, hiker_id, slot_id, party_size, status FROM bookings');
+      expect(sql).toContain('WHERE id = ? FOR UPDATE');
+      expect(sql).not.toContain('JOIN');
     });
 
     it('propagates a database error', async () => {

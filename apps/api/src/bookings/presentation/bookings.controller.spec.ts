@@ -342,7 +342,9 @@ describe('BookingsController', () => {
       [new DomainError('FORBIDDEN', 'A hiker profile is required to cancel a booking'), 403],
     ])('maps %s from the service', async (error, status) => {
       bookings.cancel.mockRejectedValue(error);
-      await cancel('9').expect(status);
+      const response = await cancel('9');
+      expect(response.status).toBe(status);
+      expect(response.body).toMatchObject({ message: error.message });
     });
 
     it.each([
@@ -357,7 +359,10 @@ describe('BookingsController', () => {
 
     it('answers 500 for an unexpected error of the service', async () => {
       bookings.cancel.mockRejectedValue(new Error('database down'));
-      await cancel('9').expect(500);
+      const response = await cancel('9');
+      expect(response.status).toBe(500);
+      // The internal error message must not leak to the client.
+      expect(JSON.stringify(response.body)).not.toContain('database down');
     });
 
     // ParseIntPipe only checks the format: the repository turns ids out of range into
