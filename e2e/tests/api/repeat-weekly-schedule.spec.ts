@@ -483,17 +483,78 @@ test.describe('MH-09 Black-Box API: Repeat a weekly schedule', () => {
     }
   });
 
-  test.describe('MH-09 Planned Future Scenarios (TODOs)', () => {
-    // TODO(MH-09): Selective day-of-week repetition (e.g. repeat only weekend schedules)
-    test.skip('allows repeating only specific days of the week (e.g. only Friday to Sunday)', async () => {});
+  test.describe('Behaviour around the planned scenarios', () => {
+    test('copies every day of the source week onto the same weekday, none left out', async ({
+      employeeRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      const days = [0, 1, 2, 3, 4, 5, 6].map((d) => addDays(monday, d));
+      for (const [i, day] of days.entries()) {
+        await createSlotWithTables(employeeRequest, day, '12:00', '13:00', oneTable(i + 1));
+      }
 
-    // TODO(MH-09): Atomic rollback when database error occurs during multi-week repetition
-    test.skip('rolls back all created slots atomically if any target insertion fails mid-batch', async () => {});
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
+      });
 
-    // TODO(MH-09): Seasonal exclusion dates / holiday blackout filtering
-    test.skip('skips slot repetition on explicitly designated hut closure or maintenance dates', async () => {});
+      expect(status).toBe(201);
+      expect(body.createdSlotsCount).toBe(7);
+      for (const [i, day] of days.entries()) {
+        expect(await scheduleOf(employeeRequest, addDays(day, 7))).toMatchObject([
+          { startTime: '12:00', endTime: '13:00', tables: oneTable(i + 1) },
+        ]);
+      }
+    });
 
-    // TODO(MH-09): Undo/rollback endpoint for a repeated schedule batch
-    test.skip('provides an undo endpoint allowing staff to delete an entire repeated schedule batch', async () => {});
+    test('copies a week across the new year onto the right dates', async ({ employeeRequest }) => {
+      // The Monday of the last week of a random year of the MH-09 range: its copy is in January.
+      const year = 2200 + randomInt(0, 380);
+      const newYearsEve = new Date(Date.UTC(year, 11, 31));
+      newYearsEve.setUTCDate(31 - ((newYearsEve.getUTCDay() + 6) % 7));
+      const monday = newYearsEve.toISOString().slice(0, 10);
+      const sunday = addDays(monday, 6);
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:00', oneTable(4));
+      await createSlotWithTables(employeeRequest, sunday, '19:00', '20:00', oneTable(6));
+
+      const { status, body } = await repeat(employeeRequest, {
+        sourceStartDate: monday,
+        repeatWeeks: 1,
+      });
+
+      expect(status).toBe(201);
+      expect(body.createdSlots.map((slot) => slot.date)).toEqual([
+        addDays(monday, 7),
+        addDays(sunday, 7),
+      ]);
+      expect(addDays(sunday, 7).startsWith(String(year + 1))).toBe(true);
+    });
+
+    test('repeating the same week again replaces the previous copies without duplicates', async ({
+      employeeRequest,
+    }) => {
+      const monday = uniqueMondayDate();
+      await createSlotWithTables(employeeRequest, monday, '12:00', '13:30', oneTable(4));
+      await createSlotWithTables(employeeRequest, addDays(monday, 2), '19:00', '20:00', [
+        { tableNumber: 1, seats: 2 },
+        { tableNumber: 2, seats: 6 },
+      ]);
+
+      const first = await repeat(employeeRequest, { sourceStartDate: monday, repeatWeeks: 2 });
+      const second = await repeat(employeeRequest, { sourceStartDate: monday, repeatWeeks: 2 });
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(second.body).toMatchObject({ createdSlotsCount: 4, replacedSlotsCount: 4 });
+      // The second copy is the same schedule as the first, with new slots in place of the old ones.
+      const firstIds = first.body.createdSlots.map((slot) => slot.id);
+      expect(second.body.createdSlots.some((slot) => firstIds.includes(slot.id))).toBe(false);
+      for (const week of [1, 2]) {
+        expect(await scheduleOf(employeeRequest, addDays(monday, 7 * week))).toMatchObject([
+          { startTime: '12:00', tables: oneTable(4) },
+        ]);
+        expect(await scheduleOf(employeeRequest, addDays(monday, 7 * week + 2))).toHaveLength(1);
+      }
+    });
   });
 });
