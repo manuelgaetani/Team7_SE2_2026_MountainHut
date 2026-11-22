@@ -1,0 +1,46 @@
+/* Builds on .dialog-backdrop, .dialog, .dialog__close and .dialog__title of the booking page. */
+.cancel-dialog__eyebrow {
+  margin: 0 0 6px;
+  color: var(--green-dark);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cancel-dialog__error {
+  margin: 0 0 16px;
+}
+
+.cancel-dialog__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cancel-dialog__secondary,
+.cancel-dialog__primary {
+  padding: 14px 18px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cancel-dialog__secondary {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+.cancel-dialog__primary {
+  border: 0;
+  background: var(--error);
+  color: #fff;
+}
+.cancel-dialog__secondary:disabled,
+.cancel-dialog__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cancel-dialog__primary:hover:not(:disabled) {
+  background: #8f1e18;
+}

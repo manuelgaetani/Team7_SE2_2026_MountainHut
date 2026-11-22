@@ -18,3 +18,14 @@ export const fetchMyBookings = () => apiGet<MyBooking[]>('/bookings/me');
 // PATCH /api/bookings/:id with only the details that change (MH-06).
 export const changeBooking = (id: number, input: ChangeBookingInput) =>
   apiPatch<BookingResult>(`/bookings/${id}`, input);
+
+// Answer of POST /api/bookings/:id/cancel. The booking is kept, with status CANCELLED.
+interface CancelledBooking {
+  id: number;
+  slotId: number;
+  partySize: number;
+  status: 'CANCELLED';
+}
+
+// POST /api/bookings/:id/cancel, without a body (MH-08).
+export const cancelBooking = (id: number) => apiPost<CancelledBooking>(`/bookings/${id}/cancel`);

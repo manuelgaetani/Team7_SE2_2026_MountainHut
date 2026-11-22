@@ -4,6 +4,7 @@ import type { MyBooking } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useMyBookings } from '../api/useBookings.ts';
+import { CancelBookingDialog } from '../components/CancelBookingDialog.tsx';
 import { MyBookingCard } from '../components/MyBookingCard.tsx';
 import './MyBookingsPage.css';
 
@@ -28,6 +29,8 @@ function loadError(e: unknown): string {
 function MyBookingsList() {
   const bookingsQuery = useMyBookings();
   const [tab, setTab] = useState<Tab>('upcoming');
+  // The booking being cancelled. The dialog stays open after the list has been reloaded.
+  const [cancelling, setCancelling] = useState<MyBooking | null>(null);
 
   if (bookingsQuery.isPending) return <p role="status">Loading your bookings…</p>;
   if (bookingsQuery.isError) {
@@ -68,11 +71,15 @@ function MyBookingsList() {
         ) : (
           <div className="my-bookings__list">
             {shown.map((b) => (
-              <MyBookingCard key={b.id} booking={b} />
+              <MyBookingCard key={b.id} booking={b} onCancel={() => setCancelling(b)} />
             ))}
           </div>
         )}
       </div>
+
+      {cancelling && (
+        <CancelBookingDialog booking={cancelling} onClose={() => setCancelling(null)} />
+      )}
     </>
   );
 }
