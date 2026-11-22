@@ -13,7 +13,7 @@ const input = {
 };
 
 describe('PrismaUsersRepository', () => {
-  const client = { user: { findUnique: vi.fn(), create: vi.fn() } };
+  const client = { user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() } };
   const repository = new PrismaUsersRepository(
     new TransactionContext(client as unknown as PrismaService),
   );
@@ -113,6 +113,45 @@ describe('PrismaUsersRepository', () => {
       const failure = new Error('database unreachable');
       client.user.create.mockRejectedValue(failure);
       await expect(repository.createWithHiker(input, 'bcrypt-hash')).rejects.toBe(failure);
+    });
+  });
+
+  // MH-07 (white-box): the forced change of a staff-created account.
+  describe('mustChangePassword', () => {
+    it('reads the forced change of the account', async () => {
+      client.user.findUnique.mockResolvedValue({ ...row, mustChangePassword: true });
+      await expect(repository.findById(1)).resolves.toMatchObject({ mustChangePassword: true });
+    });
+
+    it('reports no forced change for an account registered on the web', async () => {
+      client.user.create.mockResolvedValue({ ...row, mustChangePassword: false });
+      await expect(repository.createWithHiker(input, 'bcrypt-hash')).resolves.toEqual({
+        id: 1,
+        email: 'a@b.it',
+        role: 'HIKER',
+        mustChangePassword: false,
+      });
+    });
+  });
+
+  describe('updatePassword', () => {
+    it('stores the new hash and ends the forced change in one update', async () => {
+      client.user.update.mockResolvedValue({ ...row, password: 'new-hash' });
+      await expect(repository.updatePassword(1, 'new-hash')).resolves.toBeUndefined();
+      expect(client.user.update).toHaveBeenCalledOnce();
+      expect(client.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { password: 'new-hash', mustChangePassword: false },
+      });
+    });
+
+    it('propagates the error of an account that no longer exists', async () => {
+      const failure = new Prisma.PrismaClientKnownRequestError('not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      });
+      client.user.update.mockRejectedValue(failure);
+      await expect(repository.updatePassword(99, 'new-hash')).rejects.toBe(failure);
     });
   });
 });

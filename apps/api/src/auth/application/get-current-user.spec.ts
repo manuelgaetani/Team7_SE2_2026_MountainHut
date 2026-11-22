@@ -31,4 +31,21 @@ describe('GetCurrentUser', () => {
       message: 'Not authenticated',
     });
   });
+
+  // MH-07: an account created by the staff must change the generated password.
+  it('reports the forced change of the password', async () => {
+    users.findById.mockResolvedValue({
+      id: 1,
+      email: 'a@b.it',
+      role: 'HIKER',
+      passwordHash: 'h',
+      mustChangePassword: true,
+    });
+    await expect(me.execute(1)).resolves.toEqual({
+      id: 1,
+      email: 'a@b.it',
+      role: 'HIKER',
+      mustChangePassword: true,
+    });
+  });
 });

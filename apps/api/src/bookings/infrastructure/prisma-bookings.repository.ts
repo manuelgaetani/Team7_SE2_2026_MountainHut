@@ -222,11 +222,11 @@ export class PrismaBookingsRepository extends BookingsRepository {
   }
 
   async createBooking(data: NewBooking): Promise<StoredBooking> {
-    const { requirements, ...fields } = data;
+    const { requirements, status = 'PENDING', ...fields } = data;
     const booking = await this.db().booking.create({
       data: {
         ...fields,
-        status: 'PENDING',
+        status,
         // One insert: the ids follow the order in which the hiker entered the requirements.
         requirements: { createMany: { data: requirements } },
       },
