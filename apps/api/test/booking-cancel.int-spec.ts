@@ -256,7 +256,7 @@ describe('Cancel a booking with PostgreSQL (integration) - MH-08', () => {
     });
   });
 
-    describe('database constraints', () => {
+  describe('database constraints', () => {
     it('the one-active-booking index ignores cancelled bookings, but not two active ones', async () => {
       const slotId = await createSlot(prisma, DATE, START, END, [4]);
       const { hikerId } = await createHiker(prisma, 'anna@example.test');
