@@ -48,7 +48,7 @@ function renderCard(booking: MyBooking) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MyBookingCard booking={booking} />
+      <MyBookingCard booking={booking} onCancel={vi.fn()} />
     </QueryClientProvider>,
   );
 }
@@ -112,6 +112,7 @@ describe('MyBookingCard', () => {
             status: 'PENDING',
             requirements: [{ allergies: false, description: 'vegetarian' }],
           }}
+          onCancel={vi.fn()}
         />
       </QueryClientProvider>,
     );

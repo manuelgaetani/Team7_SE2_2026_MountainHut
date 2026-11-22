@@ -80,11 +80,12 @@ describe('PrismaBookingsRepository', () => {
       await expect(repository.hasActiveBooking(7, 3)).resolves.toBe(expected);
     });
 
-    it('ignores the rejected bookings', async () => {
+    // MH-08: a cancelled booking, like a rejected one, lets the hiker book the slot again.
+    it('ignores the rejected and the cancelled bookings', async () => {
       client.booking.count.mockResolvedValue(0);
       await repository.hasActiveBooking(7, 3);
       expect(client.booking.count).toHaveBeenCalledWith({
-        where: { hikerId: 7, slotId: 3, status: { not: 'REJECTED' } },
+        where: { hikerId: 7, slotId: 3, status: { notIn: ['REJECTED', 'CANCELLED'] } },
       });
     });
   });
@@ -298,7 +299,7 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  // MH-06: change a booking.
+  // MH-06 and MH-08: the booking locked before changing or cancelling it.
   describe('lockBooking', () => {
     const row = {
       id: 9,
@@ -343,6 +344,43 @@ describe('PrismaBookingsRepository', () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.lockBooking(2_147_483_647);
       expect(queryValues()).toEqual([2_147_483_647]);
+    });
+  });
+
+  describe('cancelBooking', () => {
+    const cancelled = {
+      id: 9,
+      hikerId: 7,
+      slotId: 3,
+      partySize: 2,
+      requirements: null,
+      status: 'CANCELLED',
+      createdAt: new Date('2026-11-01T10:00:00Z'),
+    };
+
+    it('marks the booking as cancelled', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await repository.cancelBooking(9);
+      expect(client.booking.update).toHaveBeenCalledWith({
+        where: { id: 9 },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    it('keeps the table assignments as history: the seat queries only count active bookings', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await repository.cancelBooking(9);
+      expect(client.bookingTable.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('returns the cancelled booking without the hiker id', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await expect(repository.cancelBooking(9)).resolves.toEqual({
+        id: 9,
+        slotId: 3,
+        partySize: 2,
+        status: 'CANCELLED',
+      });
     });
   });
 

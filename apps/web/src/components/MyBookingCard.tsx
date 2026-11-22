@@ -38,7 +38,13 @@ function CardFooter({ booking }: { booking: MyBooking }) {
   return null;
 }
 
-export function MyBookingCard({ booking }: { booking: MyBooking }) {
+interface MyBookingCardProps {
+  booking: MyBooking;
+  // Opens the cancellation dialog, kept by the page: the card leaves the list once cancelled.
+  onCancel: () => void;
+}
+
+export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
   const day = fromIsoDate(booking.date);
   const title = dateFull(day);
   const titleId = `booking-${booking.id}-title`;
@@ -70,7 +76,6 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
           </p>
         </div>
 
-        {/* TODO(MH-08): the Cancel button is wired by the cancellation story. */}
         {active && (
           <div className="booking-card__actions">
             <button
@@ -89,6 +94,7 @@ export function MyBookingCard({ booking }: { booking: MyBooking }) {
               type="button"
               className="pill pill--danger"
               aria-label={`Cancel booking of ${title}`}
+              onClick={onCancel}
             >
               Cancel
             </button>

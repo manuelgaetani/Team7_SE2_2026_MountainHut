@@ -28,6 +28,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
 - Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
 - Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+- Cancel a booking (MH-08): `POST /api/bookings/:id/cancel` (hiker only, no body) cancels a `PENDING` or `CONFIRMED` booking of the hiker, at any time, and answers the booking with status `CANCELLED`. Its seats are free for other guests at once, and the hiker can book the same slot again. Another hiker's booking answers `404`; a booking already cancelled or rejected answers `409`.
+- New booking status `CANCELLED` (MH-08): migrations `booking_cancelled_status` and `one_booking_per_slot_ignores_cancelled`. A cancelled booking keeps its table assignments as history, but no longer holds seats.
+- Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
+- Integration and end-to-end tests for cancelling a booking (MH-08).
+- "My bookings" page (MH-08): the Cancel button asks to confirm with a recap of the booking, then says that it has been cancelled; the booking moves to the "Cancelled" tab and its seats are free again.
 
 ### Changed
 

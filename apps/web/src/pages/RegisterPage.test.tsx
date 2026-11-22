@@ -141,4 +141,15 @@ describe('RegisterPage', () => {
     submit();
     expect(await screen.findByRole('button', { name: 'Registering…' })).toBeDisabled();
   });
+
+  it('explains which characters a phone number may contain', () => {
+    const fetchMock = stubApi();
+    renderAt('/register');
+    fill({ ...required, Phone: '333-abc-4567' });
+    submit();
+    expect(
+      screen.getByText('The phone number can only contain digits, spaces, dashes and a leading +.'),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
+  });
 });
