@@ -163,5 +163,52 @@ describe('BookingsController', () => {
       bookings.cancel.mockRejectedValue(error);
       await cancel('9').expect(status);
     });
+
+    it.each([
+      ['NOT_FOUND', 'Booking not found', 404],
+      ['CONFLICT', 'This booking is already cancelled', 409],
+      ['CONFLICT', 'A rejected booking cannot be cancelled', 409],
+    ] as const)('sends the %s message "%s" of the service', async (code, message, status) => {
+      bookings.cancel.mockRejectedValue(new DomainError(code, message));
+      const response = await cancel('9').expect(status);
+      expect(response.body).toMatchObject({ statusCode: status, message });
+    });
+
+    it('answers 500 for an unexpected error of the service', async () => {
+      bookings.cancel.mockRejectedValue(new Error('database down'));
+      await cancel('9').expect(500);
+    });
+
+    // ParseIntPipe only checks the format: the repository turns ids out of range into
+    // "not found", so they reach the service.
+    it.each([
+      ['0', 0],
+      ['-1', -1],
+      ['2147483648', 2_147_483_648],
+    ])('passes the id "%s" to the service as a number', async (id, expected) => {
+      bookings.cancel.mockRejectedValue(new DomainError('NOT_FOUND', 'Booking not found'));
+      await cancel(id).expect(404);
+      expect(bookings.cancel).toHaveBeenCalledWith(1, expected);
+    });
+
+    it('ignores a hiker or user id sent in the body', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      await request(app.getHttpServer())
+        .post('/bookings/9/cancel')
+        .send({ hikerId: 99, userId: 99 })
+        .expect(200);
+      expect(bookings.cancel).toHaveBeenCalledWith(1, 9);
+    });
+
+    it('checks the role before parsing the id', async () => {
+      role = 'EMPLOYEE';
+      await cancel('abc').expect(403);
+      expect(bookings.cancel).not.toHaveBeenCalled();
+    });
+
+    it('does not expose the cancellation on GET', async () => {
+      await request(app.getHttpServer()).get('/bookings/9/cancel').expect(404);
+      expect(bookings.cancel).not.toHaveBeenCalled();
+    });
   });
 });

@@ -236,6 +236,33 @@ describe('PrismaBookingsRepository', () => {
       },
     );
 
+    it.each(['CONFIRMED', 'PENDING', 'REJECTED', 'CANCELLED'] as const)(
+      'returns the status %s as read',
+      async (status) => {
+        client.$queryRaw.mockResolvedValue([{ hiker_id: 7, status }]);
+        await expect(repository.lockBooking(9)).resolves.toEqual({ hikerId: 7, status });
+      },
+    );
+
+    it('reads the status as text from the bookings table only', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(9);
+      expect(queryText()).toContain('status::text AS status');
+      expect(queryText()).toContain('FROM bookings WHERE id = ?');
+    });
+
+    it('propagates a database error', async () => {
+      const failure = new Error('lock timeout');
+      client.$queryRaw.mockRejectedValue(failure);
+      await expect(repository.lockBooking(9)).rejects.toBe(failure);
+    });
+
+    it('queries the database for the smallest valid id', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBooking(1);
+      expect(queryValues()).toEqual([1]);
+    });
+
     it('queries the database for the largest id Postgres can store', async () => {
       client.$queryRaw.mockResolvedValue([]);
       await repository.lockBooking(2_147_483_647);
@@ -267,6 +294,19 @@ describe('PrismaBookingsRepository', () => {
       client.booking.update.mockResolvedValue(cancelled);
       await repository.cancelBooking(9);
       expect(client.bookingTable.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('updates only the status, so the history of the booking is kept', async () => {
+      client.booking.update.mockResolvedValue(cancelled);
+      await repository.cancelBooking(9);
+      const [{ data }] = client.booking.update.mock.calls[0] as [{ data: object }];
+      expect(Object.keys(data)).toEqual(['status']);
+    });
+
+    it('propagates a database error, e.g. a booking deleted in the meantime', async () => {
+      const failure = new Error('Record to update not found');
+      client.booking.update.mockRejectedValue(failure);
+      await expect(repository.cancelBooking(9)).rejects.toBe(failure);
     });
 
     it('returns the cancelled booking without the hiker id', async () => {

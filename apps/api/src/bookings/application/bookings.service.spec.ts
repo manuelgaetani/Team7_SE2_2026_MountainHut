@@ -350,5 +350,73 @@ describe('BookingsService', () => {
         await expect(service.cancel(1, 9)).rejects.toBe(failure);
       });
     });
+
+    // White-box: paths not reached by the black-box cases above.
+    describe('white-box paths', () => {
+      it('allows cancelling at any time: it reads neither the slot nor its seats', async () => {
+        await service.cancel(1, 9);
+        expect(repo.lockSlotAndGetStart).not.toHaveBeenCalled();
+        expect(repo.findFreeSeatsByTable).not.toHaveBeenCalled();
+      });
+
+      it('cancels also after the slot has started', async () => {
+        vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+        await expect(service.cancel(1, 9)).resolves.toEqual(cancelled);
+      });
+
+      it('compares the owner with the hiker id, not with the user id', async () => {
+        // User 1 is hiker 7: a booking of hiker 1 belongs to someone else.
+        repo.lockBooking.mockResolvedValue({ hikerId: 1, status: 'CONFIRMED' });
+        await expect(service.cancel(1, 9)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+
+      it('checks the owner before the status: a cancelled booking of another hiker is not found', async () => {
+        repo.lockBooking.mockResolvedValue({ hikerId: 8, status: 'CANCELLED' });
+        await expect(service.cancel(1, 9)).rejects.toMatchObject({
+          code: 'NOT_FOUND',
+          message: 'Booking not found',
+        });
+      });
+
+      it('locks and cancels the booking id given by the caller', async () => {
+        await service.cancel(1, 42);
+        expect(repo.lockBooking).toHaveBeenCalledWith(42);
+        expect(repo.cancelBooking).toHaveBeenCalledWith(42);
+      });
+
+      it('does not create anything', async () => {
+        await service.cancel(1, 9);
+        expect(repo.createBooking).not.toHaveBeenCalled();
+        expect(repo.createBookingTables).not.toHaveBeenCalled();
+      });
+
+      it('propagates a failure of the hiker lookup without locking the booking', async () => {
+        const failure = new Error('database down');
+        repo.findHikerIdByUserId.mockRejectedValue(failure);
+        await expect(service.cancel(1, 9)).rejects.toBe(failure);
+        expect(repo.lockBooking).not.toHaveBeenCalled();
+      });
+
+      it('propagates a failure of the lock without cancelling', async () => {
+        const failure = new Error('lock timeout');
+        repo.lockBooking.mockRejectedValue(failure);
+        await expect(service.cancel(1, 9)).rejects.toBe(failure);
+        expect(repo.cancelBooking).not.toHaveBeenCalled();
+      });
+
+      it('throws inside the unit of work, so that it ends and rolls back', async () => {
+        repo.lockBooking.mockResolvedValue({ hikerId: 7, status: 'CANCELLED' });
+        await expect(service.cancel(1, 9)).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(runStarted).toHaveBeenCalledTimes(1);
+        expect(runEnded).toHaveBeenCalledTimes(1);
+      });
+
+      it('returns what the repository returns', async () => {
+        const other = { id: 9, slotId: 4, partySize: 6, status: 'CANCELLED' as const };
+        repo.cancelBooking.mockResolvedValue(other);
+        await expect(service.cancel(1, 9)).resolves.toBe(other);
+      });
+    });
   });
 });
