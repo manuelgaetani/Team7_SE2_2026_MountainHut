@@ -271,7 +271,7 @@ describe('Cancel a booking with PostgreSQL (integration) - MH-08', () => {
   });
 
   describe('booking lock and atomicity', () => {
-     it('lockBooking returns the locked booking, or null for a missing one', async () => {
+    it('lockBooking returns the locked booking, or null for a missing one', async () => {
       const slotId = await createSlot(prisma, DATE, START, END, [4]);
       const { hikerId } = await createHiker(prisma, 'anna@example.test');
       const bookingId = await createBooking(prisma, hikerId, slotId, 'PENDING', [

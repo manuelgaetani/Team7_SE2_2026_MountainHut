@@ -235,8 +235,9 @@ export class PrismaBookingsRepository extends BookingsRepository {
       id: booking.id,
       slotId: booking.slotId,
       partySize: booking.partySize,
-      // Always PENDING: it has just been created as such.
-      status: 'PENDING',
+      // The status read back from the database: PENDING, or CONFIRMED when MH-07 creates it for
+      // the staff. A booking is never created as CANCELLED, so the narrower type holds.
+      status: booking.status as StoredBooking['status'],
     };
   }
 
