@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { changeBookingSchema } from '@mountain-hut/shared';
 import { BookingsService } from '../src/bookings/application/bookings.service.js';
+import { ListMyBookings } from '../src/bookings/application/list-my-bookings.js';
 import {
   ConfirmationSender,
   TimerSleeper,
@@ -49,6 +50,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
   const notifier = new BookingConfirmationAdapter(context, new NotificationService(mailer, prisma));
   const sender = new ConfirmationSender(notifier, repo, new TimerSleeper());
   const service = new BookingsService(uow, repo, sender, config);
+  const myBookings = new ListMyBookings(repo, config);
 
   // The emails are sent after the commit and not awaited. Each test waits for its own before the
   // next one empties the database: a late email could otherwise land on a booking of the next test.
@@ -84,6 +86,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
   const snapshot = async (bookingId: number) => ({
     booking: await bookingOf(bookingId),
     tables: await tablesOf(bookingId),
+    requirements: await needsOf(bookingId),
   });
 
   beforeEach(async () => {
@@ -320,6 +323,59 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
 
       expect(await needsOf(booking)).toEqual([]);
     });
+
+    it('keeps the requirements, in order, when only the slot and the party size change', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const lunch = await createSlot(prisma, '2031-07-10', '12:00', '14:00', [4]);
+      const dinner = await createSlot(prisma, '2031-07-11', '19:00', '21:00', [4]);
+      const booking = await createBooking(prisma, anna.hikerId, lunch, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+      const needs = [{ allergies: true, description: 'gluten' }, vegan];
+      await prisma.partyRequirement.createMany({
+        data: needs.map((n) => ({ bookingId: booking, ...n })),
+      });
+
+      const result = await service.change(anna.userId, booking, { slotId: dinner, partySize: 3 });
+
+      expect(result.requirements).toEqual(needs);
+      expect(await needsOf(booking)).toEqual(needs);
+    });
+
+    it('replaces the whole list with the one sent, in the order it was sent', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+      await prisma.partyRequirement.create({ data: { bookingId: booking, ...vegan } });
+      const sent = [
+        { allergies: false, description: 'vegetarian' },
+        { allergies: true, description: 'peanuts' },
+        { allergies: false, description: 'high chair' },
+      ];
+
+      await service.change(anna.userId, booking, { requirements: sent });
+
+      expect(await needsOf(booking)).toEqual(sent);
+    });
+
+    it('does not touch the requirements of the other bookings', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 4]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+      const other = await createBooking(prisma, bruno.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 2, assignedSeats: 2 },
+      ]);
+      await prisma.partyRequirement.create({ data: { bookingId: other, ...vegan } });
+
+      await service.change(anna.userId, booking, { requirements: [] });
+
+      expect(await needsOf(other)).toEqual([vegan]);
+    });
   });
 
   // The dinner of 2031-07-10 starts at 19:00 in Rome, 17:00 UTC: 48 hours before is
@@ -373,6 +429,24 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       });
       expect(await snapshot(booking)).toEqual(before);
     });
+  });
+
+  describe('status of the booking', () => {
+    it.each(['PENDING', 'CONFIRMED'] as const)(
+      'keeps a %s booking in the same status',
+      async (status) => {
+        const anna = await createHiker(prisma, 'anna@example.test');
+        const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4]);
+        const booking = await createBooking(prisma, anna.hikerId, slot, status, [
+          { tableNumber: 1, assignedSeats: 2 },
+        ]);
+
+        const result = await service.change(anna.userId, booking, { partySize: 3 });
+
+        expect(result.status).toBe(status);
+        expect((await bookingOf(booking)).status).toBe(status);
+      },
+    );
   });
 
   describe('whose booking', () => {
@@ -573,5 +647,136 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
     // The old tables, deleted before the failure, are back with the old slot and size.
     expect(await snapshot(booking)).toEqual(before);
     expect(mailer.sent).toEqual([]);
+  });
+
+  it('rolls back the whole change when writing the new requirements fails', async () => {
+    // The requirements are written last, after the new tables.
+    const anna = await createHiker(prisma, 'anna@example.test');
+    const lunch = await createSlot(prisma, '2031-07-10', '12:00', '14:00', [4]);
+    const dinner = await createSlot(prisma, '2031-07-11', '19:00', '21:00', [4]);
+    const booking = await createBooking(prisma, anna.hikerId, lunch, 'CONFIRMED', [
+      { tableNumber: 1, assignedSeats: 2 },
+    ]);
+    await prisma.partyRequirement.create({ data: { bookingId: booking, ...vegan } });
+    const before = await snapshot(booking);
+    vi.spyOn(repo, 'replaceRequirements').mockRejectedValueOnce(new Error('database down'));
+
+    await expect(
+      service.change(anna.userId, booking, {
+        slotId: dinner,
+        partySize: 3,
+        requirements: [{ allergies: true, description: 'peanuts' }],
+      }),
+    ).rejects.toThrow('database down');
+
+    expect(await snapshot(booking)).toEqual(before);
+    expect(await seatsTakenIn(dinner)).toBe(0);
+    expect(mailer.sent).toEqual([]);
+  });
+
+  // GET /api/bookings/me: the list the hiker changes a booking from (web app, MH-06).
+  describe('upcoming bookings of the hiker', () => {
+    it('lists only the bookings of the hiker, with slot, party and requirements', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const bruno = await createHiker(prisma, 'bruno@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4, 4]);
+      const booking = await createBooking(prisma, anna.hikerId, slot, 'PENDING', [
+        { tableNumber: 1, assignedSeats: 3 },
+      ]);
+      await createBooking(prisma, bruno.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 2, assignedSeats: 2 },
+      ]);
+      const needs = [{ allergies: true, description: 'gluten' }, vegan];
+      await prisma.partyRequirement.createMany({
+        data: needs.map((n) => ({ bookingId: booking, ...n })),
+      });
+
+      await expect(myBookings.execute(anna.userId, NOW)).resolves.toEqual([
+        {
+          id: booking,
+          slotId: slot,
+          date: '2031-07-10',
+          startTime: '19:00',
+          endTime: '21:00',
+          partySize: 3,
+          requirements: needs,
+          status: 'PENDING',
+        },
+      ]);
+    });
+
+    it('gives an empty list of requirements to a booking without any', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slot = await createSlot(prisma, '2031-07-10', '19:00', '21:00', [4]);
+      await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+
+      const [listed] = await myBookings.execute(anna.userId, NOW);
+
+      expect(listed.requirements).toEqual([]);
+    });
+
+    it('lists the slots that have not started yet, the soonest first', async () => {
+      // NOW is 2031-07-01 10:00 in Rome.
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const seat = [{ tableNumber: 1, assignedSeats: 1 }];
+      const ids: Record<string, number> = {};
+      for (const [name, date, start, end] of [
+        ['later day', '2031-07-02', '12:00', '13:00'],
+        ['over', '2031-07-01', '08:00', '09:00'],
+        ['started', '2031-07-01', '09:30', '11:00'],
+        ['starts now', '2031-07-01', '10:00', '11:00'],
+        ['evening', '2031-07-01', '19:00', '21:00'],
+        ['in a minute', '2031-07-01', '10:01', '11:00'],
+      ] as const) {
+        const slot = await createSlot(prisma, date, start, end, [4]);
+        ids[name] = await createBooking(prisma, anna.hikerId, slot, 'CONFIRMED', seat);
+      }
+
+      const listed = await myBookings.execute(anna.userId, NOW);
+
+      expect(listed.map((b) => b.id)).toEqual([
+        ids['in a minute'],
+        ids['evening'],
+        ids['later day'],
+      ]);
+    });
+
+    it('shows the new slot, party and requirements once a booking is changed', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const lunch = await createSlot(prisma, '2031-07-10', '12:00', '14:00', [4]);
+      const dinner = await createSlot(prisma, '2031-07-11', '19:00', '21:00', [4]);
+      const booking = await createBooking(prisma, anna.hikerId, lunch, 'CONFIRMED', [
+        { tableNumber: 1, assignedSeats: 2 },
+      ]);
+
+      await service.change(anna.userId, booking, {
+        slotId: dinner,
+        partySize: 4,
+        requirements: [vegan],
+      });
+
+      await expect(myBookings.execute(anna.userId, NOW)).resolves.toEqual([
+        expect.objectContaining({
+          id: booking,
+          slotId: dinner,
+          date: '2031-07-11',
+          startTime: '19:00',
+          partySize: 4,
+          requirements: [vegan],
+        }),
+      ]);
+    });
+
+    it('refuses an account without a hiker profile', async () => {
+      const staff = await prisma.user.create({
+        data: { email: 'staff@example.test', password: 'not-used', role: 'EMPLOYEE' },
+      });
+
+      await expect(myBookings.execute(staff.id, NOW)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
   });
 });
