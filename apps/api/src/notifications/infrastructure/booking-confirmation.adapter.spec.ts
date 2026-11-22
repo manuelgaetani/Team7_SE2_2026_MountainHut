@@ -10,6 +10,7 @@ describe('BookingConfirmationAdapter', () => {
   let adapter: BookingConfirmationAdapter;
 
   const row = {
+    status: 'PENDING',
     partySize: 2,
     requirements: [{ allergies: true, description: 'no nuts' }],
     hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
@@ -91,6 +92,20 @@ describe('BookingConfirmationAdapter', () => {
     expect(notifications.sendBookingConfirmation).not.toHaveBeenCalled();
   });
 
+  // MH-08: a hiker who cancelled during the retries gets no confirmation.
+  it.each(['CANCELLED', 'REJECTED'])('skips a %s booking', async (status) => {
+    findUnique.mockResolvedValue({ ...row, status });
+    await expect(adapter.notify(9)).resolves.toBe('SKIPPED');
+    expect(notifications.sendBookingConfirmation).not.toHaveBeenCalled();
+  });
+
+  // MH-07: a staff booking is CONFIRMED at once and still gets its confirmation.
+  it('sends the confirmation of a CONFIRMED booking', async () => {
+    findUnique.mockResolvedValue({ ...row, status: 'CONFIRMED' });
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    await expect(adapter.notify(9)).resolves.toBe('SENT');
+  });
+
   // MH-06: the same data, sent as a change.
   describe('notifyChange', () => {
     it('sends the booking as a change, not as a confirmation', async () => {
@@ -106,6 +121,12 @@ describe('BookingConfirmationAdapter', () => {
 
     it('skips a booking that does not exist', async () => {
       findUnique.mockResolvedValue(null);
+      await expect(adapter.notifyChange(9)).resolves.toBe('SKIPPED');
+      expect(notifications.sendBookingChange).not.toHaveBeenCalled();
+    });
+
+    it('skips a booking cancelled after the change', async () => {
+      findUnique.mockResolvedValue({ ...row, status: 'CANCELLED' });
       await expect(adapter.notifyChange(9)).resolves.toBe('SKIPPED');
       expect(notifications.sendBookingChange).not.toHaveBeenCalled();
     });

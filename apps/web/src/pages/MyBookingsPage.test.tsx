@@ -332,6 +332,25 @@ describe('MyBookingsPage', () => {
       expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.alreadyCancelled);
     });
 
+    // Cancelled in another tab: the API answers 409 and the list must not keep the old card.
+    it('reloads the list after a 409, so a booking cancelled elsewhere leaves Upcoming', async () => {
+      let cancelledElsewhere = false;
+      stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () =>
+          json([cancelledElsewhere ? { ...confirmed, status: 'CANCELLED' } : confirmed]),
+        '/api/bookings/1/cancel': () => json({ message: CANCEL.alreadyCancelled }, 409),
+      });
+      const dialog = await openDialog();
+      cancelledElsewhere = true;
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.alreadyCancelled);
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.goBack }));
+      expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
+    });
+
     it('asks to log in again when the session has expired', async () => {
       asHikerWithCancel(() => json({}, 401));
       const dialog = await openDialog();

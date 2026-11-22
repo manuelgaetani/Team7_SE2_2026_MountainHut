@@ -33,3 +33,6 @@ npm-debug.log*
 apps/api/src/generated/
 
 guides/
+# curl cookie jars of the manual tests: they hold session tokens
+cookies.txt
+*.cookies
