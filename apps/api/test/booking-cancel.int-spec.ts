@@ -271,7 +271,7 @@ describe('Cancel a booking with PostgreSQL (integration) - MH-08', () => {
   });
 
   describe('booking lock and atomicity', () => {
-    it('lockBooking returns owner and status, or null for a missing booking', async () => {
+     it('lockBooking returns the locked booking, or null for a missing one', async () => {
       const slotId = await createSlot(prisma, DATE, START, END, [4]);
       const { hikerId } = await createHiker(prisma, 'anna@example.test');
       const bookingId = await createBooking(prisma, hikerId, slotId, 'PENDING', [
@@ -279,7 +279,7 @@ describe('Cancel a booking with PostgreSQL (integration) - MH-08', () => {
       ]);
 
       await uow.run(async () => {
-        expect(await repo.lockBooking(bookingId)).toEqual({ hikerId, status: 'PENDING' });
+        expect(await repo.lockBooking(bookingId)).toMatchObject({ hikerId, status: 'PENDING' });
         expect(await repo.lockBooking(bookingId + 1)).toBeNull();
       });
     });
