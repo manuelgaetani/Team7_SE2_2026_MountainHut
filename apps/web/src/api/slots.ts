@@ -2,6 +2,8 @@ import type {
   CreateSlotInput,
   DefineSlotTablesInput,
   FloorPlan,
+  RepeatWeeklyScheduleInput,
+  RepeatWeeklyScheduleResult,
   SlotDetails,
 } from '@mountain-hut/shared';
 import { apiGet, apiPost, apiPut } from './client.ts';
@@ -9,6 +11,7 @@ import { apiGet, apiPost, apiPut } from './client.ts';
 export type { FloorPlan, SlotDetails };
 export type TablesSource = DefineSlotTablesInput;
 export type NewSlot = CreateSlotInput;
+export type { RepeatWeeklyScheduleResult };
 
 // The slots of one day, ordered by start time.
 export async function fetchSchedule(date: string): Promise<SlotDetails[]> {
@@ -28,4 +31,10 @@ export async function defineSlotTables(id: number, source: TablesSource): Promis
 // Where the groups of a slot are seated, for the staff.
 export async function fetchFloorPlan(id: number): Promise<FloorPlan> {
   return apiGet<FloorPlan>(`/slots/${id}/floor`);
+}
+
+export async function repeatWeeklySchedule(
+  input: RepeatWeeklyScheduleInput,
+): Promise<RepeatWeeklyScheduleResult> {
+  return apiPost<RepeatWeeklyScheduleResult>('/slots/repeat-weekly', input);
 }

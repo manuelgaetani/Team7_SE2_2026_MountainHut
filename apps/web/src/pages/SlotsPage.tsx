@@ -7,6 +7,7 @@ import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
 import { FormField } from '../components/FormField.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
+import { RepeatWeeklyScheduleDialog } from '../components/RepeatWeeklyScheduleDialog.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
 import { isIsoDate, toIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
@@ -22,6 +23,7 @@ function SlotsManager() {
   });
   const [defining, setDefining] = useState<SlotDetails | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
 
   return (
@@ -39,6 +41,18 @@ function SlotsManager() {
             setSaved(null);
           }}
         />
+        <div className="schedule-toolbar">
+          <button
+            type="button"
+            className="pill"
+            onClick={() => {
+              setRepeating(true);
+              setSaved(null);
+            }}
+          >
+            Repeat weekly schedule
+          </button>
+        </div>
         {saved && (
           <p role="status" className="notice notice--ok">
             {saved}
@@ -76,6 +90,16 @@ function SlotsManager() {
           <NewSlotForm key={date} date={date} />
         )}
       </div>
+      {repeating && (
+        <RepeatWeeklyScheduleDialog
+          sourceStartDate={date}
+          onDone={(message) => {
+            setRepeating(false);
+            setSaved(message);
+          }}
+          onClose={() => setRepeating(false)}
+        />
+      )}
     </div>
   );
 }
