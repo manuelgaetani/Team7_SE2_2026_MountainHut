@@ -65,6 +65,12 @@ export class PrismaSlotsRepository extends SlotsRepository {
     return rows.length > 0;
   }
 
+  // An advisory lock works even when the day has no slots yet. Key: 'slots-day:YYYY-MM-DD'.
+  async lockDay(date: string): Promise<void> {
+    await this.db()
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${toDbDate(date)}::date::text, 0))`;
+  }
+
   async findOverlapping(slot: NewSlot): Promise<Slot | null> {
     const row = await this.db().slot.findFirst({
       where: {
@@ -78,10 +84,12 @@ export class PrismaSlotsRepository extends SlotsRepository {
     return row ? toSlot(row) : null;
   }
 
-  // An advisory lock works even when the day has no slots yet. Key: 'slots-day:YYYY-MM-DD'.
-  async lockDay(date: string): Promise<void> {
-    await this.db()
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${toDbDate(date)}::date::text, 0))`;
+  async lockBetween(from: string, to: string): Promise<void> {
+    await this.db().$queryRaw`
+      SELECT id FROM slots
+      WHERE date BETWEEN ${toDbDate(from)}::date AND ${toDbDate(to)}::date
+      ORDER BY id
+      FOR UPDATE`;
   }
 
   async findBetween(from: string, to: string): Promise<Slot[]> {

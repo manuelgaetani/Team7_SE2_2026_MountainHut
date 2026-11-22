@@ -2,7 +2,7 @@
 
 |                |                                                                                  |
 | -------------- | -------------------------------------------------------------------------------- |
-| **Status**     | Backend complete and tested; web page pending (R9)                               |
+| **Status**     | API complete and tested; web dialog on `feature/MH-09-UI`, not merged yet (R9)   |
 | **Depends on** | MH-02 (define slot capacity and tables), MH-58 (authentication and `RolesGuard`) |
 
 ## User story
@@ -11,78 +11,72 @@
 
 As an employee,  
 I want to copy or repeat a schedule across multiple weeks,  
-So that I do not have to configure recurring slots individually.
+so that I do not have to configure recurring slots individually.
 
-### Notes & Clarifications
+### Clarifications
 
-- **Weekly Recurrence Pattern:** Mountain huts often operate on recurring weekly meal service patterns (e.g. fixed lunch and dinner services on weekdays and weekends). Staff need a fast way to project a configured weekly schedule forward across multiple weeks.
-- **Table Layout Duplication:** Each copied time slot retains its exact time range (`startTime`, `endTime`) and duplicates all associated tables and seat capacities (`tableNumber`, `seats`), creating fully independent slots.
-- **Day-of-Week Mapping:** A slot on day $D$ of the source week is projected to day $D + 7k$ for each week $k \in [1, \text{repeatWeeks}]$.
-- **Target week already scheduled (course issue #45, 2026-11-12):** a weekly schedule cannot be copied onto an existing schedule if it has reservations. If it has none, the copy completely replaces the existing one.
-- **Adjusting the copies:** "they can later be adjusted if required" refers to MH-19 (modify a slot), not to this story (course issue #45).
-- **Empty Source Week:** If the selected source week contains no slots, the operation is rejected with `422 Unprocessable Entity`.
+- Is should be possible to replicate the schedule for all the days of a given week into another week instead of having to enter all the slots manually one by one. (they can later be adjusted if required, see MH-19
+- Not: it is not possible to copy a weekly schedule onto an existing schedule unless there are not reservations, in this case it completely replaces the existing one.
+
+Team assumptions:
+
+- _Adjusting the copies:_ "they can later be adjusted if required" refers to MH-19 (modify a slot), not to this story (course issue #45).
+- _Warden:_ the warden can do everything an employee can, so both `EMPLOYEE` and `WARDEN` can repeat a schedule.
+- _Several weeks at once:_ the story says "across multiple weeks", so one request copies the source week into 1 to 12 following weeks.
 
 ## Requirements
 
-| #   | Requirement                                                                                                   | Status  | Implemented in                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| R1  | Staff role restriction: only authenticated staff (`EMPLOYEE` and `WARDEN`) can repeat weekly schedules        | Done    | `POST /api/slots/repeat-weekly`, `SlotsController.repeatWeekly`  |
-| R2  | Source week specification: staff selects a source start date defining the 7-day template period               | Done    | `repeatWeeklyScheduleSchema`, `SlotsService.repeatWeekly`        |
-| R3  | Repeat duration: staff selects number of future weeks to repeat across ($1 \le \text{repeatWeeks} \le 12$)    | Done    | `repeatWeeklyScheduleSchema` (`MAX_REPEAT_WEEKS`)                |
-| R4  | Slot & table replication: all slots and table layouts in source period are duplicated into target weeks       | Done    | `projectWeeklySchedule`, `SlotsService.repeatWeekly`             |
-| R5  | A target week with reservations (pending or confirmed bookings) cannot be replaced: `409`, nothing is written | Done    | `SlotsRepository.findReservedDates`, `SlotsService.repeatWeekly` |
-| R6  | Empty source validation: rejects repetition with 422 if the source week has no time slots configured          | Done    | `SlotsService.repeatWeekly`, `UnprocessableEntityException`      |
-| R7  | Input bounds validation: rejects non-existent dates, non-positive or excessive week counts with 400           | Done    | `repeatWeeklyScheduleSchema`, `ZodValidationPipe`                |
-| R8  | Atomic transaction: bulk slot and table duplication executes atomically within `prisma.$transaction`          | Done    | `SlotsService.repeatWeekly`                                      |
-| R9  | Web UI controls: staff page `/staff/slots` provides modal/form to trigger and confirm schedule repeat         | Pending | `RepeatScheduleDialog`, `/staff/slots` page                      |
-| R10 | A target week without reservations is replaced completely: its slots are deleted, then the copies are created | Done    | `SlotsRepository.deleteSlots`, `SlotsService.repeatWeekly`       |
+| #   | Requirement                                                                                                   | Status      | Implemented in                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
+| R1  | Only the staff (`EMPLOYEE`, `WARDEN`) repeat a schedule                                                       | Done        | `SlotsController.repeatWeekly` (`@Roles('EMPLOYEE', 'WARDEN')`)   |
+| R2  | The source week is the 7 days starting at the chosen date                                                     | Done        | `repeatWeeklyScheduleSchema`, `SlotsService.repeatWeekly`         |
+| R3  | The source week is copied into 1 to 12 following weeks                                                        | Done        | `repeatWeeklyScheduleSchema` (`MAX_REPEAT_WEEKS`)                 |
+| R4  | Every slot is copied with its times and tables onto the same weekday of each target week                      | Done        | `projectWeeklySchedule`, `SlotsService.repeatWeekly`              |
+| R5  | A target week with reservations (pending or confirmed bookings) cannot be replaced: `409`, nothing is written | Done        | `SlotsRepository.findReservedDates`, `SlotsService.repeatWeekly`  |
+| R6  | A target week without reservations is replaced completely: its slots are deleted, then the copies are created | Done        | `SlotsRepository.deleteSlots`, `SlotsService.repeatWeekly`        |
+| R7  | An empty source week is refused with `422`                                                                    | Done        | `SlotsService.repeatWeekly`                                       |
+| R8  | All or nothing: every check, deletion and copy runs in one transaction                                        | Done        | `SlotsService.repeatWeekly` (one unit of work)                    |
+| R9  | Web app: the staff repeat the week of the chosen day from `/staff/slots`                                      | In progress | `RepeatWeeklyScheduleDialog`, `SlotsPage` (on `feature/MH-09-UI`) |
 
 ### Decisions
 
-- **HTTP Method:** `POST /api/slots/repeat-weekly` handles the bulk generation.
+- **Endpoint.** `POST /api/slots/repeat-weekly` with `sourceStartDate` and `repeatWeeks`.
 - **No conflict strategy.** The first draft of this contract had a `conflictStrategy` (`SKIP` / `FAIL`). The product owner's answer to course issue #45 replaced it: a target week is either replaced completely or, if it has reservations, not touched. A `conflictStrategy` sent by a client is ignored.
-- **What a reservation is.** A booking that takes seats: `PENDING` or `CONFIRMED`. Bookings that take no seats (`REJECTED`) do not block the copy and are deleted with their slot.
-- **The target weeks are the 7-day periods after the source.** Week $k$ goes from $\text{sourceStartDate} + 7k$ to $\text{sourceStartDate} + 7k + 6$. The source date does not have to be a Monday.
+- **What a reservation is.** A booking that takes seats: `PENDING` or `CONFIRMED`. Bookings that take no seats (`REJECTED`) do not block the copy and are deleted with their slot, with their table assignments. Their email records stay, without the booking.
+- **The target weeks are the 7-day periods after the source.** Week _k_ goes from `sourceStartDate + 7k` to `sourceStartDate + 7k + 6`. The source date does not have to be a Monday: the week of the copy starts on the chosen day.
 - **All or nothing.** If one target week has reservations, no week is changed, and the answer names the first week with reservations.
-- **Locks.** The copy locks every day of the target weeks (PostgreSQL advisory locks, in date order), so two copies onto the same days run one after the other. The key is the one of the MH-02 overlap check (`slots-day:YYYY-MM-DD`): once both are on the same branch, creating a slot also waits for a running copy.
+- **Dates.** The copies are calendar dates moved by 7, 14, … days, computed at UTC midnight, so a change of daylight saving time never moves a slot to another day. The times stay the same.
+- **Independent copies.** A copy is a new slot with its own tables: it has no link to its source, and its bookings do not change the seats of the source or of the other weeks.
+- **Locks.** The copy locks every day of the target weeks (PostgreSQL advisory locks, in date order), so two copies onto the same days run one after the other and cannot deadlock. The key is the one of the MH-02 overlap check (`slots-day:YYYY-MM-DD`): once both are on the same branch, creating a slot also waits for a running copy.
 - **Slots in the past.** The story does not forbid copying from or into past weeks, so it is allowed.
-- **Day-of-Week Preservation:** Dates are computed using strict day offsets ($+7, +14, \dots$) in the hut timezone (`Europe/Rome`).
-- **Independent Capacity:** Replicated slots have no booking links to their source; bookings made on a replicated slot do not impact the source or other weeks.
-- **Language:** All API error messages, schedule notifications, and UI labels are in English.
+- **Language.** All API messages and UI labels are in English.
 
 ## How it works
 
-1. **Request Reception:** `POST /api/slots/repeat-weekly` receives `sourceStartDate` and `repeatWeeks` with the session cookie.
-2. **Authentication & RBAC:** `AuthGuard` verifies the session cookie; `RolesGuard` verifies the caller is an `EMPLOYEE` or a `WARDEN` (hikers receive `403 Forbidden`).
-3. **Validation:** `ZodValidationPipe` validates the date and the number of weeks ($1 \dots 12$).
-4. **Transaction:** everything below runs in one `prisma.$transaction`.
-5. **Locks:** every day of the target weeks is locked, in date order.
-6. **Source Retrieval:** the slots and tables from `sourceStartDate` to `sourceStartDate + 6 days`. If there are none: `422`.
-7. **Reservations:** if a slot of the target weeks has a pending or confirmed booking: `409`, nothing is written.
-8. **Replacement:** the slots of the target weeks are deleted, with their tables and their bookings that take no seats.
-9. **Copies:** each source slot is created again, with a copy of its tables, on the same weekday of each target week (`projectWeeklySchedule`).
-10. **Response:** `201 Created` with the number of created and replaced slots and the created slots, ordered by date and start time.
+1. `POST /api/slots/repeat-weekly` arrives with the session cookie. `AuthGuard` checks the session, `RolesGuard` the `EMPLOYEE` or `WARDEN` role, `ZodValidationPipe(repeatWeeklyScheduleSchema)` the body.
+2. In one transaction, `SlotsService.repeatWeekly`:
+   1. locks every day of the target weeks, in date order;
+   2. reads the slots and tables from `sourceStartDate` to `sourceStartDate + 6` (`422` if there are none);
+   3. looks for pending or confirmed bookings in the target weeks (`409` naming the first week that has them);
+   4. deletes the slots of the target weeks, with their tables and their bookings that take no seats;
+   5. creates each source slot again, with a copy of its tables, on the same weekday of each target week (`projectWeeklySchedule`).
+3. The answer is `201` with the number of weeks, of created and of replaced slots, and the created slots ordered by date and start time.
 
 ## API
 
 ### `POST /api/slots/repeat-weekly`
 
-Protected endpoint, requires session cookie of an authenticated `EMPLOYEE` or `WARDEN`.
+Staff only (`EMPLOYEE`, `WARDEN`).
 
-| Field             | Type    | Rules                                                                |
-| ----------------- | ------- | -------------------------------------------------------------------- |
-| `sourceStartDate` | string  | `YYYY-MM-DD`, valid calendar date (start of the 7-day source period) |
-| `repeatWeeks`     | integer | Positive integer, minimum 1, maximum 12                              |
-
-#### Example Request: Repeat schedule for 2 weeks
+| Field             | Type    | Rules                                                            |
+| ----------------- | ------- | ---------------------------------------------------------------- |
+| `sourceStartDate` | string  | `YYYY-MM-DD`, valid calendar date (first day of the source week) |
+| `repeatWeeks`     | integer | From 1 to 12                                                     |
 
 ```bash
 curl -X POST -b cookies.txt -H 'Content-Type: application/json' \
   http://localhost:3000/api/slots/repeat-weekly \
-  -d '{
-    "sourceStartDate": "2035-06-04",
-    "repeatWeeks": 2
-  }'
+  -d '{"sourceStartDate":"2035-06-04","repeatWeeks":2}'
 ```
 
 Response `201 Created`:
@@ -113,112 +107,88 @@ Response `201 Created`:
 | Status | When                                                                     | `message`                                                                        |
 | ------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `400`  | Invalid body (malformed date, `repeatWeeks` not an integer from 1 to 12) | `Invalid data` (details in `issues`)                                             |
-| `401`  | Missing or expired session cookie                                        | `Not authenticated`                                                              |
-| `403`  | Authenticated user is a `HIKER`                                          | `Operation not allowed for your role`                                            |
+| `401`  | No valid session                                                         | `Not authenticated`                                                              |
+| `403`  | The user is a hiker                                                      | `Operation not allowed for your role`                                            |
 | `409`  | A slot of a target week has reservations                                 | `The week starting YYYY-MM-DD has reservations: its schedule cannot be replaced` |
-| `422`  | Source week contains no slots to copy                                    | `Source week contains no time slots to repeat`                                   |
+| `422`  | The source week has no slots                                             | `Source week contains no time slots to repeat`                                   |
 
 ## Web app
 
-- **Route:** `/staff/slots`
-- **Component:** `RepeatWeeklyScheduleDialog` / action button in `SlotSchedule` toolbar.
-- **Controls:**
-  - Date input displaying the selected source week.
-  - Number input for `repeatWeeks` (default: 1, range: 1–12).
-  - A warning that the slots already in the target weeks are replaced.
-  - "Confirm and repeat schedule" action button.
-- **Feedback:**
-  - Success banner: `Schedule successfully repeated across X weeks: Y slots created.`
-  - Navigation: day picker updates allow staff to immediately view the replicated schedules on subsequent weeks.
+On `feature/MH-09-UI` (Kiara), not merged into this branch yet.
+
+- **Button.** `/staff/slots` has a **Repeat weekly schedule** button under the day picker. The source week starts on the day chosen on the page.
+- **Dialog** (`RepeatWeeklyScheduleDialog`): the source week (e.g. _"4 Jun – 10 Jun"_), the field _Number of weeks to repeat_ (1 by default, 1 to 12) and, while the number is valid, the target period (_"Target: 11 Jun – 24 Jun"_). A warning says that the slots already in those weeks are replaced and that a week with reservations cannot be replaced. **Confirm and repeat schedule** sends the request (_"Repeating…"_ while it runs); **Cancel**, the close button, `Escape` or a click outside close the dialog.
+- **Validation.** `repeatWeeklyScheduleSchema.safeParse` before sending: _"Must be at least 1 week."_, _"At most 12 weeks."_, _"Enter a whole number of weeks."_; nothing is sent.
+- **Outcome.** The dialog closes and the page shows _"Schedule successfully repeated across 2 weeks: 6 slots created."_, plus _"3 slots replaced."_ when target slots were replaced. Every cached day of the schedule is refreshed.
+- **Errors.** The dialog stays open with the message of the API for `403`, `404`, `409` and `422` (e.g. the week with reservations), _"The session has expired. Please log in again."_ for `401`, otherwise _"Saving failed. Please try again."_.
+
+## Data model
+
+No change: the copies are normal rows of `slots` and `slot_tables`.
 
 ## Code map
 
-| Path                                                    | Content                                                                               |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `docs/stories/MH-09-repeat-a-weekly-schedule.md`        | Living User Story documentation                                                       |
-| `packages/shared/src/slots.ts`                          | `repeatWeeklyScheduleSchema`, `MAX_REPEAT_WEEKS`, `RepeatWeeklyScheduleResult`        |
-| `apps/api/src/slots/repeat-schedule-calculator.ts`      | `projectWeeklySchedule` and `addDays`: dates of the copies                            |
-| `apps/api/src/slots/slots.controller.ts`                | `POST /api/slots/repeat-weekly`                                                       |
-| `apps/api/src/slots/slots.service.ts`                   | `SlotsService.repeatWeekly`: locks, checks, replacement and copies in one transaction |
-| `apps/api/src/slots/slots.repository.ts`                | `lockDay`, `findBetween`, `findReservedDates`, `deleteSlots`                          |
-| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema unit tests: BVA, EP for dates and repeatWeeks                        |
-| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box domain unit tests: date math, month/year transitions                        |
-| `apps/api/test/repeat-schedule.int-spec.ts`             | PostgreSQL integration tests                                                          |
-| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API E2E tests: RBAC, multi-week replication, conflicts                      |
-| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web E2E tests: employee workflow, modal, validation, UI                     |
+| Path                                                                | Content                                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `docs/stories/MH-09-repeat-a-weekly-schedule.md`                    | This document                                                                         |
+| `packages/shared/src/slots.ts`                                      | `repeatWeeklyScheduleSchema`, `MAX_REPEAT_WEEKS`, `RepeatWeeklyScheduleResult`        |
+| `apps/api/src/slots/presentation/slots.controller.ts`               | `POST /api/slots/repeat-weekly`, staff only                                           |
+| `apps/api/src/slots/application/slots.service.ts`                   | `SlotsService.repeatWeekly`: locks, checks, replacement and copies in one transaction |
+| `apps/api/src/slots/application/slots.repository.port.ts`           | `lockDay`, `findBetween`, `findReservedDates`, `deleteSlots`                          |
+| `apps/api/src/slots/infrastructure/prisma-slots.repository.ts`      | Advisory lock of a day, reserved days, deletion of slots with tables and bookings     |
+| `apps/api/src/slots/domain/repeat-schedule-calculator.ts`           | `projectWeeklySchedule` and `addDays`: dates of the copies                            |
+| `apps/web/src/components/RepeatWeeklyScheduleDialog.tsx` (MH-09-UI) | Dialog: source and target weeks, number of weeks, validation, errors                  |
+| `apps/web/src/pages/SlotsPage.tsx` (MH-09-UI)                       | **Repeat weekly schedule** button and outcome banner                                  |
+| `apps/web/src/api/slots.ts`, `api/useSlots.ts` (MH-09-UI)           | `POST /api/slots/repeat-weekly` and its TanStack Query hook                           |
 
 ## Testing
 
 Run unit tests:
 
 ```bash
-# Shared package schema tests
-npm run test -w @mountain-hut/shared -- src/repeat-weekly-schedule.spec.ts
-
-# API domain calculator tests
-npm run test -w @mountain-hut/api -- src/slots/repeat-schedule-calculator.spec.ts
-
-# Integration tests against PostgreSQL
-docker compose up -d db
-npm run test:int -w @mountain-hut/api -- test/repeat-schedule.int-spec.ts
+npm run test -w @mountain-hut/shared
+npm run test -w @mountain-hut/api
 ```
 
-Run E2E tests:
+Run integration tests against PostgreSQL:
 
 ```bash
-# Start Docker stack
-docker compose up -d
+docker compose up -d db
+npm run test:int
+```
 
-# API E2E tests for MH-09
-npm run e2e:api -w @mountain-hut/e2e -- e2e/tests/api/repeat-weekly-schedule.spec.ts
+Run end-to-end tests:
 
-# Web UI E2E tests for MH-09
-npm run e2e:web -w @mountain-hut/e2e -- e2e/tests/web/repeat-weekly-schedule.spec.ts
-
-# Run entire E2E suite
+```bash
+docker compose up --build -d --wait
 npm run test:e2e
 ```
 
-| Spec                                                    | Covers                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/repeat-weekly-schedule.spec.ts`    | Black-box schema tests: BVA for repeatWeeks (1..12), sourceStartDate format & calendar validity, conflictStrategy ignored                                                                                                                                                                                                                                                                               |
-| `apps/api/src/slots/repeat-schedule-calculator.spec.ts` | Black-box projection tests: multi-day/multi-week date mapping ($D + 7k$), table layout preservation, month/year/leap day boundary transitions                                                                                                                                                                                                                                                           |
-| `apps/api/src/slots/slots.service.spec.ts`              | `repeatWeekly` with a mocked repository: day locks in order, source and target ranges, copies with tables, replacement, `409` and `422` without writes                                                                                                                                                                                                                                                  |
-| `apps/api/src/slots/slots.repository.spec.ts`           | `lockDay` bound value, `findBetween`, `findReservedDates` filter, `deleteSlots` order                                                                                                                                                                                                                                                                                                                   |
-| `apps/api/src/slots/slots.controller.spec.ts`           | `POST /slots/repeat-weekly`: staff only, `400` on invalid bodies, `conflictStrategy` not passed on                                                                                                                                                                                                                                                                                                      |
-| `apps/api/test/repeat-schedule.int-spec.ts`             | On PostgreSQL: copies over 2 weeks with tables, 7-day source range, replacement, `PENDING`/`CONFIRMED` bookings block with no writes, rejected bookings deleted, empty source, parallel copies                                                                                                                                                                                                          |
-| `e2e/tests/api/repeat-weekly-schedule.spec.ts`          | Black-box API: RBAC (401, 403, 201), multi-day replication with exact tables, 7-day source window from any weekday, 12-week maximum, DST change, independent copies, replacement of a week without reservations (R10), `conflictStrategy` ignored, `REJECTED` bookings do not block, `PENDING`/`CONFIRMED` give `409` with nothing written (all or nothing), empty source (422), input validation (400) |
-| `e2e/tests/web/repeat-weekly-schedule.spec.ts`          | Black-box Web: access for visitors and hikers (active); dialog workflow, validation, replacement warning and `409` feedback skipped until the R9 UI exists                                                                                                                                                                                                                                              |
+| Spec                                                                | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/test/repeat-weekly-schedule.int-spec.ts`                  | Real PostgreSQL. Copies with the same weekday, times and tables, sorted answer and totals; exactly 7 source days; any weekday and the end of daylight saving time; slot without tables; 12 weeks; bookings not copied and copies with their own seats; complete replacement; empty source `422`; `PENDING`/`CONFIRMED` `409` with nothing written; first reserved week named; rejected booking deleted with its email record kept; two overlapping copies at the same time. One skipped test: a booking made during a copy (see Open points) |
+| `e2e/tests/api/repeat-weekly-schedule.spec.ts`                      | Running stack. `401`, `403`, `201`; several days with exact tables; 7-day source from any weekday; 12 weeks; daylight saving time; independent copies; replacement of a week without reservations; `conflictStrategy` ignored; `REJECTED` does not block; `PENDING`/`CONFIRMED` `409` with nothing written; empty source `422`; `400`                                                                                                                                                                                                        |
+| `e2e/tests/web/repeat-weekly-schedule.spec.ts`                      | Running stack. Visitors and hikers cannot open the staff page (active); dialog, validation, replacement warning and `409` skipped until the dialog is merged                                                                                                                                                                                                                                                                                                                                                                                 |
+| `packages/shared/src/repeat-weekly-schedule.spec.ts`                | Black box of the schema: `repeatWeeks` 1 to 12, date format and calendar validity, `conflictStrategy` ignored                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `apps/api/src/slots/domain/repeat-schedule-calculator.spec.ts`      | Black box of `projectWeeklySchedule`: same weekday in each week, tables copied, month, year and leap day changes                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `apps/api/src/slots/application/slots.service.spec.ts`              | `repeatWeekly` with a mocked repository: day locks in order, source and target ranges, copies with tables, replacement, `409` and `422` without writes                                                                                                                                                                                                                                                                                                                                                                                       |
+| `apps/api/src/slots/infrastructure/prisma-slots.repository.spec.ts` | White box: `lockDay` key, `findBetween`, `findReservedDates` filter, `deleteSlots` order                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `apps/api/src/slots/presentation/slots.controller.spec.ts`          | `POST /slots/repeat-weekly`: staff only, `400` on invalid bodies, `conflictStrategy` not passed on                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-### Test Coverage Roadmap & Pending Tests
-
-- **TODO(MH-09-whitebox):**
-  - White-box unit tests for `repeat-schedule-calculator.ts`: decision condition coverage, MC/DC branch coverage.
-  - White-box unit tests for `slots.service.ts`: transaction rollback on intermediate database insertion failure.
-- **TODO(MH-09-graybox):**
-  - Gray-box unit tests verifying database row locking during batch slot insertions.
-  - Gray-box unit tests verifying unique constraint collision mapping (`slots_date_start_time_end_time_key`).
-- **E2E isolation:** a repeat replaces whole target weeks, so the MH-09 E2E tests use their own range of years (2200-2580) to never delete the slots of other suites.
-- **TODO(MH-09-e2e):**
-  - Planned API future scenarios:
-    - Selective day-of-week repetition (e.g. repeat only weekend schedules).
-    - Database transaction rollback verification during bulk insertion failure.
-    - Seasonal blackout / holiday closure exclusion filtering.
-    - Bulk undo/rollback endpoint to remove a repeated schedule batch.
-  - Planned Web future scenarios:
-    - Keyboard accessibility (focus trap, Escape key dismiss) in repeat schedule modal.
-    - Conflict preview dialog showing visual calendar timeline of overlapping slots.
-    - Screen reader ARIA live announcement on completion of bulk schedule creation.
-    - Visual progress indicator for large bulk operations.
-    - Undo action pill in notification toast.
+A copy replaces whole target weeks, so the MH-09 E2E tests use their own range of years (2200-2580) and never delete the slots of other suites.
 
 ### Try it manually
 
-1. Start stack with `docker compose up -d`.
-2. Sign in as an employee at `http://localhost:3000/login`.
-3. Navigate to `/staff/slots`.
-4. Create a few lunch and dinner slots on Monday and Wednesday with specific table layouts.
-5. Click "Repeat weekly schedule", choose 2 weeks, and click "Confirm and repeat".
-6. Navigate 7 days forward: verify the exact same slots and tables are created.
-7. Navigate 14 days forward: verify the slots are created.
-8. Sign in as a hiker and verify that the new slots are listed and bookable at `/book`.
+1. Start the stack with `docker compose up --build -d`.
+2. Log in as an employee and keep the cookies: `curl -c cookies.txt -H 'Content-Type: application/json' http://localhost:3000/api/auth/login -d '{"email":"<employee email>","password":"<password>"}'`.
+3. Create a few slots with tables in one week with `POST /api/slots` (or at http://localhost:3000/staff/slots).
+4. Copy the week: `POST /api/slots/repeat-weekly` with the first day of that week and `"repeatWeeks": 2`. The answer is `201` with the created slots.
+5. Check the next two weeks with `GET /api/slots/schedule?date=<day + 7>` and `<day + 14>`: the same slots and tables.
+6. Log in as a hiker and book one of the copies, then repeat the copy again as the employee: `409`, and nothing changes.
+7. With the dialog merged: on `/staff/slots` choose a day, press **Repeat weekly schedule**, choose the number of weeks and confirm.
+
+## Open points
+
+- **A booking made during a copy can be lost.** The copy checks for reservations and then deletes the target slots, but a booking does not take the day lock. A hiker who books a target slot between the check and the deletion gets `201`, and the copy then deletes the booking without an answer to anyone. The integration test for this case is skipped with `TODO(MH-09)`. A fix: lock the target slots (`SELECT ... FOR UPDATE`) before looking for reservations, so the booking waits for the copy or the copy sees the booking; then remove the `.skip`.
+- **Web dialog not merged.** `feature/MH-09-UI` was branched from master, so it adds its own copy of `repeatWeeklyScheduleSchema` and `RepeatWeeklyScheduleResult` to `packages/shared/src/slots.ts`: merging it into this branch will conflict there (same content). It has no unit tests yet, and the web E2E tests stay skipped until it is merged.
+- **Placeholders in the API E2E file.** Four skipped tests (only some weekdays, rollback in the middle of a copy, closure dates, an undo endpoint) are ideas outside the story, not requirements.

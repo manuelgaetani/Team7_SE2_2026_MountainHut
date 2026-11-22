@@ -14,13 +14,19 @@ export abstract class SlotsRepository {
   // at the same time. False if the slot does not exist.
   abstract lock(id: number): Promise<boolean>;
 
-  // Locks the day until the end of the transaction, so two requests cannot create overlapping
-  // slots on it at the same time. Works even when the day has no slots yet.
+  // Locks the day until the end of the transaction, so two requests cannot change the slots of
+  // the same day at the same time (create overlapping slots, or replace a week of them). Works
+  // even when the day has no slots yet.
   abstract lockDay(date: string): Promise<void>;
 
   // A slot of the same day that overlaps the given times, if any (the earliest one). Slots that
   // only touch (one ends when the other starts) do not overlap.
   abstract findOverlapping(slot: NewSlot): Promise<Slot | null>;
+
+  // Locks the slots from one date to another, both included, until the end of the transaction,
+  // in id order. A booking locks its slot row, not the day: this makes a booking in progress on
+  // these slots finish first, or wait until the transaction ends.
+  abstract lockBetween(from: string, to: string): Promise<void>;
 
   // Slots from one date to another, both included, by date and start time, with their tables.
   abstract findBetween(from: string, to: string): Promise<Slot[]>;

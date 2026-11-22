@@ -107,6 +107,10 @@ export class SlotsService {
         throw new DomainError('UNPROCESSABLE', 'Source week contains no time slots to repeat');
       }
 
+      // The day locks stop other changes to the schedule, but a booking locks only its slot row.
+      // Locking the target slots first makes a booking in progress either commit before the check,
+      // which then sees it, or wait and find its slot gone: never a booking deleted silently.
+      await this.repo.lockBetween(firstTarget, lastTarget);
       const [reserved] = await this.repo.findReservedDates(firstTarget, lastTarget);
       if (reserved) {
         const daysAfterSource = (Date.parse(reserved) - Date.parse(source)) / 86_400_000;

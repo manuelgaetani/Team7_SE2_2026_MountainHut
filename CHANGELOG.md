@@ -33,6 +33,8 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
 - Integration and end-to-end tests for cancelling a booking (MH-08).
 - "My bookings" page (MH-08): the Cancel button asks to confirm with a recap of the booking, then says that it has been cancelled; the booking moves to the "Cancelled" tab and its seats are free again.
+- Documentation of MH-09 in [docs/stories](docs/stories/MH-09-repeat-a-weekly-schedule.md).
+- Integration and end-to-end tests for repeating a weekly schedule (MH-09).
 
 ### Changed
 

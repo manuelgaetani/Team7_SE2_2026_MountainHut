@@ -30,6 +30,8 @@ describe('SlotsService', () => {
     // Used by create (MH-02, no overlapping slots): by default no overlapping slot exists.
     lockDay: vi.fn(),
     findOverlapping: vi.fn(),
+    // MH-09: repeat a weekly schedule (also uses lockDay).
+    lockBetween: vi.fn(),
     findBetween: vi.fn(),
     findReservedDates: vi.fn(),
     deleteSlots: vi.fn(),
@@ -415,6 +417,28 @@ describe('SlotsService', () => {
       });
       expect(repo.deleteSlots).not.toHaveBeenCalled();
       expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    // A booking locks its slot row, not the day (review of MH-09).
+    it('locks the target slots after the days and before checking the reservations', async () => {
+      const calls: string[] = [];
+      repo.lockDay.mockImplementation(() => {
+        calls.push('lockDay');
+        return Promise.resolve();
+      });
+      repo.lockBetween.mockImplementation(() => {
+        expect(inRun).toBe(true);
+        calls.push('lockBetween');
+        return Promise.resolve();
+      });
+      repo.findReservedDates.mockImplementation(() => {
+        calls.push('findReservedDates');
+        return Promise.resolve([]);
+      });
+      await service.repeatWeekly(input);
+      expect(repo.lockBetween).toHaveBeenCalledExactlyOnceWith('2026-11-09', '2026-11-22');
+      expect(calls.lastIndexOf('lockDay')).toBeLessThan(calls.indexOf('lockBetween'));
+      expect(calls.indexOf('lockBetween')).toBeLessThan(calls.indexOf('findReservedDates'));
     });
 
     it('reads the 7-day source week and checks the whole target range', async () => {

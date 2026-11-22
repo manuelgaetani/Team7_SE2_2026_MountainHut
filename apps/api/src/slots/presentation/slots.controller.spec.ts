@@ -236,4 +236,58 @@ describe('SlotsController', () => {
       await request(app.getHttpServer()).put('/slots/5/tables').send(tablesInput).expect(409);
     });
   });
+
+  // MH-09: repeat a weekly schedule.
+  describe('POST /slots/repeat-weekly', () => {
+    const repeat = { sourceStartDate: '2026-11-02', repeatWeeks: 2 };
+    const result = {
+      targetWeeks: 2,
+      createdSlotsCount: 0,
+      replacedSlotsCount: 0,
+      createdSlots: [],
+    };
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'lets a %s repeat a week and answers 201 with the result',
+      async (staffRole) => {
+        role = staffRole;
+        slots.repeatWeekly.mockResolvedValue(result);
+        const res = await request(app.getHttpServer())
+          .post('/slots/repeat-weekly')
+          .send(repeat)
+          .expect(201);
+        expect(res.body).toEqual(result);
+        expect(slots.repeatWeekly).toHaveBeenCalledWith(repeat);
+      },
+    );
+
+    it('answers 403 to a hiker without calling the service', async () => {
+      role = 'HIKER';
+      await request(app.getHttpServer()).post('/slots/repeat-weekly').send(repeat).expect(403);
+      expect(slots.repeatWeekly).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['repeatWeeks 0', { ...repeat, repeatWeeks: 0 }],
+      ['repeatWeeks 13', { ...repeat, repeatWeeks: 13 }],
+      ['repeatWeeks 1.5', { ...repeat, repeatWeeks: 1.5 }],
+      ['repeatWeeks as a string', { ...repeat, repeatWeeks: '2' }],
+      ['a non-existent date', { ...repeat, sourceStartDate: '2026-02-30' }],
+      ['a malformed date', { ...repeat, sourceStartDate: '02/11/2026' }],
+      ['no sourceStartDate', { repeatWeeks: 2 }],
+      ['no repeatWeeks', { sourceStartDate: '2026-11-02' }],
+    ])('answers 400 without calling the service for %s', async (_case, invalid) => {
+      await request(app.getHttpServer()).post('/slots/repeat-weekly').send(invalid).expect(400);
+      expect(slots.repeatWeekly).not.toHaveBeenCalled();
+    });
+
+    it('does not pass a conflictStrategy on to the service (course issue #45)', async () => {
+      slots.repeatWeekly.mockResolvedValue(result);
+      await request(app.getHttpServer())
+        .post('/slots/repeat-weekly')
+        .send({ ...repeat, conflictStrategy: 'SKIP' })
+        .expect(201);
+      expect(slots.repeatWeekly).toHaveBeenCalledWith(repeat);
+    });
+  });
 });
