@@ -5,10 +5,8 @@ import type { SeatAllocation, TableFreeSeats } from './seat-allocation.js';
 // Spec MH-08: Cancel a booking.
 // Hiker cancels a table booking so that the hut can make places available to other guests.
 // Releasing seats restores capacity to the slot tables.
-// TODO(MH-08-whitebox): add white-box unit tests for branch coverage and loop conditions in seat restoration
-// TODO(MH-08-graybox): add gray-box unit tests verifying database row locking on slot tables during cancellation transaction
-// TODO(MH-08-integration): add PostgreSQL integration tests for table capacity verification after booking cancellation
-// TODO(MH-08-e2e): add Playwright E2E tests for table capacity updates after hiker cancels booking
+// White-box cases: cancel-seat-release.whitebox.spec.ts. Seats freed in the database and shown to
+// other hikers: test/booking-cancel.int-spec.ts and e2e/tests/{api,web}/booking-cancel.spec.ts.
 describe('releaseCancelledSeats (Black-box seat release)', () => {
   const createTables = (...freeSeats: number[]): TableFreeSeats[] =>
     freeSeats.map((seats, idx) => ({ tableNumber: idx + 1, freeSeats: seats }));

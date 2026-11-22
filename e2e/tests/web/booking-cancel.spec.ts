@@ -45,7 +45,8 @@ function slotStartingIn(hours: number, seats: number): number {
     sql(
       `INSERT INTO slots (date, start_time, end_time)
        VALUES (${start}::date, ${start}::time(0),
-               LEAST(${start}::time(0) + interval '1 hour', TIME '23:59:59')) RETURNING id;`,
+               CASE WHEN ${start}::time(0) >= TIME '23:00' THEN TIME '23:59:59'
+                    ELSE ${start}::time(0) + interval '1 hour' END) RETURNING id;`,
     ),
   );
   sql(`INSERT INTO slot_tables (slot_id, table_number, seats) VALUES (${id}, 1, ${seats});`);
@@ -219,5 +220,65 @@ test.describe('MH-08 Web: cancel a booking', () => {
 
     await dialog.getByRole('button', { name: 'Go back' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+});
+
+test.describe('MH-08 Web: cancel a booking, further cases', () => {
+  test('with two bookings, only the chosen one is cancelled', async ({
+    page,
+    registeredUser,
+    loggedInRequest,
+  }) => {
+    const keptSlot = slot([4]);
+    const cancelledSlot = slot([4]);
+    const kept = await book(loggedInRequest, keptSlot, 2);
+    const cancelled = await book(loggedInRequest, cancelledSlot, 3);
+
+    await signIn(page, registeredUser);
+    await page.goto('/bookings');
+    await expect(page.locator('.booking-card')).toHaveCount(2);
+
+    const target = page.locator('.booking-card', { hasText: '3 people' });
+    await target.getByRole('button', { name: /^Cancel booking of / }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('3 people');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'OK' }).click();
+
+    expect(bookingStatus(cancelled.id)).toBe('CANCELLED');
+    expect(bookingStatus(kept.id)).not.toBe('CANCELLED');
+    expect(await freeSeats(loggedInRequest, cancelledSlot)).toBe(4);
+    expect(await freeSeats(loggedInRequest, keptSlot)).toBe(2);
+
+    const upcoming = page.locator('.booking-card');
+    await expect(upcoming).toHaveCount(1);
+    await expect(upcoming).toContainText('2 people');
+    await expect(upcoming.getByRole('button', { name: /^Cancel booking of / })).toBeEnabled();
+
+    await page.getByRole('tab', { name: 'Cancelled' }).click();
+    await expect(page.locator('.booking-card')).toHaveCount(1);
+    await expect(page.locator('.booking-card')).toContainText('3 people');
+  });
+
+  test('the cancellation survives a reload of the page', async ({
+    page,
+    registeredUser,
+    loggedInRequest,
+  }) => {
+    const booking = await book(loggedInRequest, slot([4]), 2);
+
+    await signIn(page, registeredUser);
+    await openMyBookings(page);
+    await cancelButton(page).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText('You have no upcoming bookings.')).toBeVisible();
+    await page.getByRole('tab', { name: 'Cancelled' }).click();
+    await expect(page.locator('.booking-card')).toHaveCount(1);
+    expect(bookingStatus(booking.id)).toBe('CANCELLED');
   });
 });

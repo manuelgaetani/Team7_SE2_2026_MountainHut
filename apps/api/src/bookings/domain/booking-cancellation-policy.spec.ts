@@ -3,12 +3,10 @@ import { decideCancellation } from './booking-cancellation-policy.js';
 
 // Spec MH-08: Cancel a booking.
 // Domain policy deciding whether a booking can be cancelled: by its status only, at any time.
-// TODO(PO): Can PENDING bookings be cancelled directly by the hiker before confirmation? (Assumed: yes, freeing any held seats).
-// TODO(PO): Is an already cancelled booking rejected with 409 Conflict or treated idempotently? (Assumed: rejected as ALREADY_CANCELLED).
-// TODO(MH-08-whitebox): add white-box unit tests for decision condition coverage and rule precedence
-// TODO(MH-08-graybox): add gray-box unit tests verifying database transaction rollback on concurrent cancellation attempts
-// TODO(MH-08-integration): add PostgreSQL integration tests for booking status transitions (CONFIRMED/PENDING -> CANCELLED)
-// TODO(MH-08-e2e): add Playwright E2E tests for cancellation confirmation and error notifications
+// Decisions: a PENDING booking can be cancelled like a CONFIRMED one; cancelling a booking that is
+// already cancelled is a conflict (ALREADY_CANCELLED), not an idempotent success.
+// White-box cases: booking-cancellation-policy.whitebox.spec.ts. Database and HTTP flows:
+// test/booking-cancel.int-spec.ts and e2e/tests/{api,web}/booking-cancel.spec.ts.
 describe('decideCancellation (Black-box cancellation policy)', () => {
   const now = new Date('2026-11-10T10:00:00Z');
   const HOUR = 60 * 60 * 1000;
