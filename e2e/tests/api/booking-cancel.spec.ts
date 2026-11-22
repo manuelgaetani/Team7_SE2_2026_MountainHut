@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { APIRequestContext, PlaywrightWorkerArgs } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
-import { bookingStatus, createSlot, deleteSlot, removeHikerProfile } from '../../fixtures/db.js';
+import {
+  bookingStatus,
+  createPastSlot,
+  createSlot,
+  deleteSlot,
+  removeHikerProfile,
+} from '../../fixtures/db.js';
 
 interface SlotSummary {
   id: number;
@@ -49,7 +55,8 @@ function slotStartingIn(hours: number, seats: number): number {
     sql(
       `INSERT INTO slots (date, start_time, end_time)
        VALUES (${start}::date, ${start}::time(0),
-               LEAST(${start}::time(0) + interval '1 hour', TIME '23:59:59')) RETURNING id;`,
+               CASE WHEN ${start}::time(0) >= TIME '23:00' THEN TIME '23:59:59'
+                    ELSE ${start}::time(0) + interval '1 hour' END) RETURNING id;`,
     ),
   );
   sql(`INSERT INTO slot_tables (slot_id, table_number, seats) VALUES (${id}, 1, ${seats});`);
@@ -269,6 +276,154 @@ test.describe('MH-08 API: cancel a booking', () => {
       expect(response.status()).toBe(403);
       expect(bookingStatus(booking.id)).not.toBe('CANCELLED');
       await noProfile.dispose();
+    });
+  });
+});
+
+// Seats assigned to the booking on each table, kept as history after the cancellation.
+function assignedTables(bookingId: number): string {
+  return sql(
+    `SELECT string_agg(table_number || ':' || assigned_seats, ',' ORDER BY table_number)
+     FROM booking_tables WHERE booking_id = ${bookingId};`,
+  );
+}
+
+test.describe('MH-08 API: cancel a booking, further cases', () => {
+  test.describe('status of the booking', () => {
+    for (const status of ['PENDING', 'CONFIRMED'] as const) {
+      test(`cancels a ${status} booking`, async ({ loggedInRequest }) => {
+        const booking = await book(loggedInRequest, slot([4]), 2);
+        sql(`UPDATE bookings SET status = '${status}' WHERE id = ${booking.id};`);
+
+        const response = await cancel(loggedInRequest, booking.id);
+        expect(response.status()).toBe(200);
+        expect(await response.json()).toMatchObject({ id: booking.id, status: 'CANCELLED' });
+        expect(bookingStatus(booking.id)).toBe('CANCELLED');
+      });
+    }
+  });
+
+  test.describe('seat release', () => {
+    test('frees the seats on every table of a party split over two tables', async ({
+      loggedInRequest,
+      playwright,
+      baseURL,
+    }) => {
+      const slotId = slot([2, 2]);
+      const booking = await book(loggedInRequest, slotId, 4);
+      expect(assignedTables(booking.id)).toBe('1:2,2:2');
+      expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({
+        freeSeats: 0,
+        availability: 'FULL',
+      });
+
+      expect((await cancel(loggedInRequest, booking.id)).status()).toBe(200);
+      expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({
+        freeSeats: 4,
+        availability: 'AVAILABLE',
+      });
+
+      const other = await otherHiker(playwright, baseURL);
+      const accepted = await other.post('/api/bookings', { data: { slotId, partySize: 4 } });
+      expect(accepted.status()).toBe(201);
+      await other.dispose();
+    });
+
+    test('keeps the table assignments of the cancelled booking as history', async ({
+      loggedInRequest,
+    }) => {
+      const booking = await book(loggedInRequest, slot([4]), 3);
+      expect((await cancel(loggedInRequest, booking.id)).status()).toBe(200);
+      expect(assignedTables(booking.id)).toBe('1:3');
+    });
+
+    test('frees only its own seats on a table shared with another booking', async ({
+      loggedInRequest,
+      playwright,
+      baseURL,
+    }) => {
+      const slotId = slot([6]);
+      const mine = await book(loggedInRequest, slotId, 2);
+      const other = await otherHiker(playwright, baseURL);
+      const theirs = await book(other, slotId, 3);
+      expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({ freeSeats: 1 });
+
+      expect((await cancel(loggedInRequest, mine.id)).status()).toBe(200);
+
+      expect(await listedSlot(loggedInRequest, slotId)).toMatchObject({ freeSeats: 3 });
+      expect(bookingStatus(theirs.id)).not.toBe('CANCELLED');
+      expect(assignedTables(theirs.id)).toBe('1:3');
+      await other.dispose();
+    });
+  });
+
+  test.describe('no time constraints', () => {
+    test('cancels a booking for a slot that is already over', async ({
+      loggedInRequest,
+      registeredUser,
+    }) => {
+      const slotId = createPastSlot([4]);
+      slotIds.push(slotId);
+      const bookingId = insertBooking(registeredUser.email, slotId, 2);
+
+      expect((await cancel(loggedInRequest, bookingId)).status()).toBe(200);
+      expect(bookingStatus(bookingId)).toBe('CANCELLED');
+    });
+  });
+
+  test.describe('concurrency', () => {
+    test('two simultaneous cancellations of the same booking: one succeeds, one is a conflict', async ({
+      loggedInRequest,
+    }) => {
+      const booking = await book(loggedInRequest, slot([4]), 2);
+
+      const responses = await Promise.all([
+        cancel(loggedInRequest, booking.id),
+        cancel(loggedInRequest, booking.id),
+      ]);
+
+      expect(responses.map((r) => r.status()).sort()).toEqual([200, 409]);
+      expect(bookingStatus(booking.id)).toBe('CANCELLED');
+    });
+  });
+
+  test.describe('request', () => {
+    for (const id of ['0', '-1']) {
+      test(`the id ${id}: 404`, async ({ loggedInRequest }) => {
+        const response = await cancel(loggedInRequest, id);
+        expect(response.status()).toBe(404);
+        expect(await response.json()).toMatchObject({ message: 'Booking not found' });
+      });
+    }
+
+    test('a decimal id: 400', async ({ loggedInRequest }) => {
+      expect((await cancel(loggedInRequest, '1.5')).status()).toBe(400);
+    });
+
+    test('ignores a hiker id sent in the body', async ({
+      loggedInRequest,
+      playwright,
+      baseURL,
+    }) => {
+      const booking = await book(loggedInRequest, slot([4]), 2);
+      const other = await otherHiker(playwright, baseURL);
+
+      const response = await other.post(`/api/bookings/${booking.id}/cancel`, {
+        data: { hikerId: 1, userId: 1 },
+      });
+      expect(response.status()).toBe(404);
+      expect(bookingStatus(booking.id)).not.toBe('CANCELLED');
+      await other.dispose();
+    });
+
+    test('a warden: 403, and the booking stays active', async ({
+      loggedInRequest,
+      wardenRequest,
+    }) => {
+      const booking = await book(loggedInRequest, slot([4]), 2);
+
+      expect((await cancel(wardenRequest, booking.id)).status()).toBe(403);
+      expect(bookingStatus(booking.id)).not.toBe('CANCELLED');
     });
   });
 });
