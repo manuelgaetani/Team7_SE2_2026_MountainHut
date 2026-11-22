@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MAX_REPEAT_WEEKS, repeatWeeklyScheduleSchema } from '@mountain-hut/shared';
 import type { RepeatWeeklyScheduleResult } from '../api/slots.ts';
-import { useRepeatWeeklySchedule } from '../api/useSlots.ts';
+import { useRepeatWeeklySchedule, useSchedules } from '../api/useSlots.ts';
 import { addDays, dateShort, fromIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import { FormField } from './FormField.tsx';
@@ -17,6 +17,18 @@ interface RepeatWeeklyScheduleDialogProps {
 
 const weeksLabel = (n: number): string => (n === 1 ? '1 week' : `${n} weeks`);
 const slotsLabel = (n: number): string => (n === 1 ? '1 slot' : `${n} slots`);
+// Every day of the target weeks: day 7 to day 7·weeks + 6 after the source start.
+const targetDays = (sourceStartDate: string, weeks: number): string[] =>
+  Array.from({ length: 7 * weeks }, (_, i) => addDays(sourceStartDate, 7 + i));
+
+// How many slots the copy will replace, once every target day is loaded.
+function replacedHint(total: number | undefined, isPending: boolean): string | null {
+  if (isPending) return 'Checking the slots already in the target weeks…';
+  if (total === undefined) return null;
+  if (total === 0) return 'The target weeks have no slots: nothing will be replaced.';
+  return `${slotsLabel(total)} already in the target weeks will be replaced.`;
+}
+
 const range = (from: string, to: string): string =>
   `${dateShort(fromIsoDate(from))} – ${dateShort(fromIsoDate(to))}`;
 
@@ -58,6 +70,9 @@ export function RepeatWeeklyScheduleDialog({
   const n = Number(weeks);
   const validWeeks = Number.isInteger(n) && n >= 1 && n <= MAX_REPEAT_WEEKS;
   const sourceEnd = addDays(sourceStartDate, 6);
+  // While the number is not valid there is no target period, so nothing is loaded.
+  const existing = useSchedules(validWeeks ? targetDays(sourceStartDate, n) : []);
+  const replaced = validWeeks ? replacedHint(existing.total, existing.isPending) : null;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,6 +162,12 @@ export function RepeatWeeklyScheduleDialog({
           {validWeeks && (
             <p className="field__hint">
               Target: {range(addDays(sourceStartDate, 7), addDays(sourceStartDate, 7 * n + 6))}
+            </p>
+          )}
+
+          {replaced && (
+            <p className="field__hint" aria-live="polite">
+              <strong>{replaced}</strong>
             </p>
           )}
 
