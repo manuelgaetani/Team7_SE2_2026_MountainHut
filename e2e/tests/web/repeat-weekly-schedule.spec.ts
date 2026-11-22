@@ -62,11 +62,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     });
   });
 
-  // TODO(MH-09): R9 web UI not built yet (no "Repeat weekly schedule" dialog on /staff/slots).
-  //   When it exists: un-skip, track every slot the UI creates (read the POST /api/slots and
-  //   /api/slots/repeat-weekly responses with page.waitForResponse) in slotIds for cleanup,
-  //   and align labels with the dialog.
-  test.describe.skip('Employee Schedule Repetition Workflow', () => {
+  test.describe('Employee Schedule Repetition Workflow', () => {
     test('employee configures source day slots and repeats schedule across multiple weeks', async ({
       page,
       employeeUser,
@@ -82,7 +78,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await expect(page).toHaveURL('/staff/slots');
 
       // 2. Select source Monday and create a base slot with 2 tables
-      await page.getByLabel('Day').fill(monday);
+      await page.getByLabel('Day', { exact: true }).fill(monday);
       await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
 
       await page.getByLabel('Start').fill('12:00');
@@ -90,11 +86,17 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await page.getByLabel('Seats, row 1').fill('4');
       await page.getByRole('button', { name: 'Add a table' }).click();
       await page.getByLabel('Seats, row 2').fill('6');
+      const created = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === '/api/slots' && r.request().method() === 'POST',
+      );
       await page.getByRole('button', { name: 'Create the slot' }).click();
+      const createdRes = await created;
+      expect(createdRes.status()).toBe(201);
+      slotIds.push(((await createdRes.json()) as { id: number }).id);
 
       await expect(page.getByText('Slot created: 12:00–13:30, 10 seats.')).toBeVisible();
       const slotCard = page.locator('.schedule__slot', { hasText: '12:00–13:30' });
-      await expect(slotCard).toContainText('2 tables · 10 seats');
+      await expect(slotCard).toContainText('2 tables · 0/10 seats taken');
 
       // 3. Open the "Repeat weekly schedule" interface
       const repeatButton = page.getByRole('button', { name: /Repeat weekly schedule/i });
@@ -105,24 +107,31 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
       await expect(dialog).toBeVisible();
       await dialog.getByLabel(/Number of weeks to repeat/i).fill('2');
+      const repeated = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === '/api/slots/repeat-weekly',
+      );
       await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
+      const repeatedRes = await repeated;
+      expect(repeatedRes.status()).toBe(201);
+      const repeat = (await repeatedRes.json()) as { createdSlots: { id: number }[] };
+      slotIds.push(...repeat.createdSlots.map((slot) => slot.id));
 
       // 5. Verify confirmation feedback
       await expect(page.getByText(/Schedule successfully repeated across 2 weeks/i)).toBeVisible();
 
       // 6. Navigate to Day +7 (next Monday) and verify duplicated slot
-      await page.getByLabel('Day').fill(nextMonday);
+      await page.getByLabel('Day', { exact: true }).fill(nextMonday);
       const nextWeekCard = page.locator('.schedule__slot', { hasText: '12:00–13:30' });
       await expect(nextWeekCard).toBeVisible();
-      await expect(nextWeekCard).toContainText('2 tables · 10 seats');
+      await expect(nextWeekCard).toContainText('2 tables · 0/10 seats taken');
       await expect(nextWeekCard).toContainText('Table 1 · 4 seats');
       await expect(nextWeekCard).toContainText('Table 2 · 6 seats');
 
       // 7. Navigate to Day +14 (second Monday) and verify duplicated slot
-      await page.getByLabel('Day').fill(secondMonday);
+      await page.getByLabel('Day', { exact: true }).fill(secondMonday);
       const secondWeekCard = page.locator('.schedule__slot', { hasText: '12:00–13:30' });
       await expect(secondWeekCard).toBeVisible();
-      await expect(secondWeekCard).toContainText('2 tables · 10 seats');
+      await expect(secondWeekCard).toContainText('2 tables · 0/10 seats taken');
     });
 
     test('warden also has staff access to repeat weekly schedule interface', async ({
@@ -137,8 +146,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     });
   });
 
-  // TODO(MH-09): R9 web UI not built yet; un-skip together with the workflow tests above.
-  test.describe.skip('Form Validation & Error States', () => {
+  test.describe('Form Validation & Error States', () => {
     test('displays validation error when entering 0 or negative weeks to repeat', async ({
       page,
       employeeUser,
@@ -147,13 +155,19 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, employeeUser);
 
       await page.goto('/staff/slots');
-      await page.getByLabel('Day').fill(monday);
+      await page.getByLabel('Day', { exact: true }).fill(monday);
 
       // Create a slot first so repetition is possible
       await page.getByLabel('Start').fill('12:00');
       await page.getByLabel('End').fill('13:30');
       await page.getByLabel('Seats, row 1').fill('4');
+      const created = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === '/api/slots' && r.request().method() === 'POST',
+      );
       await page.getByRole('button', { name: 'Create the slot' }).click();
+      const createdRes = await created;
+      expect(createdRes.status()).toBe(201);
+      slotIds.push(((await createdRes.json()) as { id: number }).id);
       await expect(page.getByText('Slot created: 12:00–13:30, 4 seats.')).toBeVisible();
 
       // Open repeat dialog
@@ -194,7 +208,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
         }),
       );
       await page.goto('/staff/slots');
-      await page.getByLabel('Day').fill(monday);
+      await page.getByLabel('Day', { exact: true }).fill(monday);
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
       await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
@@ -202,20 +216,143 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     });
   });
 
-  test.describe('MH-09 Planned Future Scenarios (TODOs)', () => {
-    // TODO(MH-09): Full keyboard accessibility (focus trapping and Esc key) in repeat schedule modal
-    test.skip('traps focus within repeat schedule dialog and closes on Escape key', async () => {});
+  test.describe('Dialog accessibility and feedback', () => {
+    // Opens the dialog on a day of the MH-09 range, so a real repeat would touch no other suite.
+    async function openRepeatDialog(page: Page, user: TestUser) {
+      await signIn(page, user);
+      await page.goto('/staff/slots');
+      await page.getByLabel('Day', { exact: true }).fill(uniqueMondayDate());
+      await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
+      const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
+      await expect(dialog).toBeVisible();
+      return dialog;
+    }
 
-    // TODO(MH-09): Conflict preview dialog showing visual timeline of overlapping slots before confirming repetition
-    test.skip('displays visual conflict preview warning when target weeks contain pre-existing slots', async () => {});
+    test('focuses the number of weeks and closes on Escape key', async ({ page, employeeUser }) => {
+      const dialog = await openRepeatDialog(page, employeeUser);
 
-    // TODO(MH-09): Screen reader ARIA live announcement on completion of multi-week schedule replication
-    test.skip('announces summary of created slots via aria-live region upon successful repetition', async () => {});
+      // The number of weeks is the only thing to choose: it has the focus when the dialog opens.
+      await expect(dialog.getByLabel(/Number of weeks to repeat/i)).toBeFocused();
 
-    // TODO(MH-09): Visual progress indicator for large bulk schedule generation
-    test.skip('displays loading spinner with role="status" while bulk slots are being generated', async () => {});
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    });
 
-    // TODO(MH-09): Undo action pill in confirmation toast to revert bulk schedule creation
-    test.skip('provides an Undo button in toast notification allowing staff to immediately revert repetition', async () => {});
+    test('disables the confirm button while the slots are being generated', async ({
+      page,
+      employeeUser,
+    }) => {
+      // The answer is held back until the pending state has been checked; nothing is written.
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      await page.route('**/api/slots/repeat-weekly', async (route) => {
+        await held;
+        await route.fulfill({
+          status: 201,
+          json: { targetWeeks: 1, createdSlotsCount: 0, replacedSlotsCount: 0, createdSlots: [] },
+        });
+      });
+      const dialog = await openRepeatDialog(page, employeeUser);
+
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
+
+      await expect(dialog.getByRole('button', { name: 'Repeating…' })).toBeDisabled();
+      release();
+      await expect(dialog).toBeHidden();
+    });
+
+    test('announces summary of created slots via a status region upon successful repetition', async ({
+      page,
+      employeeUser,
+    }) => {
+      // A stubbed answer: the summary is the point here, so nothing is written to the database.
+      await page.route('**/api/slots/repeat-weekly', (route) =>
+        route.fulfill({
+          status: 201,
+          json: { targetWeeks: 2, createdSlotsCount: 6, replacedSlotsCount: 3, createdSlots: [] },
+        }),
+      );
+      const dialog = await openRepeatDialog(page, employeeUser);
+
+      await dialog.getByLabel(/Number of weeks to repeat/i).fill('2');
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
+
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Schedule successfully repeated' }),
+      ).toHaveText(
+        'Schedule successfully repeated across 2 weeks: 6 slots created. 3 slots replaced.',
+      );
+    });
+  });
+
+  test.describe('Behaviour around the planned scenarios', () => {
+    // "Mon 6 Jan", as the dialog writes a date.
+    const shortDate = (iso: string): string => {
+      const d = new Date(`${iso}T00:00:00Z`);
+      const weekday = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+      const month = d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+      return `${weekday} ${d.getUTCDate()} ${month}`;
+    };
+
+    test('previews the source week and the target weeks before confirming', async ({
+      page,
+      employeeUser,
+    }) => {
+      const monday = uniqueMondayDate();
+      await signIn(page, employeeUser);
+      await page.goto('/staff/slots');
+      await page.getByLabel('Day', { exact: true }).fill(monday);
+      await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
+      const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
+
+      await expect(dialog).toContainText(`${shortDate(monday)} – ${shortDate(addDays(monday, 6))}`);
+      await expect(dialog).toContainText(
+        `Target: ${shortDate(addDays(monday, 7))} – ${shortDate(addDays(monday, 13))}`,
+      );
+
+      await dialog.getByLabel(/Number of weeks to repeat/i).fill('3');
+      await expect(dialog).toContainText(
+        `Target: ${shortDate(addDays(monday, 7))} – ${shortDate(addDays(monday, 27))}`,
+      );
+
+      // No preview for a number of weeks that cannot be repeated.
+      await dialog.getByLabel(/Number of weeks to repeat/i).fill('13');
+      await expect(dialog).not.toContainText('Target:');
+    });
+
+    test('closing the dialog before confirming copies nothing', async ({ page, employeeUser }) => {
+      const monday = uniqueMondayDate();
+      await signIn(page, employeeUser);
+      await page.goto('/staff/slots');
+      await page.getByLabel('Day', { exact: true }).fill(monday);
+
+      await page.getByLabel('Start').fill('12:00');
+      await page.getByLabel('End').fill('13:30');
+      await page.getByLabel('Seats, row 1').fill('4');
+      const created = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === '/api/slots' && r.request().method() === 'POST',
+      );
+      await page.getByRole('button', { name: 'Create the slot' }).click();
+      const createdRes = await created;
+      expect(createdRes.status()).toBe(201);
+      slotIds.push(((await createdRes.json()) as { id: number }).id);
+
+      const repeatRequests: string[] = [];
+      page.on('request', (request) => {
+        if (new URL(request.url()).pathname === '/api/slots/repeat-weekly') {
+          repeatRequests.push(request.method());
+        }
+      });
+
+      await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
+      const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
+      await dialog.getByLabel(/Number of weeks to repeat/i).fill('2');
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(dialog).toBeHidden();
+
+      expect(repeatRequests).toEqual([]);
+      await page.getByLabel('Day', { exact: true }).fill(addDays(monday, 7));
+      await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
+    });
   });
 });
