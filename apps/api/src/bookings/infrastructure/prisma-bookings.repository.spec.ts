@@ -262,6 +262,17 @@ describe('PrismaBookingsRepository', () => {
       });
     });
 
+    // MH-07 (white-box): the staff store the booking as CONFIRMED at once.
+    it('stores the status it is given instead of pending', async () => {
+      client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'CONFIRMED' });
+      await expect(
+        repository.createBooking({ ...data, status: 'CONFIRMED' }),
+      ).resolves.toMatchObject({ status: 'CONFIRMED' });
+      expect(client.booking.create).toHaveBeenCalledWith({
+        data: { ...fields, status: 'CONFIRMED', requirements: { createMany: { data: [] } } },
+      });
+    });
+
     it('does not expose the hiker id in the result', async () => {
       client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await expect(repository.createBooking(data)).resolves.toEqual({

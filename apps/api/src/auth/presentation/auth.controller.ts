@@ -12,6 +12,7 @@ import {
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../config/app-config.js';
+import { ChangePassword } from '../application/change-password.js';
 import { GetCurrentUser } from '../application/get-current-user.js';
 import { Login } from '../application/login.js';
 import { Logout } from '../application/logout.js';
@@ -19,8 +20,8 @@ import { RefreshSession } from '../application/refresh-session.js';
 import { RegisterUser } from '../application/register-user.js';
 import type { AuthSession } from '../application/session-issuer.js';
 import { AuthGuard } from './auth.guard.js';
-import type { LoginInput, RegisterInput } from '@mountain-hut/shared';
-import { loginSchema, registerSchema } from '@mountain-hut/shared';
+import type { ChangePasswordInput, LoginInput, RegisterInput } from '@mountain-hut/shared';
+import { changePasswordSchema, loginSchema, registerSchema } from '@mountain-hut/shared';
 import { ApiZodBody } from '../../presentation/api-zod-body.decorator.js';
 import { CurrentUser } from '../../presentation/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
@@ -42,6 +43,7 @@ export class AuthController {
     private readonly refreshSession: RefreshSession,
     private readonly logoutUser: Logout,
     private readonly currentUser: GetCurrentUser,
+    private readonly changeUserPassword: ChangePassword,
     private readonly config: AppConfig,
   ) {}
 
@@ -87,6 +89,22 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.currentUser.execute(user.id);
+  }
+
+  // the user stays logged in with a new session; the other sessions are closed.
+  @UseGuards(AuthGuard)
+  @ApiCookieAuth()
+  @Post('change-password')
+  @HttpCode(200)
+  @ApiZodBody(changePasswordSchema)
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(changePasswordSchema)) body: ChangePasswordInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const session = await this.changeUserPassword.execute(user.id, body);
+    this.setSessionCookies(res, session);
+    return session.user;
   }
 
   private setSessionCookies(res: Response, session: AuthSession): void {

@@ -28,7 +28,12 @@ export class PrismaRefreshTokenRepository extends RefreshTokenRepository {
       userId: row.userId,
       revokedAt: row.revokedAt,
       expiresAt: row.expiresAt,
-      user: { id: row.user.id, email: row.user.email, role: row.user.role },
+      user: {
+        id: row.user.id,
+        email: row.user.email,
+        role: row.user.role,
+        mustChangePassword: row.user.mustChangePassword,
+      },
     };
   }
 

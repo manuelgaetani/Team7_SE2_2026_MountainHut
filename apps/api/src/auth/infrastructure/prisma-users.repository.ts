@@ -11,6 +11,7 @@ interface UserRow {
   email: string;
   role: UserRecord['role'];
   password: string;
+  mustChangePassword: boolean;
 }
 
 const toRecord = (row: UserRow): UserRecord => ({
@@ -18,6 +19,7 @@ const toRecord = (row: UserRow): UserRecord => ({
   email: row.email,
   role: row.role,
   passwordHash: row.password,
+  mustChangePassword: row.mustChangePassword,
 });
 
 @Injectable()
@@ -56,7 +58,12 @@ export class PrismaUsersRepository extends UsersRepository {
           },
         },
       });
-      return { id: user.id, email: user.email, role: user.role };
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      };
     } catch (e) {
       // Due registrazioni concorrenti con la stessa email: vince il vincolo unique del DB.
       if (isUniqueViolation(e)) {
@@ -64,5 +71,12 @@ export class PrismaUsersRepository extends UsersRepository {
       }
       throw e;
     }
+  }
+
+  async updatePassword(id: number, passwordHash: string): Promise<void> {
+    await this.db().user.update({
+      where: { id },
+      data: { password: passwordHash, mustChangePassword: false },
+    });
   }
 }
