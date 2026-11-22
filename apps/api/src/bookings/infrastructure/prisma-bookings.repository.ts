@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MAX_DB_INT } from '@mountain-hut/shared';
-import type { MyBooking, PartyRequirement } from '@mountain-hut/shared';
+import type { CancelledBooking, MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import { Prisma } from '../../generated/prisma/client.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { BookingsRepository } from '../application/bookings.repository.port.js';
@@ -213,10 +213,10 @@ export class PrismaBookingsRepository extends BookingsRepository {
     return hiker?.id ?? null;
   }
 
-  // A rejected booking does not stop the hiker from trying again.
+  // A rejected or cancelled booking does not stop the hiker from trying again.
   async hasActiveBooking(hikerId: number, slotId: number): Promise<boolean> {
     const count = await this.db().booking.count({
-      where: { hikerId, slotId, status: { not: 'REJECTED' } },
+      where: { hikerId, slotId, status: { notIn: ['REJECTED', 'CANCELLED'] } },
     });
     return count > 0;
   }
@@ -235,7 +235,9 @@ export class PrismaBookingsRepository extends BookingsRepository {
       id: booking.id,
       slotId: booking.slotId,
       partySize: booking.partySize,
-      status: booking.status,
+      // The status read back from the database: PENDING, or CONFIRMED when MH-07 creates it for
+      // the staff. A booking is never created as CANCELLED, so the narrower type holds.
+      status: booking.status as StoredBooking['status'],
     };
   }
 
@@ -301,7 +303,8 @@ export class PrismaBookingsRepository extends BookingsRepository {
       id: booking.id,
       slotId: booking.slotId,
       partySize: booking.partySize,
-      status: booking.status,
+      // The service never changes a cancelled booking (MH-08), so the status is still active.
+      status: booking.status as StoredBooking['status'],
     };
   }
 
@@ -319,5 +322,19 @@ export class PrismaBookingsRepository extends BookingsRepository {
     await this.db().partyRequirement.createMany({
       data: requirements.map((r) => ({ bookingId, ...r })),
     });
+  }
+
+  // The booking_tables rows stay as history: only CONFIRMED and PENDING bookings occupy seats.
+  async cancelBooking(bookingId: number): Promise<CancelledBooking> {
+    const booking = await this.db().booking.update({
+      where: { id: bookingId },
+      data: { status: 'CANCELLED' },
+    });
+    return {
+      id: booking.id,
+      slotId: booking.slotId,
+      partySize: booking.partySize,
+      status: 'CANCELLED',
+    };
   }
 }

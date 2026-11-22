@@ -1,5 +1,6 @@
 import type {
   BookingResult,
+  CancelledBooking,
   ChangeBookingInput,
   CreateBookingInput,
   MyBooking,
@@ -18,3 +19,6 @@ export const fetchMyBookings = () => apiGet<MyBooking[]>('/bookings/me');
 // PATCH /api/bookings/:id with only the details that change (MH-06).
 export const changeBooking = (id: number, input: ChangeBookingInput) =>
   apiPatch<BookingResult>(`/bookings/${id}`, input);
+
+// POST /api/bookings/:id/cancel, without a body (MH-08).
+export const cancelBooking = (id: number) => apiPost<CancelledBooking>(`/bookings/${id}/cancel`);
