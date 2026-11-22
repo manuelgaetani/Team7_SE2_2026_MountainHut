@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { bookingConfirmationEmail } from './booking-confirmation.js';
+import { bookingChangeEmail, bookingConfirmationEmail } from './booking-confirmation.js';
 import type { BookingConfirmationData } from './booking-confirmation.js';
 
 const booking: BookingConfirmationData = {
@@ -10,7 +10,7 @@ const booking: BookingConfirmationData = {
   startTime: '12:30',
   endTime: '13:30',
   partySize: 4,
-  requirements: null,
+  requirements: [],
 };
 
 // The HTML version is full of inline styles: the tests look at its content.
@@ -60,25 +60,65 @@ describe('bookingConfirmationEmail', () => {
     expect(html).not.toContain('Requirements');
   });
 
-  it('omits requirements made only of spaces', () => {
-    expect(bookingConfirmationEmail({ ...booking, requirements: '   ' }).text).not.toContain(
-      'Requirements',
-    );
-  });
-
   it('shows the requirements of the party', () => {
     const { text, html } = bookingConfirmationEmail({
       ...booking,
-      requirements: 'One celiac, one allergy to nuts',
+      requirements: [{ allergies: false, description: '2 vegetarians' }],
     });
-    expect(text).toContain('Requirements: One celiac, one allergy to nuts');
-    expect(withoutStyles(html)).toContain('<td>One celiac, one allergy to nuts</td>');
+    expect(text).toContain('Requirements: 2 vegetarians');
+    expect(withoutStyles(html)).toContain('<td>2 vegetarians</td>');
+  });
+
+  it('shows one line per requirement and marks the ones with allergies', () => {
+    const { text, html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [
+        { allergies: true, description: '1 peanut allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
+    });
+    expect(text).toContain(
+      'Requirements: Allergies (special care needed): 1 peanut allergy\n2 vegetarians',
+    );
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): 1 peanut allergy<br>2 vegetarians</td>',
+    );
+  });
+
+  // The three requirements of the example in the MH-05 clarifications, in their order.
+  it('marks every requirement with allergies, keeping the order of the hiker', () => {
+    const { text, html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [
+        { allergies: true, description: '1 vegan, peanut allergy' },
+        { allergies: true, description: '1 shellfish allergy' },
+        { allergies: false, description: '2 vegetarians' },
+      ],
+    });
+    expect(text).toContain(
+      'Requirements: Allergies (special care needed): 1 vegan, peanut allergy\n' +
+        'Allergies (special care needed): 1 shellfish allergy\n2 vegetarians',
+    );
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): 1 vegan, peanut allergy<br>' +
+        'Allergies (special care needed): 1 shellfish allergy<br>2 vegetarians</td>',
+    );
+  });
+
+  it('escapes the description of a requirement with allergies in the HTML version', () => {
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: true, description: '<i>nuts</i> & "milk"' }],
+    });
+    expect(withoutStyles(html)).toContain(
+      '<td>Allergies (special care needed): &lt;i&gt;nuts&lt;/i&gt; &amp; &quot;milk&quot;</td>',
+    );
   });
 
   it('escapes the requirements and keeps their line breaks in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: 'Celiac\n<b>Nuts</b> & "lactose"',
+      requirements: [{ allergies: false, description: 'Celiac\n<b>Nuts</b> & "lactose"' }],
     });
     expect(withoutStyles(html)).toContain(
       '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
@@ -130,16 +170,66 @@ describe('bookingConfirmationEmail', () => {
   });
 
   it('keeps the line breaks of Windows-style requirements in the HTML version', () => {
-    const { html } = bookingConfirmationEmail({ ...booking, requirements: 'Celiac\r\nNuts' });
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: false, description: 'Celiac\r\nNuts' }],
+    });
     expect(withoutStyles(html)).toContain('<td>Celiac<br>Nuts</td>');
   });
 
   it('does not escape twice the requirements', () => {
-    const { html } = bookingConfirmationEmail({ ...booking, requirements: '&lt;' });
+    const { html } = bookingConfirmationEmail({
+      ...booking,
+      requirements: [{ allergies: false, description: '&lt;' }],
+    });
     expect(withoutStyles(html)).toContain('<td>&amp;lt;</td>');
   });
 
   it('shows the name of the hiker in the greeting of the subject-less text', () => {
     expect(bookingConfirmationEmail(booking).text.startsWith('Hi Anna Rossi,')).toBe(true);
+  });
+});
+
+// MH-06: the email sent after a change carries the new details of the booking.
+describe('bookingChangeEmail', () => {
+  it('says in the subject that the booking was changed, with its new date', () => {
+    expect(bookingChangeEmail(booking).subject).toBe(
+      'Booking n. 42 changed - Saturday, 14 November 2026',
+    );
+  });
+
+  it('tells the hiker that these are the new details', () => {
+    const { text, html } = bookingChangeEmail(booking);
+    expect(text).toContain('your booking at the hut has been changed. These are its new details.');
+    expect(html).toContain('your booking at the hut has been changed.');
+    expect(text).not.toContain('booked and confirmed');
+  });
+
+  it('shows the new date, time, party size and requirements', () => {
+    const { text } = bookingChangeEmail({
+      ...booking,
+      date: '2026-12-05',
+      startTime: '19:00',
+      endTime: '21:00',
+      partySize: 6,
+      requirements: [{ allergies: false, description: '2 vegans' }],
+    });
+    expect(text).toContain('Saturday, 5 December 2026');
+    expect(text).toContain('19:00 - 21:00');
+    expect(text).toContain('6 people');
+    expect(text).toContain('Requirements: 2 vegans');
+  });
+
+  it('omits the requirements when the change removed them', () => {
+    expect(bookingChangeEmail({ ...booking, requirements: [] }).text).not.toContain('Requirements');
+  });
+
+  it('escapes the new requirements in the HTML version', () => {
+    const { html } = bookingChangeEmail({
+      ...booking,
+      requirements: [{ allergies: false, description: '<b>nuts</b>' }],
+    });
+    expect(html).toContain('&lt;b&gt;nuts&lt;/b&gt;');
+    expect(html).not.toContain('<b>nuts</b>');
   });
 });

@@ -16,6 +16,30 @@ describe('BookingSentDialog', () => {
     expect(gotItBtn).toHaveFocus();
   });
 
+  it('shows no requirements section when there are none', () => {
+    render(<BookingSentDialog summary="Test" onClose={vi.fn()} />);
+    expect(screen.queryByText('Dietary requirements')).not.toBeInTheDocument();
+  });
+
+  it('lists the requirements in order and marks only the ones with allergies', () => {
+    render(
+      <BookingSentDialog
+        summary="Test"
+        requirements={[
+          { key: 1, allergies: true, description: '1 vegan, peanut allergy' },
+          { key: 2, allergies: false, description: '2 vegetarians' },
+        ]}
+        onClose={vi.fn()}
+      />,
+    );
+    const items = screen.getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual([
+      'Allergies (special care needed): 1 vegan, peanut allergy',
+      '2 vegetarians',
+    ]);
+    expect(screen.getAllByText(/special care/i)).toHaveLength(1);
+  });
+
   it('calls onClose when close button or Got it button is clicked', () => {
     const onClose = vi.fn();
     const { rerender } = render(<BookingSentDialog summary="Test" onClose={onClose} />);

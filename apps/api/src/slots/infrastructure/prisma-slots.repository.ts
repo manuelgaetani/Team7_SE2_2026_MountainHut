@@ -6,6 +6,7 @@ import { isUniqueViolation } from '../../infrastructure/prisma/prisma-errors.js'
 import { fromDbDate, fromDbTime, toDbDate, toDbTime } from '../../infrastructure/prisma/db-time.js';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { SlotsRepository } from '../application/slots.repository.port.js';
+import type { FloorAllocation } from '../domain/floor-plan.js';
 import type { NewSlot, Slot } from '../domain/slot.js';
 
 interface SlotRow {
@@ -68,6 +69,19 @@ export class PrismaSlotsRepository extends SlotsRepository {
   async lockDay(date: string): Promise<void> {
     await this.db()
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${toDbDate(date)}::date::text, 0))`;
+  }
+
+  async findOverlapping(slot: NewSlot): Promise<Slot | null> {
+    const row = await this.db().slot.findFirst({
+      where: {
+        date: toDbDate(slot.date),
+        startTime: { lt: toDbTime(slot.endTime) },
+        endTime: { gt: toDbTime(slot.startTime) },
+      },
+      include: withTables,
+      orderBy: { startTime: 'asc' },
+    });
+    return row ? toSlot(row) : null;
   }
 
   async lockBetween(from: string, to: string): Promise<void> {
@@ -141,5 +155,54 @@ export class PrismaSlotsRepository extends SlotsRepository {
 
   async createTables(slotId: number, tables: SlotTable[]): Promise<void> {
     await this.db().slotTable.createMany({ data: tables.map((t) => ({ slotId, ...t })) });
+  }
+
+  async findFloorAllocations(slotId: number): Promise<FloorAllocation[]> {
+    if (!isDbId(slotId)) return [];
+    const rows = await this.db().$queryRaw<
+      {
+        booking_id: number;
+        full_name: string;
+        party_size: number;
+        status: 'CONFIRMED' | 'PENDING';
+        start_time: string;
+        end_time: string;
+        table_number: number;
+        assigned_seats: number;
+      }[]
+    >`
+      SELECT b.id AS booking_id,
+             h.full_name,
+             b.party_size,
+             b.status,
+             to_char(s_other.start_time, 'HH24:MI') AS start_time,
+             to_char(s_other.end_time, 'HH24:MI') AS end_time,
+             bt.table_number,
+             bt.assigned_seats
+      FROM slots s_target
+      JOIN slots s_other
+        ON s_other.date = s_target.date
+       AND s_other.start_time < s_target.end_time
+       AND s_other.end_time > s_target.start_time
+      JOIN booking_tables bt ON bt.slot_id = s_other.id
+      JOIN bookings b ON b.id = bt.booking_id
+      JOIN hikers h ON h.id = b.hiker_id
+      JOIN slot_tables st
+        ON st.slot_id = s_target.id
+       AND st.table_number = bt.table_number
+      WHERE s_target.id = ${slotId}
+        AND b.status IN ('CONFIRMED', 'PENDING')
+      ORDER BY b.id, bt.table_number`;
+
+    return rows.map((r) => ({
+      bookingId: r.booking_id,
+      fullName: r.full_name,
+      partySize: r.party_size,
+      status: r.status,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      tableNumber: r.table_number,
+      assignedSeats: r.assigned_seats,
+    }));
   }
 }

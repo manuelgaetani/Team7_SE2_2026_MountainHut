@@ -14,6 +14,7 @@ import { ApiCookieAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type {
   CreateSlotInput,
   DefineSlotTablesInput,
+  FloorPlan,
   ListSlotsQuery,
   RepeatWeeklyScheduleInput,
   RepeatWeeklyScheduleResult,
@@ -85,6 +86,12 @@ export class SlotsController {
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<SlotDetails> {
     return this.slots.findOne(id);
+  }
+
+  //where the groups of a slot are seated.
+  @Get(':id/floor')
+  floor(@Param('id', ParseIntPipe) id: number): Promise<FloorPlan> {
+    return this.slots.floorPlan(id);
   }
 
   @Put(':id/tables')

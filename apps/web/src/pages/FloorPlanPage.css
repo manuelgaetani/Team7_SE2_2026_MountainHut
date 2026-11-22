@@ -1,0 +1,298 @@
+/* Staff floor plan of a slot. Builds on BookingPage.css, SlotsPage.css and styles.css. */
+
+.floor-header {
+  margin-bottom: 24px;
+}
+.floor-header__card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.floor-header__eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.floor-header__date {
+  margin: 4px 0 0;
+  font: 400 26px/1.2 var(--font-serif);
+}
+.floor-header__time {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.floor-header__back {
+  flex: none;
+}
+.floor-header__hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.floor-page__meta {
+  margin: -8px 0 14px;
+}
+
+.group-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.floor-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.floor-table {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--tint);
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+.floor-table--selected {
+  border-color: var(--green);
+  background: var(--surface);
+}
+.floor-table__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.floor-table__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.floor-table__taken,
+.floor-table__capacity {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.floor-table__seats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.floor-seat {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.floor-seat--free {
+  background: #fff;
+  border-style: dashed;
+}
+.floor-seat--taken {
+  cursor: pointer;
+  border-color: transparent;
+}
+/* A seat of the slot whose group is not selected. */
+.floor-seat--booked {
+  background: var(--surface);
+  border-color: var(--muted);
+  cursor: pointer;
+}
+/* A seat taken by an overlapping slot: hatched, so it never looks like a group of the slot. */
+.floor-seat--selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.floor-seat:focus-visible,
+.floor-group__row:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.floor-groups {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.floor-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.floor-group--selected {
+  border-color: var(--green);
+  background: var(--tint);
+}
+.floor-group__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.floor-group__info {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.floor-group__name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.floor-group__tables,
+.floor-group__time {
+  color: var(--muted);
+  font-size: 10px;
+}
+.floor-group__tags {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+.floor-group__tag {
+  padding: 2px 8px;
+  background: var(--tint);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.floor-group__tag--pending {
+  background: #f8e6e1;
+  color: #8a2f1d;
+}
+.floor-group__detail {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+}
+.floor-group__detail-title {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.floor-group__assignment {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.floor-group__assigned {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+.floor-group__assigned dt {
+  min-width: 2.5ch;
+  font-weight: 700;
+}
+.floor-group__assigned dd {
+  margin: 0;
+}
+
+.floor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.floor-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.floor-legend .floor-seat {
+  width: 16px;
+  height: 16px;
+  cursor: default;
+}
+
+.floor-page__all {
+  margin-top: 12px;
+}
+
+/* Phones. Without the page zoom (it pushed the page past the right edge) the small texts
+   grow a little, the way back sits above the day, and the tables go two by row. */
+@media (max-width: 600px) {
+  .page__body:has(.floor-header) {
+    zoom: 1;
+    padding-inline: 16px;
+  }
+  .floor-header__card {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+  .floor-header__back {
+    order: -1;
+  }
+  .floor-header__date {
+    font-size: 22px;
+  }
+  .floor-page__meta,
+  .floor-header__hint {
+    font-size: 12px;
+  }
+  .floor-tables {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .floor-table {
+    padding: 10px;
+  }
+  .floor-table__head {
+    flex-wrap: wrap;
+  }
+  .floor-table__taken,
+  .floor-table__capacity,
+  .floor-group__tables,
+  .floor-group__time,
+  .floor-group__tag {
+    font-size: 11px;
+  }
+  .floor-group__name {
+    font-size: 13px;
+  }
+  .floor-legend {
+    font-size: 12px;
+  }
+}

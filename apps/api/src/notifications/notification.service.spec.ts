@@ -17,7 +17,7 @@ describe('NotificationService', () => {
     startTime: '12:30',
     endTime: '13:30',
     partySize: 4,
-    requirements: null,
+    requirements: [],
   };
   const recipient = { userId: 7, email: 'anna@example.com' };
 
@@ -144,6 +144,56 @@ describe('NotificationService', () => {
 
     it('sends nothing to a hiker with an empty email', async () => {
       const status = await service.sendBookingConfirmation({ userId: 7, email: '' }, booking);
+
+      expect(status).toBe('SKIPPED');
+      expect(mailer.send).not.toHaveBeenCalled();
+    });
+  });
+
+  // MH-06: the hiker is told by email that the booking has been changed.
+  describe('sendBookingChange', () => {
+    it('sends the change email to the hiker', async () => {
+      mailer.send.mockResolvedValue(undefined);
+
+      await service.sendBookingChange(recipient, booking);
+
+      expect(mailer.send).toHaveBeenCalledOnce();
+      expect(mailer.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'anna@example.com',
+          subject: expect.stringContaining('Booking n. 42 changed'),
+        }),
+      );
+    });
+
+    it('records the email as a sent booking change', async () => {
+      mailer.send.mockResolvedValue(undefined);
+
+      const status = await service.sendBookingChange(recipient, booking);
+
+      expect(status).toBe('SENT');
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'BOOKING_CHANGE', status: 'SENT', bookingId: 42 }),
+      });
+    });
+
+    it('does not throw when the SMTP server fails, and records the failure', async () => {
+      mailer.send.mockRejectedValue(new Error('SMTP down'));
+
+      const status = await service.sendBookingChange(recipient, booking);
+
+      expect(status).toBe('FAILED');
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'BOOKING_CHANGE',
+          status: 'FAILED',
+          error: 'SMTP down',
+        }),
+      });
+    });
+
+    it('sends nothing to a hiker without email', async () => {
+      const status = await service.sendBookingChange({ userId: 7, email: null }, booking);
 
       expect(status).toBe('SKIPPED');
       expect(mailer.send).not.toHaveBeenCalled();

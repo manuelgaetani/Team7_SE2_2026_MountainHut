@@ -33,8 +33,13 @@ describe('BookingsService', () => {
     hasActiveBooking: vi.fn(),
     createBooking: vi.fn(),
     createBookingTables: vi.fn(),
+    lockBooking: vi.fn(),
+    deleteBookingTables: vi.fn(),
+    updateBooking: vi.fn(),
+    findRequirements: vi.fn(),
+    replaceRequirements: vi.fn(),
   };
-  const confirmationSender = { send: vi.fn() };
+  const confirmationSender = { send: vi.fn(), sendChange: vi.fn() };
 
   const config = { bookingTimeZone: 'Europe/Rome' };
 
@@ -83,6 +88,7 @@ describe('BookingsService', () => {
       await expect(service.create(1, input)).resolves.toEqual({
         ...storedBooking,
         tables: [{ tableNumber: 1, assignedSeats: 2 }],
+        requirements: [],
       });
     });
 
@@ -93,21 +99,24 @@ describe('BookingsService', () => {
         hikerId: 7,
         slotId: 3,
         partySize: 2,
-        requirements: null,
+        requirements: [],
       });
     });
 
-    it('stores the requirements of the party', async () => {
-      await service.create(1, { ...input, requirements: 'no nuts' });
-      expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: 'no nuts' }),
-      );
+    it('stores the requirements of the party and returns them', async () => {
+      const requirements = [
+        { allergies: true, description: 'no nuts' },
+        { allergies: false, description: '2 vegetarians' },
+      ];
+      const result = await service.create(1, { ...input, requirements });
+      expect(repo.createBooking).toHaveBeenCalledWith(expect.objectContaining({ requirements }));
+      expect(result.requirements).toEqual(requirements);
     });
 
-    it('stores empty requirements as none', async () => {
-      await service.create(1, { ...input, requirements: '' });
+    it('stores an empty list of requirements as none', async () => {
+      await service.create(1, { ...input, requirements: [] });
       expect(repo.createBooking).toHaveBeenCalledWith(
-        expect.objectContaining({ requirements: null }),
+        expect.objectContaining({ requirements: [] }),
       );
     });
 
@@ -249,6 +258,308 @@ describe('BookingsService', () => {
       const failure = new Error('write failed');
       repo.createBookingTables.mockRejectedValue(failure);
       await expect(service.create(1, input)).rejects.toBe(failure);
+    });
+  });
+
+  // MH-06: change the date and time, the party size or the requirements of a booking.
+  describe('change', () => {
+    const HOUR = 60 * 60 * 1000;
+    // The booked slot (3) starts in 3 days; slot 2 and slot 5 are other slots of the hut.
+    const starts = new Map<number, Date>([
+      [3, new Date(NOW.getTime() + 72 * HOUR)],
+      [2, new Date(NOW.getTime() + 96 * HOUR)],
+      [5, new Date(NOW.getTime() + 96 * HOUR)],
+    ]);
+    const locked = {
+      id: 9,
+      hikerId: 7,
+      slotId: 3,
+      partySize: 2,
+      status: 'CONFIRMED' as const,
+    };
+    // The requirements are a list (MH-05), stored apart from the booking.
+    const currentNeeds = [{ allergies: false, description: 'vegan' }];
+    const noNuts = { allergies: true, description: 'no nuts' };
+    const updated = { id: 9, slotId: 3, partySize: 3, status: 'CONFIRMED' as const };
+
+    beforeEach(() => {
+      repo.lockBooking.mockResolvedValue(locked);
+      repo.lockSlotAndGetStart.mockImplementation((id: number) =>
+        Promise.resolve(starts.get(id) ?? null),
+      );
+      repo.findFreeSeatsByTable.mockResolvedValue([
+        { tableNumber: 1, freeSeats: 4 },
+        { tableNumber: 2, freeSeats: 6 },
+      ]);
+      repo.updateBooking.mockResolvedValue(updated);
+      repo.findRequirements.mockResolvedValue(currentNeeds);
+      confirmationSender.sendChange.mockResolvedValue(undefined);
+    });
+
+    const expectNothingChanged = () => {
+      expect(repo.deleteBookingTables).not.toHaveBeenCalled();
+      expect(repo.updateBooking).not.toHaveBeenCalled();
+      expect(repo.createBookingTables).not.toHaveBeenCalled();
+      expect(repo.replaceRequirements).not.toHaveBeenCalled();
+    };
+
+    describe('when the change is admitted', () => {
+      it('returns the changed booking with its requirements and tables', async () => {
+        await expect(service.change(1, 9, { partySize: 3 })).resolves.toEqual({
+          ...updated,
+          requirements: currentNeeds,
+          tables: [{ tableNumber: 1, assignedSeats: 3 }],
+        });
+      });
+
+      it('runs every step in one unit of work', async () => {
+        await service.change(1, 9, { partySize: 3 });
+        expect(uow.run).toHaveBeenCalledTimes(1);
+        expect(calledInRun(repo.lockBooking)).toBe(true);
+        expect(calledInRun(repo.updateBooking)).toBe(true);
+        expect(repo.lockBooking).toHaveBeenCalledWith(9);
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, expect.any(Object));
+      });
+
+      it('replaces the old table assignments: delete, update, then the new ones', async () => {
+        await service.change(1, 9, { partySize: 3 });
+        const order = [repo.deleteBookingTables, repo.updateBooking, repo.createBookingTables].map(
+          (fn) => fn.mock.invocationCallOrder[0]!,
+        );
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 1, assignedSeats: 3 },
+        ]);
+      });
+
+      it('locks the booking before its slots', async () => {
+        await service.change(1, 9, { partySize: 3 });
+        expect(repo.lockBooking.mock.invocationCallOrder[0]).toBeLessThan(
+          repo.lockSlotAndGetStart.mock.invocationCallOrder[0]!,
+        );
+      });
+    });
+
+    describe('party size (clarification: automatic verification of availability)', () => {
+      it('counts the seats of the booking itself as free', async () => {
+        await service.change(1, 9, { partySize: 3 });
+        expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
+      });
+
+      it('seats the party again with the MH-01 rules even when it still fits at its table (issues #38, #48)', async () => {
+        // The party could stay at table 2 (8 seats), but as a new booking the smallest table that
+        // fits 3 people is table 1.
+        repo.findFreeSeatsByTable.mockResolvedValue([
+          { tableNumber: 1, freeSeats: 4 },
+          { tableNumber: 2, freeSeats: 8 },
+        ]);
+        await service.change(1, 9, { partySize: 3 });
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 1, assignedSeats: 3 },
+        ]);
+      });
+
+      it('seats the party again with the MH-01 rules when it no longer fits at its tables', async () => {
+        repo.findFreeSeatsByTable.mockResolvedValue([
+          { tableNumber: 1, freeSeats: 2 },
+          { tableNumber: 2, freeSeats: 6 },
+        ]);
+        await service.change(1, 9, { partySize: 5 });
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 2, assignedSeats: 5 },
+        ]);
+      });
+
+      it('answers 409 when the seats are not enough, leaving the booking as it was', async () => {
+        await expect(service.change(1, 9, { partySize: 11 })).rejects.toMatchObject({
+          code: 'CONFLICT',
+          message: 'Insufficient seats available for the updated booking',
+        });
+        expectNothingChanged();
+      });
+
+      it('seats the party again when only the requirements change (issue #48)', async () => {
+        await service.change(1, 9, { requirements: [noNuts] });
+        expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(3, 9);
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 3, [
+          { tableNumber: 1, assignedSeats: 2 },
+        ]);
+      });
+    });
+
+    describe('requirements', () => {
+      it('keeps the requirements when the change does not mention them', async () => {
+        const result = await service.change(1, 9, { partySize: 3 });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 3 });
+        expect(repo.replaceRequirements).not.toHaveBeenCalled();
+        expect(result.requirements).toEqual(currentNeeds);
+      });
+
+      it.each([
+        ['a new list', [noNuts]],
+        ['an empty list', []],
+      ])('stores %s as the new requirements', async (_name, requirements) => {
+        const result = await service.change(1, 9, { requirements });
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, { slotId: 3, partySize: 2 });
+        expect(repo.replaceRequirements).toHaveBeenCalledWith(9, requirements);
+        expect(calledInRun(repo.replaceRequirements)).toBe(true);
+        expect(result.requirements).toEqual(requirements);
+      });
+    });
+
+    describe('date and time', () => {
+      it('moves the booking to the new slot, seating the party again there', async () => {
+        await service.change(1, 9, { slotId: 5 });
+        expect(repo.findFreeSeatsByTable).toHaveBeenCalledWith(5, 9);
+        expect(repo.updateBooking).toHaveBeenCalledWith(9, expect.objectContaining({ slotId: 5 }));
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 5, [
+          { tableNumber: 1, assignedSeats: 2 },
+        ]);
+      });
+
+      it('does not keep the old tables when moving to another slot', async () => {
+        // Table 1 is the old one: in the new slot the smallest fitting table is table 2.
+        repo.findFreeSeatsByTable.mockResolvedValue([
+          { tableNumber: 1, freeSeats: 6 },
+          { tableNumber: 2, freeSeats: 2 },
+        ]);
+        await service.change(1, 9, { slotId: 5 });
+        expect(repo.createBookingTables).toHaveBeenCalledWith(9, 5, [
+          { tableNumber: 2, assignedSeats: 2 },
+        ]);
+      });
+
+      it('locks the current and the new slot in id order', async () => {
+        await service.change(1, 9, { slotId: 2 });
+        expect(repo.lockSlotAndGetStart.mock.calls.map((call) => call[0] as number)).toEqual([
+          2, 3,
+        ]);
+      });
+
+      it('locks the slot only once when the change keeps it', async () => {
+        await service.change(1, 9, { slotId: 3, partySize: 3 });
+        expect(repo.lockSlotAndGetStart).toHaveBeenCalledTimes(1);
+      });
+
+      it('answers 404 when the new slot does not exist', async () => {
+        await expect(service.change(1, 9, { slotId: 77 })).rejects.toMatchObject({
+          code: 'NOT_FOUND',
+          message: 'Target slot not found',
+        });
+        expectNothingChanged();
+      });
+
+      it('answers 422 when the new slot starts in less than two hours', async () => {
+        starts.set(6, new Date(NOW.getTime() + MIN_LEAD_MS - 1));
+        await expect(service.change(1, 9, { slotId: 6 })).rejects.toMatchObject({
+          code: 'UNPROCESSABLE',
+        });
+        starts.delete(6);
+        expectNothingChanged();
+      });
+
+      it('answers 422 when the new slot starts in less than 48 hours (issue #43)', async () => {
+        starts.set(6, new Date(NOW.getTime() + 48 * HOUR - 1));
+        await expect(service.change(1, 9, { slotId: 6 })).rejects.toMatchObject({
+          code: 'UNPROCESSABLE',
+          message: 'The new slot must start at least 48 hours from now',
+        });
+        starts.delete(6);
+        expectNothingChanged();
+      });
+
+      it('answers 409 when the hiker already has a booking in the new slot', async () => {
+        repo.hasActiveBooking.mockResolvedValue(true);
+        await expect(service.change(1, 9, { slotId: 5 })).rejects.toMatchObject({
+          code: 'CONFLICT',
+          message: 'You already have a booking for this slot',
+        });
+        expect(repo.hasActiveBooking).toHaveBeenCalledWith(7, 5);
+        expectNothingChanged();
+      });
+    });
+
+    describe('48-hour rule', () => {
+      it('admits a change exactly 48 hours before the booked slot', async () => {
+        starts.set(3, new Date(NOW.getTime() + 48 * HOUR));
+        await expect(service.change(1, 9, { partySize: 3 })).resolves.toMatchObject({ id: 9 });
+        starts.set(3, new Date(NOW.getTime() + 72 * HOUR));
+      });
+
+      it.each([
+        ['the party size', { partySize: 3 }],
+        ['the requirements', { requirements: [noNuts] }],
+        ['the slot', { slotId: 5 }],
+      ])(
+        'refuses to change %s less than 48 hours before the booked slot',
+        async (_name, change) => {
+          starts.set(3, new Date(NOW.getTime() + 48 * HOUR - 1));
+          await expect(service.change(1, 9, change)).rejects.toMatchObject({
+            code: 'UNPROCESSABLE',
+            message: 'Changes are only admitted up to 48 hours before the booked date',
+          });
+          starts.set(3, new Date(NOW.getTime() + 72 * HOUR));
+          expectNothingChanged();
+        },
+      );
+    });
+
+    describe('whose booking', () => {
+      it('answers 403 when the user has no hiker profile, before touching the booking', async () => {
+        repo.findHikerIdByUserId.mockResolvedValue(null);
+        await expect(service.change(1, 9, { partySize: 3 })).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+        });
+        expect(repo.lockBooking).not.toHaveBeenCalled();
+      });
+
+      it('answers 404 when the booking does not exist', async () => {
+        repo.lockBooking.mockResolvedValue(null);
+        await expect(service.change(1, 9, { partySize: 3 })).rejects.toMatchObject({
+          code: 'NOT_FOUND',
+          message: 'Booking not found',
+        });
+        expectNothingChanged();
+      });
+
+      it('answers 403 when the booking belongs to another hiker', async () => {
+        repo.lockBooking.mockResolvedValue({ ...locked, hikerId: 8 });
+        await expect(service.change(1, 9, { partySize: 3 })).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+          message: 'You can only change your own bookings',
+        });
+        expectNothingChanged();
+      });
+
+      it('answers 409 for a rejected booking', async () => {
+        repo.lockBooking.mockResolvedValue({ ...locked, status: 'REJECTED' });
+        await expect(service.change(1, 9, { partySize: 3 })).rejects.toMatchObject({
+          code: 'CONFLICT',
+          message: 'A rejected booking cannot be changed',
+        });
+        expectNothingChanged();
+      });
+    });
+
+    describe('change email (clarification: the change is notified by email)', () => {
+      it('sends the change of the stored booking, after the unit of work', async () => {
+        await service.change(1, 9, { partySize: 3 });
+        expect(confirmationSender.sendChange).toHaveBeenCalledWith(9);
+        expect(confirmationSender.sendChange.mock.invocationCallOrder[0]).toBeGreaterThan(
+          runEnded.mock.invocationCallOrder[0]!,
+        );
+        expect(confirmationSender.send).not.toHaveBeenCalled();
+      });
+
+      it('does not make the answer wait for the SMTP server', async () => {
+        confirmationSender.sendChange.mockReturnValue(new Promise(() => {}));
+        await expect(service.change(1, 9, { partySize: 3 })).resolves.toMatchObject({ id: 9 });
+      });
+
+      it('is not sent when the change is refused', async () => {
+        await expect(service.change(1, 9, { partySize: 11 })).rejects.toThrow();
+        expect(confirmationSender.sendChange).not.toHaveBeenCalled();
+      });
     });
   });
 });

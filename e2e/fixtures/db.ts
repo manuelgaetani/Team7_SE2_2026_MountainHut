@@ -43,9 +43,13 @@ export function createSlot(seats: number[]): number {
 }
 
 // A slot that starts in about one hour, too soon to book.
+// The start is a whole minute, like the slots created through the API (HH:MM): the API looks a
+// slot up by its start time (MH-04), which would never match a start with seconds. Tests run in
+// parallel and slots are unique by date, start and end, so the end is random to the second.
 export function createImminentSlot(seats: number[]): number {
-  const start = `(now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(1800)} * interval '1 second')`;
-  return insertSlot(`${start}::date`, `${start}::time(0)`, `TIME '23:59'`, seats);
+  const start = `date_trunc('minute', now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(30)} * interval '1 minute')`;
+  const end = `TIME '23:59' + ${randomInt(60)} * interval '1 second'`;
+  return insertSlot(`${start}::date`, `${start}::time(0)`, end, seats);
 }
 
 // A slot that is already over.
@@ -54,8 +58,35 @@ export function createPastSlot(seats: number[]): number {
   return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
 }
 
+// The hut-local date (YYYY-MM-DD) and start time (HH:MM) of a slot, as the API expects them.
+export function slotStart(slotId: number): { date: string; time: string } {
+  const [date = '', time = ''] = sql(
+    `SELECT to_char(date, 'YYYY-MM-DD') || '|' || to_char(start_time, 'HH24:MI')
+     FROM slots WHERE id = ${Number(slotId)};`,
+  ).split('|');
+  return { date, time };
+}
+
 export function bookingStatus(bookingId: number): string {
   return sql(`SELECT status FROM bookings WHERE id = ${Number(bookingId)};`);
+}
+
+// The party requirements stored for a booking, in the order the hiker entered them (MH-05).
+export function partyRequirements(
+  bookingId: number,
+): { allergies: boolean; description: string }[] {
+  const json = sql(
+    `SELECT COALESCE(json_agg(json_build_object('allergies', allergies, 'description', description)
+       ORDER BY id), '[]')
+     FROM party_requirements WHERE booking_id = ${Number(bookingId)};`,
+  );
+  return JSON.parse(json) as { allergies: boolean; description: string }[];
+}
+
+// How many stored party requirements have exactly this description, in any booking (MH-05).
+export function countPartyRequirements(description: string): number {
+  const quoted = description.replaceAll("'", "''");
+  return Number(sql(`SELECT count(*) FROM party_requirements WHERE description = '${quoted}';`));
 }
 
 // Moves a booking to another status, as the staff would when confirming or rejecting it.

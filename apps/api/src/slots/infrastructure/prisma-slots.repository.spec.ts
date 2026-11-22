@@ -27,7 +27,13 @@ describe('PrismaSlotsRepository', () => {
   const client = {
     $queryRaw: vi.fn(),
     $executeRaw: vi.fn(),
-    slot: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+    slot: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     slotTable: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
     booking: { deleteMany: vi.fn() },
     bookingTable: { deleteMany: vi.fn() },
@@ -277,6 +283,104 @@ describe('PrismaSlotsRepository', () => {
           { slotId: 3, tableNumber: 2, seats: 2 },
         ],
       });
+    });
+  });
+
+  describe('findFloorAllocations', () => {
+    it('maps the rows', async () => {
+      client.$queryRaw.mockResolvedValue([
+        {
+          booking_id: 9,
+          full_name: 'Anna Rossi',
+          party_size: 8,
+          status: 'CONFIRMED',
+          start_time: '12:00',
+          end_time: '13:00',
+          table_number: 4,
+          assigned_seats: 6,
+        },
+      ]);
+      await expect(repository.findFloorAllocations(3)).resolves.toEqual([
+        {
+          bookingId: 9,
+          fullName: 'Anna Rossi',
+          partySize: 8,
+          status: 'CONFIRMED',
+          startTime: '12:00',
+          endTime: '13:00',
+          tableNumber: 4,
+          assignedSeats: 6,
+        },
+      ]);
+    });
+
+    it('returns an empty list when nobody is seated', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.findFloorAllocations(3)).resolves.toEqual([]);
+    });
+
+    it('counts the confirmed and pending bookings, like the free seats of a booking', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(3);
+      expect(queryText()).toContain("b.status IN ('CONFIRMED', 'PENDING')");
+    });
+
+    it('includes the bookings of the slots that overlap in time', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(3);
+      expect(queryText()).toContain('s_other.start_time < s_target.end_time');
+      expect(queryText()).toContain('s_other.end_time > s_target.start_time');
+    });
+
+    it('binds the id instead of concatenating it', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findFloorAllocations(3);
+      expect(queryValues()).toEqual([3]);
+    });
+
+    it.each([0, -1, 1.5, MAX_DB_INT + 1, Number.NaN])(
+      'returns an empty list without querying for the id %s',
+      async (id) => {
+        await expect(repository.findFloorAllocations(id)).resolves.toEqual([]);
+        expect(client.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('lockDay', () => {
+    it('takes a transaction advisory lock on the day, binding the date', async () => {
+      await repository.lockDay('2026-11-02');
+      const [strings, ...values] = client.$executeRaw.mock.calls[0] as [string[], ...unknown[]];
+      expect(strings.join('?')).toContain('pg_advisory_xact_lock');
+      expect(values).toEqual([new Date('2026-11-02T00:00:00.000Z')]);
+    });
+  });
+
+  describe('findOverlapping', () => {
+    const newSlot = { date: '2026-11-02', startTime: '12:00', endTime: '13:30' };
+
+    it('looks for a slot of the same day that starts before the end and ends after the start', async () => {
+      client.slot.findFirst.mockResolvedValue(null);
+      await repository.findOverlapping(newSlot);
+      expect(client.slot.findFirst).toHaveBeenCalledWith({
+        where: {
+          date: new Date('2026-11-02T00:00:00.000Z'),
+          startTime: { lt: new Date('1970-01-01T13:30:00.000Z') },
+          endTime: { gt: new Date('1970-01-01T12:00:00.000Z') },
+        },
+        include: withTables,
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
+    it('returns the overlapping slot with local date and times', async () => {
+      client.slot.findFirst.mockResolvedValue(row(4));
+      await expect(repository.findOverlapping(newSlot)).resolves.toEqual(slot(4));
+    });
+
+    it('returns null when no slot overlaps', async () => {
+      client.slot.findFirst.mockResolvedValue(null);
+      await expect(repository.findOverlapping(newSlot)).resolves.toBeNull();
     });
   });
 });

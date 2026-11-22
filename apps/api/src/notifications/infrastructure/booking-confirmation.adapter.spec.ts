@@ -6,12 +6,12 @@ import { BookingConfirmationAdapter } from './booking-confirmation.adapter.js';
 describe('BookingConfirmationAdapter', () => {
   const findUnique = vi.fn();
   const context = { client: () => ({ booking: { findUnique } }) };
-  const notifications = { sendBookingConfirmation: vi.fn() };
+  const notifications = { sendBookingConfirmation: vi.fn(), sendBookingChange: vi.fn() };
   let adapter: BookingConfirmationAdapter;
 
   const row = {
     partySize: 2,
-    requirements: 'no nuts',
+    requirements: [{ allergies: true, description: 'no nuts' }],
     hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
     slot: {
       date: new Date('2026-11-14T00:00:00.000Z'),
@@ -41,9 +41,35 @@ describe('BookingConfirmationAdapter', () => {
         startTime: '12:30',
         endTime: '13:30',
         partySize: 2,
-        requirements: 'no nuts',
+        requirements: [{ allergies: true, description: 'no nuts' }],
       },
     );
+  });
+
+  it('reads the requirements in insert order, with their flag and description only', async () => {
+    findUnique.mockResolvedValue(row);
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    await adapter.notify(9);
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 9 },
+        select: expect.objectContaining({
+          requirements: {
+            select: { allergies: true, description: true },
+            orderBy: { id: 'asc' },
+          },
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('sends a booking without requirements with an empty list', async () => {
+    findUnique.mockResolvedValue({ ...row, requirements: [] });
+    notifications.sendBookingConfirmation.mockResolvedValue('SENT');
+    await adapter.notify(9);
+    expect(notifications.sendBookingConfirmation.mock.calls[0][1]).toMatchObject({
+      requirements: [],
+    });
   });
 
   it('has no email for a hiker without an account', async () => {
@@ -63,5 +89,25 @@ describe('BookingConfirmationAdapter', () => {
     findUnique.mockResolvedValue(null);
     await expect(adapter.notify(9)).resolves.toBe('SKIPPED');
     expect(notifications.sendBookingConfirmation).not.toHaveBeenCalled();
+  });
+
+  // MH-06: the same data, sent as a change.
+  describe('notifyChange', () => {
+    it('sends the booking as a change, not as a confirmation', async () => {
+      findUnique.mockResolvedValue(row);
+      notifications.sendBookingChange.mockResolvedValue('SENT');
+      await expect(adapter.notifyChange(9)).resolves.toBe('SENT');
+      expect(notifications.sendBookingChange).toHaveBeenCalledWith(
+        { userId: 1, email: 'anna@example.com' },
+        expect.objectContaining({ bookingId: 9, date: '2026-11-14', startTime: '12:30' }),
+      );
+      expect(notifications.sendBookingConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('skips a booking that does not exist', async () => {
+      findUnique.mockResolvedValue(null);
+      await expect(adapter.notifyChange(9)).resolves.toBe('SKIPPED');
+      expect(notifications.sendBookingChange).not.toHaveBeenCalled();
+    });
   });
 });
