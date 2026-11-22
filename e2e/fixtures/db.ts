@@ -89,6 +89,14 @@ export function countPartyRequirements(description: string): number {
   return Number(sql(`SELECT count(*) FROM party_requirements WHERE description = '${quoted}';`));
 }
 
+// Moves a booking to another status, as the staff would when confirming or rejecting it.
+export function setBookingStatus(
+  bookingId: number,
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED',
+): void {
+  sql(`UPDATE bookings SET status = '${status}' WHERE id = ${Number(bookingId)};`);
+}
+
 // Turns a registered user into an account without a hiker profile, like a staff account.
 export function removeHikerProfile(email: string): void {
   const quoted = email.replaceAll("'", "''");

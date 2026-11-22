@@ -30,6 +30,11 @@ describe('SlotsService', () => {
     // Used by create (MH-02, no overlapping slots): by default no overlapping slot exists.
     lockDay: vi.fn(),
     findOverlapping: vi.fn(),
+    // MH-09: repeat a weekly schedule (also uses lockDay).
+    lockBetween: vi.fn(),
+    findBetween: vi.fn(),
+    findReservedDates: vi.fn(),
+    deleteSlots: vi.fn(),
     findTables: vi.fn(),
     create: vi.fn(),
     createTables: vi.fn(),
@@ -309,6 +314,207 @@ describe('SlotsService', () => {
     });
   });
 
+  // MH-09: copy the slots of a week into the next weeks.
+  describe('repeatWeekly', () => {
+    const input = { sourceStartDate: '2026-11-02', repeatWeeks: 2 };
+    const source = slotRow({ id: 1, date: '2026-11-03', tables: [{ tableNumber: 1, seats: 4 }] });
+
+    beforeEach(() => {
+      repo.findBetween.mockImplementation((from: string) =>
+        Promise.resolve(from === '2026-11-02' ? [source] : []),
+      );
+      repo.findReservedDates.mockResolvedValue([]);
+      let next = 100;
+      repo.create.mockImplementation(() => Promise.resolve(next++));
+    });
+
+    it('locks every target day in date order, inside the unit of work', async () => {
+      const locked: string[] = [];
+      repo.lockDay.mockImplementation((day: string) => {
+        expect(inRun).toBe(true);
+        locked.push(day);
+        return Promise.resolve();
+      });
+      await service.repeatWeekly(input);
+      expect(locked).toHaveLength(14);
+      expect(locked[0]).toBe('2026-11-09');
+      expect(locked[13]).toBe('2026-11-22');
+      expect(uow.run).toHaveBeenCalledTimes(1);
+    });
+
+    it('creates a copy of each source slot, with its tables, in each target week', async () => {
+      const result = await service.repeatWeekly(input);
+      expect(repo.create).toHaveBeenNthCalledWith(1, {
+        date: '2026-11-10',
+        startTime: '12:00',
+        endTime: '13:00',
+      });
+      expect(repo.create).toHaveBeenNthCalledWith(2, {
+        date: '2026-11-17',
+        startTime: '12:00',
+        endTime: '13:00',
+      });
+      expect(repo.createTables).toHaveBeenCalledWith(100, [{ tableNumber: 1, seats: 4 }]);
+      expect(result).toMatchObject({
+        targetWeeks: 2,
+        createdSlotsCount: 2,
+        replacedSlotsCount: 0,
+      });
+      expect(result.createdSlots[0]).toMatchObject({ id: 100, date: '2026-11-10', totalSeats: 4 });
+    });
+
+    it('deletes the slots already in the target weeks first', async () => {
+      repo.findBetween.mockImplementation((from: string) =>
+        Promise.resolve(
+          from === '2026-11-02' ? [source] : [slotRow({ id: 7 }), slotRow({ id: 8 })],
+        ),
+      );
+      const result = await service.repeatWeekly(input);
+      expect(repo.deleteSlots).toHaveBeenCalledWith([7, 8]);
+      expect(repo.deleteSlots.mock.invocationCallOrder[0]).toBeLessThan(
+        repo.create.mock.invocationCallOrder[0]!,
+      );
+      expect(result.replacedSlotsCount).toBe(2);
+    });
+
+    it('is unprocessable when the source week has no slots', async () => {
+      repo.findBetween.mockResolvedValue([]);
+      await expect(service.repeatWeekly(input)).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+        message: 'Source week contains no time slots to repeat',
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('is a conflict when a target week has reservations, naming that week', async () => {
+      repo.findReservedDates.mockResolvedValue(['2026-11-19']);
+      await expect(service.repeatWeekly(input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'The week starting 2026-11-16 has reservations: its schedule cannot be replaced',
+      });
+      expect(repo.deleteSlots).not.toHaveBeenCalled();
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    // A booking locks its slot row, not the day (review of MH-09).
+    it('locks the target slots after the days and before checking the reservations', async () => {
+      const calls: string[] = [];
+      repo.lockDay.mockImplementation(() => {
+        calls.push('lockDay');
+        return Promise.resolve();
+      });
+      repo.lockBetween.mockImplementation(() => {
+        expect(inRun).toBe(true);
+        calls.push('lockBetween');
+        return Promise.resolve();
+      });
+      repo.findReservedDates.mockImplementation(() => {
+        calls.push('findReservedDates');
+        return Promise.resolve([]);
+      });
+      await service.repeatWeekly(input);
+      expect(repo.lockBetween).toHaveBeenCalledExactlyOnceWith('2026-11-09', '2026-11-22');
+      expect(calls.lastIndexOf('lockDay')).toBeLessThan(calls.indexOf('lockBetween'));
+      expect(calls.indexOf('lockBetween')).toBeLessThan(calls.indexOf('findReservedDates'));
+    });
+
+    it('reads the 7-day source week and checks the whole target range', async () => {
+      await service.repeatWeekly(input);
+      expect(repo.findBetween).toHaveBeenNthCalledWith(1, '2026-11-02', '2026-11-08');
+      expect(repo.findReservedDates).toHaveBeenCalledWith('2026-11-09', '2026-11-22');
+      expect(repo.findBetween).toHaveBeenNthCalledWith(2, '2026-11-09', '2026-11-22');
+    });
+
+    it('does not delete anything when the target weeks are empty', async () => {
+      const result = await service.repeatWeekly(input);
+      expect(repo.deleteSlots).not.toHaveBeenCalled();
+      expect(result.replacedSlotsCount).toBe(0);
+    });
+
+    it('copies a slot without tables without creating tables', async () => {
+      repo.findBetween.mockImplementation((from: string) =>
+        Promise.resolve(from === '2026-11-02' ? [slotRow({ tables: [] })] : []),
+      );
+      const result = await service.repeatWeekly({ ...input, repeatWeeks: 1 });
+      expect(repo.create).toHaveBeenCalledTimes(1);
+      expect(repo.createTables).not.toHaveBeenCalled();
+      expect(result.createdSlots[0]).toMatchObject({ tables: [], totalSeats: 0 });
+    });
+
+    it('returns the copies ordered by date and start time', async () => {
+      const dinnerMonday = slotRow({
+        id: 1,
+        date: '2026-11-02',
+        startTime: '19:00',
+        endTime: '21:00',
+      });
+      const lunchMonday = slotRow({
+        id: 2,
+        date: '2026-11-02',
+        startTime: '12:00',
+        endTime: '14:00',
+      });
+      const lunchFriday = slotRow({
+        id: 3,
+        date: '2026-11-06',
+        startTime: '12:00',
+        endTime: '14:00',
+      });
+      repo.findBetween.mockImplementation((from: string) =>
+        Promise.resolve(from === '2026-11-02' ? [lunchFriday, dinnerMonday, lunchMonday] : []),
+      );
+      const result = await service.repeatWeekly(input);
+      expect(result.createdSlotsCount).toBe(6);
+      expect(result.createdSlots.map((s) => `${s.date} ${s.startTime}`)).toEqual([
+        '2026-11-09 12:00',
+        '2026-11-09 19:00',
+        '2026-11-13 12:00',
+        '2026-11-16 12:00',
+        '2026-11-16 19:00',
+        '2026-11-20 12:00',
+      ]);
+    });
+
+    it('locks the 7 days of a single target week when repeatWeeks is 1', async () => {
+      await service.repeatWeekly({ ...input, repeatWeeks: 1 });
+      expect(repo.lockDay.mock.calls.map(([day]) => day)).toEqual([
+        '2026-11-09',
+        '2026-11-10',
+        '2026-11-11',
+        '2026-11-12',
+        '2026-11-13',
+        '2026-11-14',
+        '2026-11-15',
+      ]);
+    });
+
+    // The weeks start on the weekday of sourceStartDate, not on Monday.
+    it.each([
+      ['2026-11-09', '2026-11-09'],
+      ['2026-11-15', '2026-11-09'],
+      ['2026-11-16', '2026-11-16'],
+      ['2026-11-22', '2026-11-16'],
+    ])('names the week of a reservation on %s as starting %s', async (reserved, weekStart) => {
+      repo.findReservedDates.mockResolvedValue([reserved]);
+      await expect(service.repeatWeekly(input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: `The week starting ${weekStart} has reservations: its schedule cannot be replaced`,
+      });
+    });
+
+    it('checks the source week before the reservations', async () => {
+      repo.findBetween.mockResolvedValue([]);
+      repo.findReservedDates.mockResolvedValue(['2026-11-09']);
+      await expect(service.repeatWeekly(input)).rejects.toMatchObject({ code: 'UNPROCESSABLE' });
+    });
+
+    it('lets a database failure through without going on', async () => {
+      const failure = new Error('database unreachable');
+      repo.create.mockRejectedValue(failure);
+      await expect(service.repeatWeekly(input)).rejects.toBe(failure);
+      expect(repo.createTables).not.toHaveBeenCalled();
+    });
+  });
   describe('listByDate', () => {
     it('returns the slots of the day, each with its total seats', async () => {
       repo.findByDate.mockResolvedValue([

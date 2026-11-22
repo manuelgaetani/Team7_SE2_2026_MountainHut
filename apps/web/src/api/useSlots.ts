@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createSlot, defineSlotTables, fetchFloorPlan, fetchSchedule } from './slots.ts';
+import {
+  createSlot,
+  defineSlotTables,
+  fetchFloorPlan,
+  fetchSchedule,
+  repeatWeeklySchedule,
+} from './slots.ts';
 import type { TablesSource } from './slots.ts';
 
 const SCHEDULE_KEY = ['slots', 'schedule'] as const;
@@ -30,6 +36,15 @@ export function useDefineSlotTables() {
   return useMutation({
     mutationFn: ({ id, source }: { id: number; source: TablesSource }) =>
       defineSlotTables(id, source),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: SCHEDULE_KEY }),
+  });
+}
+
+// the copies land on other days, so every cached day of the schedule is refreshed.
+export function useRepeatWeeklySchedule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: repeatWeeklySchedule,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: SCHEDULE_KEY }),
   });
 }

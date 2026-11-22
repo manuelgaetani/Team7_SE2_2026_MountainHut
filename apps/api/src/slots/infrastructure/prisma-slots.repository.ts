@@ -65,7 +65,7 @@ export class PrismaSlotsRepository extends SlotsRepository {
     return rows.length > 0;
   }
 
-  // An advisory lock works even when the day has no slots yet.
+  // An advisory lock works even when the day has no slots yet. Key: 'slots-day:YYYY-MM-DD'.
   async lockDay(date: string): Promise<void> {
     await this.db()
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${toDbDate(date)}::date::text, 0))`;
@@ -82,6 +82,45 @@ export class PrismaSlotsRepository extends SlotsRepository {
       orderBy: { startTime: 'asc' },
     });
     return row ? toSlot(row) : null;
+  }
+
+  async lockBetween(from: string, to: string): Promise<void> {
+    await this.db().$queryRaw`
+      SELECT id FROM slots
+      WHERE date BETWEEN ${toDbDate(from)}::date AND ${toDbDate(to)}::date
+      ORDER BY id
+      FOR UPDATE`;
+  }
+
+  async findBetween(from: string, to: string): Promise<Slot[]> {
+    const rows = await this.db().slot.findMany({
+      where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },
+      include: withTables,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    });
+    return rows.map(toSlot);
+  }
+
+  async findReservedDates(from: string, to: string): Promise<string[]> {
+    const slots = await this.db().slot.findMany({
+      where: {
+        date: { gte: toDbDate(from), lte: toDbDate(to) },
+        bookings: { some: { status: { in: ['PENDING', 'CONFIRMED'] } } },
+      },
+      select: { date: true },
+      distinct: ['date'],
+      orderBy: { date: 'asc' },
+    });
+    return slots.map((s) => fromDbDate(s.date));
+  }
+
+  async deleteSlots(ids: number[]): Promise<void> {
+    const slotId = { in: ids };
+    const db = this.db();
+    await db.bookingTable.deleteMany({ where: { slotId } });
+    await db.booking.deleteMany({ where: { slotId } });
+    await db.slotTable.deleteMany({ where: { slotId } });
+    await db.slot.deleteMany({ where: { id: slotId } });
   }
 
   async findTables(slotId: number): Promise<SlotTable[]> {

@@ -23,6 +23,9 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
 - Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
 - From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
+- Repeat a weekly schedule (MH-09): `POST /api/slots/repeat-weekly` (staff only) copies the slots and tables of the 7 days starting at `sourceStartDate` into each of the next `repeatWeeks` weeks (1 to 12). A target week that already has slots is replaced completely, unless one of its slots has pending or confirmed bookings: then the answer is `409` and nothing changes (course issue #45). An empty source week answers `422`.
+- Documentation of MH-09 in [docs/stories](docs/stories/MH-09-repeat-a-weekly-schedule.md).
+- Integration and end-to-end tests for repeating a weekly schedule (MH-09).
 - Cancel a booking (MH-08): `POST /api/bookings/:id/cancel` (hiker only, no body) cancels a `PENDING` or `CONFIRMED` booking of the hiker, at any time, and answers the booking with status `CANCELLED`. Its seats are free for other guests at once, and the hiker can book the same slot again. Another hiker's booking answers `404`; a booking already cancelled or rejected answers `409`.
 - New booking status `CANCELLED` (MH-08): migrations `booking_cancelled_status` and `one_booking_per_slot_ignores_cancelled`. A cancelled booking keeps its table assignments as history, but no longer holds seats.
 - Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
