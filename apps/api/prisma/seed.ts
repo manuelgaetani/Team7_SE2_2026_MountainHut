@@ -23,11 +23,15 @@ const SEED_EMPLOYEES = [
 ];
 
 const DAYS = 14;
-// Two contiguous lunch services and one dinner: slots of a day never overlap (MH-02, issue #31).
+// Three contiguous lunch services and three contiguous dinner services: slots of a day never
+// overlap (MH-02, issue #31), they only touch.
 const TIMES = [
   ['12:00', '13:00'],
   ['13:00', '14:00'],
-  ['19:00', '20:30'],
+  ['14:00', '15:00'],
+  ['18:00', '19:00'],
+  ['19:00', '20:00'],
+  ['20:00', '21:00'],
 ] as const;
 // Tavoli di ogni turno: numero e posti (24 posti in totale).
 const TABLES = [
