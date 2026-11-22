@@ -24,7 +24,6 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
 - From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
 
-
 ### Changed
 
 - Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
