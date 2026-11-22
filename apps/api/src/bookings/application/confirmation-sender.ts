@@ -47,4 +47,14 @@ export class ConfirmationSender {
       this.logger.error(`Confirmation of booking ${bookingId} not completed`, err);
     }
   }
+
+  // Tells the hiker about a change. A single attempt: the booking is already changed, and a
+  // failure is recorded in the notifications table. Never rejects.
+  async sendChange(bookingId: number): Promise<void> {
+    try {
+      await this.notifier.notifyChange(bookingId);
+    } catch (err) {
+      this.logger.error(`Change email of booking ${bookingId} not sent`, err);
+    }
+  }
 }

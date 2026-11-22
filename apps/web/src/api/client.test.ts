@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiPost, apiPut } from './client.ts';
+import { ApiError, apiGet, apiPatch, apiPost, apiPut } from './client.ts';
 
 describe('API client', () => {
   afterEach(() => {
@@ -24,6 +24,23 @@ describe('API client', () => {
       '/api/x',
       expect.objectContaining({ method: 'POST', body: undefined }),
     );
+  });
+
+  it('supports PATCH requests with a JSON body', async () => {
+    const fetchMock = answer(new Response('{"id":3}'));
+    await expect(apiPatch('/x/3', { partySize: 4 })).resolves.toEqual({ id: 3 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/x/3',
+      expect.objectContaining({ method: 'PATCH', body: '{"partySize":4}' }),
+    );
+  });
+
+  it('throws ApiError on failed PATCH request', async () => {
+    answer(new Response('{"message":"Booking not found"}', { status: 404 }));
+    await expect(apiPatch('/x/3', {})).rejects.toMatchObject({
+      status: 404,
+      message: 'Booking not found',
+    });
   });
 
   it('supports PUT requests with a JSON body', async () => {

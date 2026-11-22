@@ -9,10 +9,22 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ### Added
 
+- Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` can be any time inside a slot: the slot that includes it is checked (start included, end excluded), and the answer gives its start and end in `slot`. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
+- When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
+- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
+- Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+- Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
+- From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
 - Cancel a booking (MH-08): `POST /api/bookings/:id/cancel` (hiker only, no body) cancels a `PENDING` or `CONFIRMED` booking of the hiker, at any time, and answers the booking with status `CANCELLED`. Its seats are free for other guests at once, and the hiker can book the same slot again. Another hiker's booking answers `404`; a booking already cancelled or rejected answers `409`.
 - New booking status `CANCELLED` (MH-08): migrations `booking_cancelled_status` and `one_booking_per_slot_ignores_cancelled`. A cancelled booking keeps its table assignments as history, but no longer holds seats.
 - Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
 - Integration and end-to-end tests for cancelling a booking (MH-08).
+- "My bookings" page (MH-08): the Cancel button asks to confirm with a recap of the booking, then says that it has been cancelled; the booking moves to the "Cancelled" tab and its seats are free again.
+
+### Changed
+
+- Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
+- The seed creates three slots a day that do not overlap: 12:00–13:00, 13:00–14:00 and 19:00–20:30. A database seeded before keeps its old slots.
 
 ## [release-1] - 2026-11-06
 

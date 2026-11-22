@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import type { MailAttachment } from '../mailer.js';
 import { escapeHtml } from './escape-html.js';
+import type { PartyRequirement } from '@mountain-hut/shared';
 
 export interface BookingConfirmationData {
   fullName: string;
@@ -11,9 +12,12 @@ export interface BookingConfirmationData {
   startTime: string;
   endTime: string;
   partySize: number;
-  // Party needs typed by the hiker (e.g. allergies); null when there are none.
-  requirements: string | null;
+  // Needs of the subsets of the party; empty when there are none.
+  requirements: PartyRequirement[];
 }
+
+// Marks a requirement that needs special care during the preparation.
+const ALLERGIES_LABEL = 'Allergies (special care needed)';
 
 export interface EmailContent {
   subject: string;
@@ -116,15 +120,39 @@ ${rows}
 </html>`;
 }
 
+interface Wording {
+  // What happened to the booking, in the subject: "confirmed", "changed".
+  event: string;
+  intro: string;
+}
+
 export function bookingConfirmationEmail(booking: BookingConfirmationData): EmailContent {
+  return bookingEmail(booking, {
+    event: 'confirmed',
+    intro: 'your table at the hut is booked and confirmed.',
+  });
+}
+
+// Sent after a change of the booking (MH-06), with its new details.
+export function bookingChangeEmail(booking: BookingConfirmationData): EmailContent {
+  return bookingEmail(booking, {
+    event: 'changed',
+    intro: 'your booking at the hut has been changed. These are its new details.',
+  });
+}
+
+function bookingEmail(booking: BookingConfirmationData, wording: Wording): EmailContent {
   const day = dateFormat.format(new Date(`${booking.date}T00:00:00Z`));
   const time = `${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}`;
   const people = booking.partySize === 1 ? '1 person' : `${booking.partySize} people`;
-  const subject = `Booking n. ${booking.bookingId} confirmed - ${day}`;
-  const requirements = booking.requirements?.trim() || null;
+  const subject = `Booking n. ${booking.bookingId} ${wording.event} - ${day}`;
+  // One line per requirement: the ones with allergies are marked for the kitchen.
+  const requirements = booking.requirements
+    .map((r) => (r.allergies ? `${ALLERGIES_LABEL}: ${r.description}` : r.description))
+    .join('\n');
 
   const greeting = `Hi ${booking.fullName},`;
-  const intro = 'your table at the hut is booked and confirmed.';
+  const intro = wording.intro;
   const closing = 'See you at the hut!';
   const signature = 'Mountain Hut';
   const rows: [label: string, value: string][] = [

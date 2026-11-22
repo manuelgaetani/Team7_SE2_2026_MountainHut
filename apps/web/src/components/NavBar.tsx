@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
 
 export function NavBar() {
@@ -13,7 +13,11 @@ export function NavBar() {
     if (user) {
       account = (
         <>
-          <span className="nav-user">{user.email}</span>
+          {user.role === 'HIKER' && (
+            <NavLink to="/bookings" className="nav-cta">
+              My bookings
+            </NavLink>
+          )}
           <button
             type="button"
             className="pill"

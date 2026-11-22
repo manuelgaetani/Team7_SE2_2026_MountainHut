@@ -27,9 +27,13 @@ describe('SlotsService', () => {
     findById: vi.fn(),
     findByDate: vi.fn(),
     lock: vi.fn(),
+    // Used by create (MH-02, no overlapping slots): by default no overlapping slot exists.
+    lockDay: vi.fn(),
+    findOverlapping: vi.fn(),
     findTables: vi.fn(),
     create: vi.fn(),
     createTables: vi.fn(),
+    findFloorAllocations: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -78,6 +82,39 @@ describe('SlotsService', () => {
     });
   });
 
+  describe('listByDate', () => {
+    it('returns the slots of the day with their total seats', async () => {
+      repo.findByDate.mockResolvedValue([slotRow(), slotRow({ id: 2, tables: [] })]);
+      await expect(service.listByDate('2026-11-02')).resolves.toEqual([
+        {
+          id: 1,
+          date: '2026-11-02',
+          startTime: '12:00',
+          endTime: '13:00',
+          tables: [
+            { tableNumber: 1, seats: 4 },
+            { tableNumber: 2, seats: 6 },
+          ],
+          totalSeats: 10,
+        },
+        {
+          id: 2,
+          date: '2026-11-02',
+          startTime: '12:00',
+          endTime: '13:00',
+          tables: [],
+          totalSeats: 0,
+        },
+      ]);
+      expect(repo.findByDate).toHaveBeenCalledWith('2026-11-02');
+    });
+
+    it('returns an empty list when there are no slots on that day', async () => {
+      repo.findByDate.mockResolvedValue([]);
+      await expect(service.listByDate('2026-11-03')).resolves.toEqual([]);
+    });
+  });
+
   describe('create', () => {
     const input = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
     const tables = [{ tableNumber: 1, seats: 4 }];
@@ -118,6 +155,34 @@ describe('SlotsService', () => {
       expect(repo.createTables).toHaveBeenCalledWith(8, source.tables);
     });
 
+    it('locks the day before looking for an overlapping slot, inside the transaction', async () => {
+      const calls: string[] = [];
+      repo.lockDay.mockImplementation(() => {
+        calls.push(`lockDay:${inRun}`);
+        return Promise.resolve();
+      });
+      repo.findOverlapping.mockImplementation(() => {
+        calls.push(`findOverlapping:${inRun}`);
+        return Promise.resolve(null);
+      });
+      repo.create.mockResolvedValue(7);
+      repo.findById.mockResolvedValue(slotRow({ id: 7 }));
+      await service.create(input);
+      expect(repo.lockDay).toHaveBeenCalledWith('2026-11-02');
+      expect(repo.findOverlapping).toHaveBeenCalledWith(input);
+      expect(calls).toEqual(['lockDay:true', 'findOverlapping:true']);
+    });
+
+    it('refuses a slot that overlaps another slot of the same day, writing nothing', async () => {
+      repo.findOverlapping.mockResolvedValue(slotRow({ startTime: '11:30', endTime: '12:30' }));
+      await expect(service.create(input)).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'This slot overlaps the slot 11:30–12:30 of the same day',
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.createTables).not.toHaveBeenCalled();
+    });
+
     it('throws NotFound, creating nothing, when the slot to copy from does not exist', async () => {
       repo.findById.mockResolvedValue(null);
       await expect(service.create({ ...input, copyTablesFromSlotId: 99 })).rejects.toMatchObject({
@@ -150,6 +215,49 @@ describe('SlotsService', () => {
       const failure = new Error('database unreachable');
       repo.create.mockRejectedValue(failure);
       await expect(service.create(input)).rejects.toBe(failure);
+    });
+  });
+
+  describe('floorPlan', () => {
+    const allocation = {
+      bookingId: 9,
+      fullName: 'Anna Rossi',
+      partySize: 3,
+      status: 'CONFIRMED' as const,
+      startTime: '12:00',
+      endTime: '13:00',
+      tableNumber: 1,
+      assignedSeats: 3,
+    };
+
+    it('throws NotFound, reading no seats, when the slot does not exist', async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(service.floorPlan(99)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(repo.findFloorAllocations).not.toHaveBeenCalled();
+    });
+
+    it('builds the plan from the tables of the slot and the seats taken on them', async () => {
+      repo.findById.mockResolvedValue(slotRow({ id: 5 }));
+      repo.findFloorAllocations.mockResolvedValue([allocation]);
+      const plan = await service.floorPlan(5);
+      expect(repo.findFloorAllocations).toHaveBeenCalledWith(5);
+      expect(plan.slot).toEqual({
+        id: 5,
+        date: '2026-11-02',
+        startTime: '12:00',
+        endTime: '13:00',
+      });
+      expect(plan.tables[0]).toMatchObject({ tableNumber: 1, occupiedSeats: 3, freeSeats: 1 });
+      expect(plan.groups).toMatchObject([{ label: 'A', fullName: 'Anna Rossi' }]);
+      expect(plan.totals).toMatchObject({ capacity: 10, occupiedSeats: 3, freeSeats: 7 });
+    });
+
+    it('shows every seat free when nobody has booked', async () => {
+      repo.findById.mockResolvedValue(slotRow());
+      repo.findFloorAllocations.mockResolvedValue([]);
+      const plan = await service.floorPlan(1);
+      expect(plan.groups).toEqual([]);
+      expect(plan.totals.freeSeats).toBe(10);
     });
   });
 

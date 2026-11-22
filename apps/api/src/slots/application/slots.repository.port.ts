@@ -1,4 +1,5 @@
 import type { SlotTable } from '@mountain-hut/shared';
+import type { FloorAllocation } from '../domain/floor-plan.js';
 import type { NewSlot, Slot } from '../domain/slot.js';
 
 // Storage of the slots and their tables. Inside UnitOfWork.run every call joins the transaction.
@@ -13,6 +14,14 @@ export abstract class SlotsRepository {
   // at the same time. False if the slot does not exist.
   abstract lock(id: number): Promise<boolean>;
 
+  // Locks the day until the end of the transaction, so two requests cannot create overlapping
+  // slots on it at the same time. Works even when the day has no slots yet.
+  abstract lockDay(date: string): Promise<void>;
+
+  // A slot of the same day that overlaps the given times, if any. Slots that only touch
+  // (one ends when the other starts) do not overlap.
+  abstract findOverlapping(slot: NewSlot): Promise<Slot | null>;
+
   // Tables of the slot, ordered by number.
   abstract findTables(slotId: number): Promise<SlotTable[]>;
 
@@ -20,4 +29,8 @@ export abstract class SlotsRepository {
   abstract create(slot: NewSlot): Promise<number>;
 
   abstract createTables(slotId: number, tables: SlotTable[]): Promise<void>;
+
+  // Seats taken at the tables of the slot, by the active bookings of every overlapping slot
+  // (tables are shared). Empty if the slot does not exist.
+  abstract findFloorAllocations(slotId: number): Promise<FloorAllocation[]>;
 }
