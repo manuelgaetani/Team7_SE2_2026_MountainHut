@@ -54,8 +54,9 @@ export function HomePage() {
                       <span>{user ? 'Book a table' : 'Register to book a table'}</span>
                       <span aria-hidden="true">→</span>
                     </Link>
-                    <Link to="/availability" className="home-hero__link">
-                      Check availability
+                    <Link to="/availability" className="button-primary button-primary--inline">
+                      <span>Check availability</span>
+                      <span aria-hidden="true">→</span>
                     </Link>
                   </div>
                 )}

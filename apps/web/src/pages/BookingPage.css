@@ -520,3 +520,19 @@
 .dialog__allergy {
   font-weight: 600;
 }
+/* On phones the description takes its own line, with the allergy box and Remove below it */
+@media (max-width: 600px) {
+  .requirements__head {
+    flex-wrap: wrap;
+  }
+  .requirement .requirement__row {
+    flex-wrap: wrap;
+  }
+  .requirement .requirement__input {
+    flex-basis: 100%;
+  }
+  .requirement__remove {
+    min-height: 40px;
+    margin-left: auto;
+  }
+}

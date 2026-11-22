@@ -106,7 +106,7 @@ export function AvailabilityPage() {
 
   return (
     <div className="page">
-      <div className="page__body">
+      <div className="page__body availability-page">
         <h2 className="page__title">Check availability</h2>
         <p className="page__subtitle">
           See if the hut has a table for your party. No account needed.
