@@ -20,6 +20,11 @@ export class Login {
     if (!user || !matches) {
       throw new DomainError('UNAUTHORIZED', 'Invalid credentials');
     }
-    return this.sessions.issue({ id: user.id, email: user.email, role: user.role });
+    return this.sessions.issue({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    });
   }
 }

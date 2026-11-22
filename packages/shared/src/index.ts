@@ -7,4 +7,5 @@ export * from './auth.js';
 export * from './bookings.js';
 export * from './primitives.js';
 export * from './slots.js';
+export * from './hikers.js';
 export * from './floor.js';

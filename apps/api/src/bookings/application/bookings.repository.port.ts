@@ -1,11 +1,19 @@
-import type { BookingStatus, MyBooking, PartyRequirement } from '@mountain-hut/shared';
+import type {
+  BookingStatus,
+  CancelledBooking,
+  MyBooking,
+  PartyRequirement,
+} from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
+// status PENDING until the confirmation email is sent (MH-03). MH-07: CONFIRMED at once when the
+// staff enter it.
 export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
   requirements: PartyRequirement[];
+  status?: BookingStatus;
 }
 
 export interface UpcomingSlot {
@@ -24,8 +32,10 @@ export interface StoredBooking {
   status: BookingStatus;
 }
 
-export interface LockedBooking extends StoredBooking {
+// A locked booking can also be one that is already cancelled (MH-08).
+export interface LockedBooking extends Omit<StoredBooking, 'status'> {
   hikerId: number;
+  status: BookingStatus | 'CANCELLED';
 }
 
 export interface BookingChange {
@@ -74,7 +84,7 @@ export abstract class BookingsRepository {
   // Hiker profile of the user. null if the user does not have one.
   abstract findHikerIdByUserId(userId: number): Promise<number | null>;
 
-  // A rejected booking does not stop the hiker from trying again.
+  // A rejected or cancelled booking does not stop the hiker from trying again.
   abstract hasActiveBooking(hikerId: number, slotId: number): Promise<boolean>;
 
   abstract createBooking(booking: NewBooking): Promise<StoredBooking>;
@@ -88,9 +98,12 @@ export abstract class BookingsRepository {
     allocation: SeatAllocation[],
   ): Promise<void>;
 
-  // Locks the booking row until the run ends, so two changes of the same booking run one after
-  // the other. null if the booking does not exist.
+  // Locks the booking row until the run ends, so two changes or cancellations of the same
+  // booking run one after the other. null if the booking does not exist.
   abstract lockBooking(bookingId: number): Promise<LockedBooking | null>;
+
+  // Marks the booking as cancelled: its seats are free again for the other bookings.
+  abstract cancelBooking(bookingId: number): Promise<CancelledBooking>;
 
   abstract deleteBookingTables(bookingId: number): Promise<void>;
 

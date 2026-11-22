@@ -8,7 +8,7 @@ const config = (env: Record<string, string | undefined> = {}) =>
 
 const NOW = new Date('2026-10-28T12:00:00Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
-const user = { id: 1, email: 'a@b.it', role: 'HIKER' as const };
+const user = { id: 1, email: 'a@b.it', role: 'HIKER' as const, mustChangePassword: false };
 
 describe('SessionIssuer', () => {
   const tokens = { create: vi.fn() };

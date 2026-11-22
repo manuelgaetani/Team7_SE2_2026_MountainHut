@@ -150,6 +150,57 @@ describe('NotificationService', () => {
     });
   });
 
+  // MH-07: the email with the link to set a new password.
+  describe('sendPasswordReset', () => {
+    const reset = {
+      link: 'http://localhost:3000/reset-password?token=abc',
+      expiresAt: new Date('2026-11-19T10:00:00.000Z'),
+    };
+
+    it('sends the email with the link to the user', async () => {
+      mailer.send.mockResolvedValue(undefined);
+
+      await service.sendPasswordReset(recipient, reset);
+
+      expect(mailer.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'anna@example.com',
+          subject: 'Reset your Mountain Hut password',
+          text: expect.stringContaining(reset.link),
+        }),
+      );
+    });
+
+    it('records the email as a PASSWORD_RESET without booking and without the link', async () => {
+      mailer.send.mockResolvedValue(undefined);
+
+      const status = await service.sendPasswordReset(recipient, reset);
+
+      expect(status).toBe('SENT');
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'PASSWORD_RESET',
+          recipient: 'anna@example.com',
+          status: 'SENT',
+          userId: 7,
+          bookingId: null,
+        }),
+      });
+      expect(JSON.stringify(prisma.notification.create.mock.calls)).not.toContain('token=abc');
+    });
+
+    it('does not throw when the SMTP server fails, and records the failure', async () => {
+      mailer.send.mockRejectedValue(new Error('SMTP down'));
+
+      const status = await service.sendPasswordReset(recipient, reset);
+
+      expect(status).toBe('FAILED');
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'PASSWORD_RESET', status: 'FAILED' }),
+      });
+    });
+  });
+
   // MH-06: the hiker is told by email that the booking has been changed.
   describe('sendBookingChange', () => {
     it('sends the change email to the hiker', async () => {

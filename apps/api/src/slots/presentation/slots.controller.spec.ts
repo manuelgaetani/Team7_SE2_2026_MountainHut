@@ -107,6 +107,52 @@ describe('SlotsController', () => {
     expect(slots.defineTables).not.toHaveBeenCalled();
   });
 
+  it.each(['EMPLOYEE', 'WARDEN'] as const)('lets a %s read one slot', async (staffRole) => {
+    role = staffRole;
+    slots.findOne.mockResolvedValue({ id: 7, tables: [], totalSeats: 0 });
+    const res = await request(app.getHttpServer()).get('/slots/7').expect(200);
+    expect(res.body).toEqual({ id: 7, tables: [], totalSeats: 0 });
+    expect(slots.findOne).toHaveBeenCalledWith(7);
+  });
+
+  it('answers 400 without calling the service when the slot id is not a number', async () => {
+    await request(app.getHttpServer()).get('/slots/abc').expect(400);
+    await request(app.getHttpServer())
+      .put('/slots/abc/tables')
+      .send({ tables: [{ tableNumber: 1, seats: 4 }] })
+      .expect(400);
+    expect(slots.findOne).not.toHaveBeenCalled();
+    expect(slots.defineTables).not.toHaveBeenCalled();
+  });
+
+  it.each(['EMPLOYEE', 'WARDEN'] as const)(
+    'lets a %s define the tables of a slot',
+    async (staffRole) => {
+      role = staffRole;
+      const tables = { tables: [{ tableNumber: 1, seats: 4 }] };
+      slots.defineTables.mockResolvedValue({ id: 7, ...tables, totalSeats: 4 });
+      const res = await request(app.getHttpServer())
+        .put('/slots/7/tables')
+        .send(tables)
+        .expect(200);
+      expect(res.body).toEqual({ id: 7, ...tables, totalSeats: 4 });
+      expect(slots.defineTables).toHaveBeenCalledWith(7, tables);
+    },
+  );
+
+  it('answers 400 without calling the service when the tables body is invalid', async () => {
+    await request(app.getHttpServer())
+      .put('/slots/7/tables')
+      .send({ tables: [{ tableNumber: 1, seats: 0 }] })
+      .expect(400);
+    expect(slots.defineTables).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 without calling the service when the schedule date is missing', async () => {
+    await request(app.getHttpServer()).get('/slots/schedule').expect(400);
+    expect(slots.listByDate).not.toHaveBeenCalled();
+  });
+
   describe('GET /slots/:id/floor', () => {
     it.each(['EMPLOYEE', 'WARDEN'] as const)(
       'lets a %s see the plan of a slot',

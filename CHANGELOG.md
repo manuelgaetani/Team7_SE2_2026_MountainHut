@@ -11,6 +11,14 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 - Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` can be any time inside a slot: the slot that includes it is checked (start included, end excluded), and the answer gives its start and end in `slot`. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
+- Reservation entered by the staff (MH-07): `POST /api/staff/bookings` (employees and warden) books for a hiker already in the system, for a new temporary hiker (name and optional phone, who cannot log in) or for a new hiker with an account, whose password is generated and returned only once. The reservation is `CONFIRMED` at once and can be entered until the slot starts: the 2 hours of the online bookings do not apply. A hiker with an email receives the confirmation.
+- Hiker search for the staff (MH-07): `GET /api/hikers?search=` finds hikers by name, phone or email (at least 2 characters, at most 20 results).
+- Change password (MH-07): `POST /api/auth/change-password`. An account created by the staff must change its password at the first login: the session user has the new field `mustChangePassword`.
+- Password recovery by email (MH-07): `POST /api/auth/password-reset/request` sends a link valid for 24 hours and only once, `POST /api/auth/password-reset/confirm` sets the new password and closes every session.
+- New environment variable: `WEB_URL` (default `http://localhost:3000`), the address of the web app in the links of the emails.
+- Database (MH-07): hikers without an account may have no phone, new column `users.must_change_password`, new table `password_reset_tokens` and notification type `PASSWORD_RESET` (migrations `reserve_for_hiker` and `password_reset_notification`).
+- Web app (MH-07): the staff page _New booking_ (`/staff/bookings/new`) with hiker search, quick entry and full profile, and the generated password shown once; the forced change of the password after the first login (`/change-password`); the pages to ask for a reset link (`/forgot-password`) and to set a new password (`/reset-password?token=`).
+- Documentation of MH-07 in [docs/stories](docs/stories/MH-07-reserve-for-a-hiker.md).
 - Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
 - Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
 - Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
@@ -18,6 +26,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Repeat a weekly schedule (MH-09): `POST /api/slots/repeat-weekly` (staff only) copies the slots and tables of the 7 days starting at `sourceStartDate` into each of the next `repeatWeeks` weeks (1 to 12). A target week that already has slots is replaced completely, unless one of its slots has pending or confirmed bookings: then the answer is `409` and nothing changes (course issue #45). An empty source week answers `422`.
 - Documentation of MH-09 in [docs/stories](docs/stories/MH-09-repeat-a-weekly-schedule.md).
 - Integration and end-to-end tests for repeating a weekly schedule (MH-09).
+- Cancel a booking (MH-08): `POST /api/bookings/:id/cancel` (hiker only, no body) cancels a `PENDING` or `CONFIRMED` booking of the hiker, at any time, and answers the booking with status `CANCELLED`. Its seats are free for other guests at once, and the hiker can book the same slot again. Another hiker's booking answers `404`; a booking already cancelled or rejected answers `409`.
+- New booking status `CANCELLED` (MH-08): migrations `booking_cancelled_status` and `one_booking_per_slot_ignores_cancelled`. A cancelled booking keeps its table assignments as history, but no longer holds seats.
+- Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
+- Integration and end-to-end tests for cancelling a booking (MH-08).
+- "My bookings" page (MH-08): the Cancel button asks to confirm with a recap of the booking, then says that it has been cancelled; the booking moves to the "Cancelled" tab and its seats are free again.
 
 ### Changed
 

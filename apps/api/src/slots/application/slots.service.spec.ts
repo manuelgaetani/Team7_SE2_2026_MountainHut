@@ -142,6 +142,14 @@ describe('SlotsService', () => {
       expect(writesInRun).toEqual([true, true]);
     });
 
+    it('creates a slot without tables when neither tables nor a copy source is given', async () => {
+      repo.create.mockResolvedValue(7);
+      repo.findById.mockResolvedValue(slotRow({ id: 7, tables: [] }));
+      await expect(service.create(input)).resolves.toMatchObject({ id: 7, totalSeats: 0 });
+      expect(repo.create).toHaveBeenCalledWith(input);
+      expect(repo.createTables).not.toHaveBeenCalled();
+    });
+
     it('copies the tables of another slot', async () => {
       const source = slotRow({ id: 3 });
       repo.create.mockResolvedValue(8);
@@ -260,6 +268,14 @@ describe('SlotsService', () => {
 
   describe('defineTables', () => {
     const tables = [{ tableNumber: 1, seats: 4 }];
+
+    it('writes no table when the input gives neither tables nor a copy source', async () => {
+      repo.lock.mockResolvedValue(true);
+      repo.findTables.mockResolvedValue([]);
+      repo.findById.mockResolvedValue(slotRow({ id: 5, tables: [] }));
+      await expect(service.defineTables(5, {} as never)).resolves.toMatchObject({ id: 5 });
+      expect(repo.createTables).not.toHaveBeenCalled();
+    });
 
     it('throws NotFound when the slot does not exist', async () => {
       repo.lock.mockResolvedValue(false);
@@ -497,6 +513,24 @@ describe('SlotsService', () => {
       repo.create.mockRejectedValue(failure);
       await expect(service.repeatWeekly(input)).rejects.toBe(failure);
       expect(repo.createTables).not.toHaveBeenCalled();
+    });
+  });
+  describe('listByDate', () => {
+    it('returns the slots of the day, each with its total seats', async () => {
+      repo.findByDate.mockResolvedValue([
+        slotRow(),
+        slotRow({ id: 2, startTime: '19:00', endTime: '20:00', tables: [] }),
+      ]);
+      await expect(service.listByDate('2026-11-02')).resolves.toEqual([
+        expect.objectContaining({ id: 1, totalSeats: 10 }),
+        expect.objectContaining({ id: 2, tables: [], totalSeats: 0 }),
+      ]);
+      expect(repo.findByDate).toHaveBeenCalledWith('2026-11-02');
+    });
+
+    it('returns an empty list when the day has no slots', async () => {
+      repo.findByDate.mockResolvedValue([]);
+      await expect(service.listByDate('2026-11-03')).resolves.toEqual([]);
     });
   });
 });
