@@ -25,10 +25,16 @@ export function HomePage() {
                   Define the time slots and the tables of each day, so the hut never takes more
                   guests than it can serve.
                 </p>
-                <Link to="/staff/slots" className="button-primary button-primary--inline">
-                  <span>Manage time slots</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
+                <div className="home-hero__actions">
+                  <Link to="/staff/slots" className="button-primary button-primary--inline">
+                    <span>Manage time slots</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
+                    <span>Reserve for a hiker</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
               </>
             ) : (
               <>

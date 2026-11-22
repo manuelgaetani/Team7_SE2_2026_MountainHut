@@ -11,6 +11,11 @@ export class GetCurrentUser {
   async execute(userId: number): Promise<AuthUser> {
     const user = await this.users.findById(userId);
     if (!user) throw new DomainError('UNAUTHORIZED', 'Not authenticated');
-    return { id: user.id, email: user.email, role: user.role };
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    };
   }
 }

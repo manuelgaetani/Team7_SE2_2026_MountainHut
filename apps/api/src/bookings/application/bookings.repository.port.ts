@@ -1,11 +1,14 @@
 import type { BookingStatus, MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
+// status PENDING until the confirmation email is sent (MH-03). MH-07: CONFIRMED at once when the
+// staff enter it.
 export interface NewBooking {
   hikerId: number;
   slotId: number;
   partySize: number;
   requirements: PartyRequirement[];
+  status?: BookingStatus;
 }
 
 export interface UpcomingSlot {

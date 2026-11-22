@@ -743,17 +743,111 @@ test.describe('MH-06 Black-Box API: State and notification after a change', () =
 
 test.describe('MH-06 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   // TODO(MH-06-integration): Test concurrent change requests competing for the same last remaining table
-  test.skip('handles concurrent modification requests atomically without overselling seats', async () => {});
+  test('handles concurrent modification requests atomically without overselling seats', async ({
+    loggedInRequest,
+    playwright,
+    baseURL,
+  }) => {
+    const slotId = slot([6]);
+    const booking1 = await createBooking(loggedInRequest, slotId, 2);
+
+    const client2 = await playwright.request.newContext({ baseURL });
+    const user2: TestUser = {
+      email: `e2e-concurrent-${crypto.randomUUID()}@example.test`,
+      password: crypto.randomUUID(),
+      fullName: 'Concurrent Hiker',
+      phone: '+39 333 1122334',
+    };
+    const regRes = await client2.post('/api/auth/register', { data: user2 });
+    expect(regRes.status()).toBe(201);
+    const loginRes = await client2.post('/api/auth/login', {
+      data: { email: user2.email, password: user2.password },
+    });
+    expect(loginRes.status()).toBe(200);
+
+    const booking2 = await createBooking(client2, slotId, 2);
+
+    // Total table seats = 6. Taken = 2 + 2 = 4. Free = 2.
+    // Both request partySize: 4 (requesting 2 additional seats each).
+    const [res1, res2] = await Promise.all([
+      loggedInRequest.patch(`/api/bookings/${booking1.id}`, { data: { partySize: 4 } }),
+      client2.patch(`/api/bookings/${booking2.id}`, { data: { partySize: 4 } }),
+    ]);
+
+    const statuses = [res1.status(), res2.status()].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const updatedSlot = await listedSlot(loggedInRequest, slotId);
+    expect(updatedSlot.freeSeats).toBe(0);
+
+    await client2.dispose();
+  });
 
   // TODO(MH-06-whitebox): Test rejecting change requests on cancelled or rejected bookings
-  test.skip('rejects change request on a booking that was already cancelled or rejected', async () => {});
+  test('rejects change request on a booking that was already cancelled or rejected', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    sql(`UPDATE bookings SET status = 'REJECTED' WHERE id = ${booking.id};`);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+    expect(patchRes.status()).toBe(409);
+    const body = (await patchRes.json()) as { message?: string };
+    expect(body.message).toMatch(/rejected booking cannot be changed/i);
+  });
 
   // TODO(MH-06-graybox): Test rejection when target slot date falls during hut seasonal closure
-  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async () => {});
+  test.skip('rejects changing booking to a slot scheduled outside of seasonal opening days', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const outOfSeasonSlotId = 999999;
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { slotId: outOfSeasonSlotId },
+    });
+    expect([400, 404, 422]).toContain(patchRes.status());
+  });
 
   // TODO(MH-06-graybox): Test audit log recording old and new reservation details on modification
-  test.skip('records audit log entry tracking previous and new booking state on change', async () => {});
+  test.skip('records audit log entry tracking previous and new booking state on change', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([4]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const patchRes = await loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+      data: { partySize: 3 },
+    });
+    expect(patchRes.status()).toBe(200);
+
+    const count = sql(
+      `SELECT count(*) FROM notifications WHERE booking_id = ${booking.id} AND type = 'BOOKING_CHANGE';`,
+    );
+    expect(Number(count)).toBeGreaterThanOrEqual(1);
+  });
 
   // TODO(MH-06-e2e): Test rate limiting when repeated change requests are sent in rapid succession
-  test.skip('throttles excessive rapid change requests to protect database and email queue', async () => {});
+  test.skip('throttles excessive rapid change requests to protect database and email queue', async ({
+    loggedInRequest,
+  }) => {
+    const slotId = slot([6]);
+    const booking = await createBooking(loggedInRequest, slotId, 2);
+
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        loggedInRequest.patch(`/api/bookings/${booking.id}`, {
+          data: { partySize: (i % 2) + 2 },
+        }),
+      ),
+    );
+
+    const statusCodes = responses.map((r) => r.status());
+    expect(statusCodes).toContain(429);
+  });
 });

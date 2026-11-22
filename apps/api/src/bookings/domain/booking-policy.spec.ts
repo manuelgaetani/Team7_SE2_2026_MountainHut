@@ -3,6 +3,7 @@ import {
   MIN_LEAD_MS,
   checkAvailability,
   decideBooking,
+  decideStaffBooking,
   formatBreakdown,
   isBookableInTime,
   slotAvailability,
@@ -253,5 +254,64 @@ describe('formatBreakdown', () => {
 
   it('keeps the order of the seats it is given', () => {
     expect(formatBreakdown([1, 3, 2])).toBe('1 + 3 + 2 seats');
+  });
+});
+
+// MH-07: the staff enter a reservation up to the start of the slot, with the MH-01 seating.
+describe('decideStaffBooking (black-box)', () => {
+  const tables = [
+    { tableNumber: 1, freeSeats: 4 },
+    { tableNumber: 2, freeSeats: 2 },
+  ];
+  const decide = (startsAt: Date, partySize = 2) =>
+    decideStaffBooking({ startsAt, now, partySize, tables });
+
+  it('accepts a slot that starts one millisecond from now', () => {
+    expect(decide(after(1))).toEqual({
+      ok: true,
+      allocation: [{ tableNumber: 2, assignedSeats: 2 }],
+    });
+  });
+
+  it('accepts a slot that starts in less than two hours, unlike an online booking', () => {
+    const startsAt = after(MIN_LEAD_MS - 1);
+    expect(decideBooking({ startsAt, now, partySize: 2, tables })).toEqual({
+      ok: false,
+      reason: 'TOO_LATE',
+    });
+    expect(decide(startsAt).ok).toBe(true);
+  });
+
+  it('refuses a slot that starts exactly now', () => {
+    expect(decide(after(0))).toEqual({ ok: false, reason: 'SLOT_STARTED' });
+  });
+
+  it('refuses a slot that has already started', () => {
+    expect(decide(after(-60_000))).toEqual({ ok: false, reason: 'SLOT_STARTED' });
+  });
+
+  it('accepts a party of exactly the free seats, over more tables', () => {
+    expect(decide(after(1), 6)).toEqual({
+      ok: true,
+      allocation: [
+        { tableNumber: 1, assignedSeats: 4 },
+        { tableNumber: 2, assignedSeats: 2 },
+      ],
+    });
+  });
+
+  it('refuses a party one over the free seats', () => {
+    expect(decide(after(1), 7)).toEqual({ ok: false, reason: 'NOT_ENOUGH_SEATS' });
+  });
+
+  it('refuses any party when the slot has no tables', () => {
+    expect(decideStaffBooking({ startsAt: after(1), now, partySize: 1, tables: [] })).toEqual({
+      ok: false,
+      reason: 'NOT_ENOUGH_SEATS',
+    });
+  });
+
+  it('reports the started slot before the missing seats', () => {
+    expect(decide(after(0), 99)).toEqual({ ok: false, reason: 'SLOT_STARTED' });
   });
 });

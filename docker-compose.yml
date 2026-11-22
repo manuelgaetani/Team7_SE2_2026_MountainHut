@@ -15,6 +15,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Mountain Hut <no-reply@mountain-hut.test>}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy
