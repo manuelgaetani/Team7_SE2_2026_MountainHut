@@ -112,6 +112,45 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     expect(within(dialog).getByText(TEXT.target2)).toBeInTheDocument();
   });
 
+  // The 7 days of the first target week (default of 1 week): 11 to 17 Nov 2026.
+  const firstTargetWeek = Array.from(
+    { length: 7 },
+    (_, i) => `/api/slots/schedule?date=2026-11-${String(11 + i)}`,
+  );
+
+  it('says how many slots already in the target weeks will be replaced', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    days[firstTargetWeek[0]!] = () => json([lunch, lunch]);
+    days[firstTargetWeek[3]!] = () => json([lunch]);
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByText('3 slots already in the target weeks will be replaced.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says when the target weeks have no slots to replace', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByText('The target weeks have no slots: nothing will be replaced.'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps only the general warning when the target weeks cannot be loaded', async () => {
+    stub();
+    const dialog = await openDialog();
+
+    await vi.waitFor(() =>
+      expect(dialog).not.toHaveTextContent('Checking the slots already in the target weeks'),
+    );
+    expect(dialog).toHaveTextContent(TEXT.replaced);
+    expect(dialog).not.toHaveTextContent('will be replaced.');
+  });
+
   it.each([
     ['0', TEXT.atLeastOne],
     ['-1', TEXT.atLeastOne],
