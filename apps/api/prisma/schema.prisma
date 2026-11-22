@@ -168,6 +168,7 @@ model PartyRequirement {
 
 enum NotificationType {
   BOOKING_CONFIRMATION
+  BOOKING_CHANGE
 
   PASSWORD_RESET
 

@@ -17,16 +17,33 @@ describe('NavBar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows the user of the session', async () => {
+  it('shows sign out, not the email, to the user of the session', async () => {
     stubApi({ '/api/auth/me': () => json(user) });
     renderAt('/');
-    expect(await screen.findByText(user.email)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.queryByText(user.email)).not.toBeInTheDocument();
+  });
+
+  it('links a hiker to their bookings', async () => {
+    stubApi({ '/api/auth/me': () => json(user) });
+    renderAt('/');
+    expect(await screen.findByRole('link', { name: 'My bookings' })).toHaveAttribute(
+      'href',
+      '/bookings',
+    );
+  });
+
+  it('does not link the staff to the bookings of a hiker', async () => {
+    stubApi({ '/api/auth/me': () => json({ ...user, role: 'EMPLOYEE' }) });
+    renderAt('/');
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'My bookings' })).not.toBeInTheDocument();
   });
 
   it('renews an expired session', async () => {
     stubApi({ '/api/auth/refresh': () => json(user) });
     renderAt('/');
-    expect(await screen.findByText(user.email)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
   it.each([
@@ -46,6 +63,6 @@ describe('NavBar', () => {
     renderAt('/');
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
-    expect(screen.queryByText(user.email)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import { BookingsService } from './application/bookings.service.js';
 import { ConfirmationSender, Sleeper, TimerSleeper } from './application/confirmation-sender.js';
 import { CreateStaffBooking } from './application/create-staff-booking.js';
 import { ListBookableSlots } from './application/list-bookable-slots.js';
+import { ListMyBookings } from './application/list-my-bookings.js';
 import { AvailabilityController } from './presentation/availability.controller.js';
 import { BookingsController } from './presentation/bookings.controller.js';
 import { StaffBookingsController } from './presentation/staff-bookings.controller.js';
@@ -19,6 +20,7 @@ import { PrismaBookingsRepository } from './infrastructure/prisma-bookings.repos
   providers: [
     BookingsService,
     ListBookableSlots,
+    ListMyBookings,
     AvailabilityService,
     CreateStaffBooking,
     ConfirmationSender,

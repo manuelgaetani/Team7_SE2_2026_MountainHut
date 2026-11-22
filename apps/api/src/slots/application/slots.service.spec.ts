@@ -82,6 +82,39 @@ describe('SlotsService', () => {
     });
   });
 
+  describe('listByDate', () => {
+    it('returns the slots of the day with their total seats', async () => {
+      repo.findByDate.mockResolvedValue([slotRow(), slotRow({ id: 2, tables: [] })]);
+      await expect(service.listByDate('2026-11-02')).resolves.toEqual([
+        {
+          id: 1,
+          date: '2026-11-02',
+          startTime: '12:00',
+          endTime: '13:00',
+          tables: [
+            { tableNumber: 1, seats: 4 },
+            { tableNumber: 2, seats: 6 },
+          ],
+          totalSeats: 10,
+        },
+        {
+          id: 2,
+          date: '2026-11-02',
+          startTime: '12:00',
+          endTime: '13:00',
+          tables: [],
+          totalSeats: 0,
+        },
+      ]);
+      expect(repo.findByDate).toHaveBeenCalledWith('2026-11-02');
+    });
+
+    it('returns an empty list when there are no slots on that day', async () => {
+      repo.findByDate.mockResolvedValue([]);
+      await expect(service.listByDate('2026-11-03')).resolves.toEqual([]);
+    });
+  });
+
   describe('create', () => {
     const input = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
     const tables = [{ tableNumber: 1, seats: 4 }];

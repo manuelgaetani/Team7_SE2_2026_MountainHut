@@ -19,6 +19,11 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Database (MH-07): hikers without an account may have no phone, new column `users.must_change_password`, new table `password_reset_tokens` and notification type `PASSWORD_RESET` (migrations `reserve_for_hiker` and `password_reset_notification`).
 - Web app (MH-07): the staff page _New booking_ (`/staff/bookings/new`) with hiker search, quick entry and full profile, and the generated password shown once; the forced change of the password after the first login (`/change-password`); the pages to ask for a reset link (`/forgot-password`) and to set a new password (`/reset-password?token=`).
 - Documentation of MH-07 in [docs/stories](docs/stories/MH-07-reserve-for-a-hiker.md).
+- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
+- Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
+- Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
+- From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
+
 
 ### Changed
 

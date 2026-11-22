@@ -1,4 +1,4 @@
-import type { BookingStatus, PartyRequirement } from '@mountain-hut/shared';
+import type { BookingStatus, MyBooking, PartyRequirement } from '@mountain-hut/shared';
 import type { SeatAllocation, TableFreeSeats } from '../domain/seat-allocation.js';
 
 // status PENDING until the confirmation email is sent (MH-03). MH-07: CONFIRMED at once when the
@@ -27,6 +27,15 @@ export interface StoredBooking {
   status: BookingStatus;
 }
 
+export interface LockedBooking extends StoredBooking {
+  hikerId: number;
+}
+
+export interface BookingChange {
+  slotId: number;
+  partySize: number;
+}
+
 // Storage of the bookings. Inside UnitOfWork.run every call joins the transaction: the slot
 // lock in particular lasts until the run ends.
 export abstract class BookingsRepository {
@@ -45,6 +54,13 @@ export abstract class BookingsRepository {
     now: Date,
   ): Promise<{ id: number; startsAt: Date; startTime: string; endTime: string } | null>;
 
+  // Bookings of a hiker whose slot has not started yet, the soonest first.
+  abstract findUpcomingBookingsOfHiker(
+    hikerId: number,
+    timeZone: string,
+    now: Date,
+  ): Promise<MyBooking[]>;
+
   // Locks the slot and the overlapping slots that share a table with it, so the other bookings
   // on those tables wait until the run ends, and returns when the slot starts.
   // null if the slot does not exist.
@@ -52,7 +68,11 @@ export abstract class BookingsRepository {
 
   // Free seats of each table of the slot: its seats minus those of the active bookings of the
   // overlapping slots.
-  abstract findFreeSeatsByTable(slotId: number): Promise<TableFreeSeats[]>;
+  // excludeBookingId: a booking being changed, whose own seats count as free.
+  abstract findFreeSeatsByTable(
+    slotId: number,
+    excludeBookingId?: number,
+  ): Promise<TableFreeSeats[]>;
 
   // Hiker profile of the user. null if the user does not have one.
   abstract findHikerIdByUserId(userId: number): Promise<number | null>;
@@ -70,4 +90,18 @@ export abstract class BookingsRepository {
     slotId: number,
     allocation: SeatAllocation[],
   ): Promise<void>;
+
+  // Locks the booking row until the run ends, so two changes of the same booking run one after
+  // the other. null if the booking does not exist.
+  abstract lockBooking(bookingId: number): Promise<LockedBooking | null>;
+
+  abstract deleteBookingTables(bookingId: number): Promise<void>;
+
+  abstract updateBooking(bookingId: number, change: BookingChange): Promise<StoredBooking>;
+
+  // Party requirements of the booking, in the order the hiker entered them.
+  abstract findRequirements(bookingId: number): Promise<PartyRequirement[]>;
+
+  // Replaces the party requirements of the booking with the given list, kept in its order.
+  abstract replaceRequirements(bookingId: number, requirements: PartyRequirement[]): Promise<void>;
 }

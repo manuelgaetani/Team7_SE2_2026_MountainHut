@@ -70,8 +70,8 @@ function stubApi({
   return fetchMock;
 }
 
-function renderPage() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/book'] });
+function renderPage(path = '/book') {
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
@@ -115,6 +115,17 @@ describe('BookingPage', () => {
     expect(screen.getByRole('link', { name: TEXT.signInLink })).toBeInTheDocument();
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
   });
+
+  it.each(['EMPLOYEE', 'WARDEN'] as const)(
+    'tells a %s that staff accounts cannot book a table',
+    async (role) => {
+      const fetchMock = stubApi({ me: () => json({ ...user, role }) });
+      renderPage();
+      expect(await screen.findByText('Staff accounts cannot book a table.')).toBeVisible();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/slots', expect.anything());
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    },
+  );
 
   it('says so when there are no slots', async () => {
     stubApi({ slots: () => json([]) });
@@ -384,5 +395,33 @@ describe('BookingPage', () => {
     submit();
     await screen.findByRole('dialog');
     expect(fetchMock).toHaveBeenCalledWith('/api/bookings', expect.anything());
+  });
+
+  it('prefills date, slot, and guests from the availability link query params', async () => {
+    const fetchMock = stubApi({});
+    renderPage('/book?date=2030-01-15&time=19:00&partySize=3');
+
+    const slotRadio = await screen.findByRole('radio', { name: '19:00' });
+    expect(slotRadio).toBeChecked();
+    expect(screen.getByText(TEXT.summary)).toBeInTheDocument();
+
+    submit();
+    await screen.findByRole('dialog');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/bookings',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ slotId: 1, partySize: 3 }),
+      }),
+    );
+  });
+
+  it('leaves the slot unselected when the query draft time does not match any slot', async () => {
+    stubApi({});
+    renderPage('/book?date=2030-01-15&time=22:00&partySize=3');
+
+    const slotRadio = await screen.findByRole('radio', { name: '19:00' });
+    expect(slotRadio).not.toBeChecked();
+    expect(screen.getByRole('button', { name: TEXT.submit })).toBeDisabled();
   });
 });

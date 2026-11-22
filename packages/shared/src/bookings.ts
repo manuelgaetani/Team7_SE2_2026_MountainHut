@@ -26,6 +26,20 @@ export const createBookingSchema = z.object({
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
+// What a hiker can change in a booking: the slot (date and time), the party size and the
+// requirements, in any combination. The requirements are the whole new list (MH-05): it replaces
+// the old one, and `[]` removes them all.
+export const changeBookingSchema = z
+  .object({
+    slotId: z.number().int().positive().max(MAX_DB_INT).optional(),
+    partySize: z.number().int().positive().max(MAX_DB_INT).optional(),
+    requirements: z.array(partyRequirementSchema).max(MAX_REQUIREMENTS_COUNT).optional(),
+  })
+  .refine((c) => Object.values(c).some((v) => v !== undefined), {
+    message: 'At least one field (slotId, partySize, requirements) must be provided',
+  });
+export type ChangeBookingInput = z.infer<typeof changeBookingSchema>;
+
 export type SlotAvailability = 'AVAILABLE' | 'FULL' | 'TOO_LATE';
 
 export interface SlotSummary {
@@ -47,6 +61,23 @@ export interface BookingResult {
   requirements: PartyRequirement[];
   status: BookingStatus;
   tables: { tableNumber: number; assignedSeats: number }[];
+}
+
+// CANCELLED is stored only once MH-08 (cancel a booking) is merged.
+export type MyBookingStatus = BookingResult['status'] | 'CANCELLED';
+
+// A booking of the logged hiker, as listed in GET /api/bookings/me.
+export interface MyBooking {
+  id: number;
+  slotId: number;
+  // Local time of the hut.
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  partySize: number;
+  // One entry per subset of the party (MH-05); empty when there are no needs.
+  requirements: PartyRequirement[];
+  status: MyBookingStatus;
 }
 
 // MH-04: public check of the tables available for a date, a time and a party size.
