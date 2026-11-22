@@ -2,7 +2,7 @@
 
 |                |                                                                                                      |
 | -------------- | ---------------------------------------------------------------------------------------------------- |
-| **Status**     | API complete; web page pending (MOU-125)                                                             |
+| **Status**     | Complete: API and web page                                                                           |
 | **Depends on** | MH-58 (authentication), MH-01 (book a table, seat allocation), MH-03 (confirmation email and status) |
 
 ## User story
@@ -25,16 +25,16 @@ Team assumptions:
 
 ## Requirements
 
-| #   | Requirement                                                                        | Status  | Implemented in                                                                    |
-| --- | ---------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
-| R1  | Only a logged-in hiker with a hiker profile cancels                                | Done    | `BookingsController.cancel` (`@Roles('HIKER')`), `BookingsService.cancel`         |
-| R2  | A hiker cancels only their own bookings                                            | Done    | `BookingsService.cancel` (owner check, `404`)                                     |
-| R3  | Cancellation is allowed at any time, also after the slot has started               | Done    | `decideCancellation` (no time check)                                              |
-| R4  | Only a `PENDING` or `CONFIRMED` booking can be cancelled                           | Done    | `decideCancellation` (`409` for `CANCELLED` and `REJECTED`)                       |
-| R5  | The seats of the cancelled booking are free for other guests as soon as it commits | Done    | Seat queries count only `CONFIRMED` and `PENDING` bookings (`bookedSeatsOnTable`) |
-| R6  | The hiker can book the same slot again after cancelling                            | Done    | `hasActiveBooking`, index `bookings_hiker_id_slot_id_active_key`                  |
-| R7  | Two cancellations of the same booking at the same time: only one succeeds          | Done    | `PrismaBookingsRepository.lockBooking` (`FOR UPDATE`) inside one unit of work     |
-| R8  | Web app: the hiker sees their bookings and cancels one                             | Pending | MOU-125                                                                           |
+| #   | Requirement                                                                        | Status | Implemented in                                                                    |
+| --- | ---------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------- |
+| R1  | Only a logged-in hiker with a hiker profile cancels                                | Done   | `BookingsController.cancel` (`@Roles('HIKER')`), `BookingsService.cancel`         |
+| R2  | A hiker cancels only their own bookings                                            | Done   | `BookingsService.cancel` (owner check, `404`)                                     |
+| R3  | Cancellation is allowed at any time, also after the slot has started               | Done   | `decideCancellation` (no time check)                                              |
+| R4  | Only a `PENDING` or `CONFIRMED` booking can be cancelled                           | Done   | `decideCancellation` (`409` for `CANCELLED` and `REJECTED`)                       |
+| R5  | The seats of the cancelled booking are free for other guests as soon as it commits | Done   | Seat queries count only `CONFIRMED` and `PENDING` bookings (`bookedSeatsOnTable`) |
+| R6  | The hiker can book the same slot again after cancelling                            | Done   | `hasActiveBooking`, index `bookings_hiker_id_slot_id_active_key`                  |
+| R7  | Two cancellations of the same booking at the same time: only one succeeds          | Done   | `PrismaBookingsRepository.lockBooking` (`FOR UPDATE`) inside one unit of work     |
+| R8  | Web app: the hiker sees their bookings and cancels one                             | Done   | `MyBookingsPage`, `CancelBookingDialog`                                           |
 
 ### Decisions
 
@@ -46,6 +46,7 @@ Team assumptions:
 - **Concurrency.** One transaction: the booking row is locked (`SELECT ... FOR UPDATE`), then the owner and the status are checked and the status becomes `CANCELLED`. A second cancellation of the same booking waits for the first one and then answers `409`. Cancellations of different bookings do not wait for each other.
 - **Response.** The cancelled booking: `id`, `slotId`, `partySize` and `status: "CANCELLED"`.
 - **Email.** No email is sent for a cancellation.
+- **Change after cancelling.** A cancelled booking cannot be changed: `PATCH /api/bookings/:id` of MH-06 answers `409 A cancelled booking cannot be changed`.
 - **Language.** All API messages are in English.
 
 ## How it works
@@ -95,6 +96,15 @@ Response `200 OK`:
 | `409`  | The booking is already cancelled                        | `This booking is already cancelled`               |
 | `409`  | The booking was rejected                                | `A rejected booking cannot be cancelled`          |
 
+## Web app
+
+**Route:** `/bookings` ("My bookings", the page of MH-06). Every upcoming `CONFIRMED` or `PENDING` booking has a **Cancel** button, also less than 48 hours before the slot (the 48-hour rule is only for changes).
+
+- **Confirmation** (`CancelBookingDialog`). The dialog asks _"Are you sure you want to cancel the following booking?"_ with a recap of the booking (date, time, party). **Go back** closes it without cancelling; so do Escape, the close button and a click outside. **Confirm** sends `POST /api/bookings/:id/cancel`; while it is on its way the button says _"Cancelling…"_ and the dialog cannot be closed.
+- **Success.** The dialog says _"Booking cancelled"_ with the same recap; **OK** closes it. The list and the slots are loaded again, so the booking is now in the **Cancelled** tab and its seats are free on the booking page.
+- **Errors.** Shown inside the dialog: `401` asks to log in again, `403`/`404`/`409` show the message of the API, any other error a generic _"The booking could not be cancelled. Please try again."_.
+- **Where the dialog lives.** The page keeps the dialog, not the card: once cancelled, the booking leaves the Upcoming tab, and the success message must stay open.
+
 ## Data model
 
 | Table / type     | Change                                                                                                        |
@@ -117,11 +127,15 @@ Migrations:
 | `packages/shared/src/bookings.ts`                                    | `CancelledBooking`, the response                                        |
 | `apps/api/src/bookings/presentation/bookings.controller.ts`          | `POST /api/bookings/:id/cancel`, hiker only                             |
 | `apps/api/src/bookings/application/bookings.service.ts`              | `BookingsService.cancel`: the transaction of a cancellation             |
-| `apps/api/src/bookings/application/bookings.repository.port.ts`      | `lockBooking`, `cancelBooking`, `BookingToCancel`                       |
+| `apps/api/src/bookings/application/bookings.repository.port.ts`      | `lockBooking` (`LockedBooking`, shared with MH-06), `cancelBooking`     |
 | `apps/api/src/bookings/infrastructure/prisma-bookings.repository.ts` | Row lock of the booking, new status; active bookings ignore `CANCELLED` |
 | `apps/api/src/bookings/domain/booking-cancellation-policy.ts`        | `decideCancellation`: only `PENDING` and `CONFIRMED`, at any time       |
 | `apps/api/src/bookings/domain/cancel-seat-release.ts`                | `releaseCancelledSeats`: pure helper, used only by its tests            |
 | `apps/api/prisma/schema.prisma`                                      | `CANCELLED` in `BookingStatus`                                          |
+| `apps/web/src/api/bookings.ts`, `apps/web/src/api/useBookings.ts`    | `cancelBooking`, `useCancelBooking` (reloads bookings and slots)        |
+| `apps/web/src/components/CancelBookingDialog.tsx` (and `.css`)       | Confirmation and success dialog                                         |
+| `apps/web/src/components/MyBookingCard.tsx`                          | The Cancel button (`onCancel`)                                          |
+| `apps/web/src/pages/MyBookingsPage.tsx`                              | Opens the dialog for the chosen booking                                 |
 
 ## Testing
 
@@ -130,6 +144,7 @@ Run unit tests:
 ```bash
 npm run test -w @mountain-hut/shared
 npm run test -w @mountain-hut/api
+npm run test -w @mountain-hut/web
 ```
 
 Run integration tests against PostgreSQL:
@@ -153,7 +168,8 @@ npm run test:e2e
 | `apps/api/src/bookings/application/bookings.service.spec.ts`              | Black box and white box of `cancel`: `PENDING`/`CONFIRMED` cancelled, inside one unit of work, lock before the update, `403`, `404` missing and not owned, `409`, failed write rethrown                                                                                                                                           |
 | `apps/api/src/bookings/presentation/bookings.controller.spec.ts`          | Black box of `POST /bookings/:id/cancel`: hiker only, `200` with the cancelled booking, the id as a number, `400` for an id that is not a number, `403`/`404`/`409` from the service                                                                                                                                              |
 | `apps/api/src/bookings/infrastructure/prisma-bookings.repository.spec.ts` | White box: `lockBooking` and `cancelBooking`, ids out of range not queried, active bookings ignore `CANCELLED`                                                                                                                                                                                                                    |
-| `apps/api/src/bookings/domain/booking-cancellation-policy.spec.ts`        | Black box of `decideCancellation`: the four statuses and their precedence                                                                                                                                                                                                                                                         |
+| `apps/api/src/bookings/domain/booking-cancellation-policy.spec.ts`        | Black box of `decideCancellation`: the four statuses, no cutoff (imminent and past slots), the precedence of the status                                                                                                                                                                                                           |
+| `apps/web/src/pages/MyBookingsPage.test.tsx`                              | Web: confirmation with the recap, Go back and Escape cancel nothing, Confirm sends the request and moves the booking to the Cancelled tab, `409`/`401`/generic errors in the dialog                                                                                                                                               |
 | `apps/api/src/bookings/domain/cancel-seat-release.spec.ts`                | Black box of `releaseCancelledSeats`: one table, split party, untouched tables, limits, purity, unknown table and negative seats                                                                                                                                                                                                  |
 
 ### Try it manually
@@ -168,6 +184,5 @@ npm run test:e2e
 
 ## Open points
 
-- **Web app.** There is no cancel button yet (MOU-125). The hiker needs a list of their bookings: `GET /api/bookings/me` of MH-06 is not on this branch yet. The web E2E test of the cancellation waits for this page.
+- **Web E2E test.** The page exists now, but there is no Playwright test of the cancellation in `e2e/tests/web` yet.
 - **Confirmation retries.** If the confirmation email of a new booking failed and is retried (MH-03: after 1, 5 and 25 seconds), a cancellation during the retries does not stop them: the hiker may still receive the confirmation of a cancelled booking. The booking stays `CANCELLED`, because only a `PENDING` booking becomes `CONFIRMED`.
-- **Leftovers of the first design.** `booking-cancellation-cutoff.ts` (a 24-hour cutoff stub that throws), `cancelBookingSchema` in `packages/shared/src/bookings.ts` (with a `reason`) and their specs, which are skipped, belong to the first design. They are not used, because the Clarifications allow cancelling at any time.

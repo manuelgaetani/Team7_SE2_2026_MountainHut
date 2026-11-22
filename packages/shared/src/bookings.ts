@@ -26,14 +26,6 @@ export const createBookingSchema = z.object({
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
-// TODO(MH-08): stub without full validation rules. Add the rules tested in booking-cancel.spec.ts,
-// then remove describe.skip there.
-export const cancelBookingSchema = z.object({
-  bookingId: z.number().optional(),
-  reason: z.string().nullable().optional(),
-});
-export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
-
 // What a hiker can change in a booking: the slot (date and time), the party size and the
 // requirements, in any combination. The requirements are the whole new list (MH-05): it replaces
 // the old one, and `[]` removes them all.
