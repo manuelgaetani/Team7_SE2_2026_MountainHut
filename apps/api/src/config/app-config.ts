@@ -22,6 +22,13 @@ export abstract class AppConfig {
 
 type Env = Record<string, string | undefined>;
 
+// Removes the final slashes without a regex (a /\/+$/ backtracks on long runs of '/').
+function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === '/') end--;
+  return url.slice(0, end);
+}
+
 const configSchema = z.object({
   jwtSecret: z.string().min(1, 'JWT_SECRET is not defined'),
   jwtExpiresIn: z.string(),
@@ -34,7 +41,7 @@ const configSchema = z.object({
   bookingTimeZone: z.string(),
   databaseUrl: z.string().min(1, 'DATABASE_URL is not defined'),
   mailFrom: z.string(),
-  webUrl: z.url('WEB_URL must be a URL').transform((url) => url.replace(/\/+$/, '')),
+  webUrl: z.url('WEB_URL must be a URL').transform(trimTrailingSlashes),
 });
 
 // SMTP connection read from the environment. Without configuration every email goes to
