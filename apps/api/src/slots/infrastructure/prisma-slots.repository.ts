@@ -70,6 +70,14 @@ export class PrismaSlotsRepository extends SlotsRepository {
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('slots-day:' || ${toDbDate(date)}::date::text, 0))`;
   }
 
+  async lockBetween(from: string, to: string): Promise<void> {
+    await this.db().$queryRaw`
+      SELECT id FROM slots
+      WHERE date BETWEEN ${toDbDate(from)}::date AND ${toDbDate(to)}::date
+      ORDER BY id
+      FOR UPDATE`;
+  }
+
   async findBetween(from: string, to: string): Promise<Slot[]> {
     const rows = await this.db().slot.findMany({
       where: { date: { gte: toDbDate(from), lte: toDbDate(to) } },

@@ -181,6 +181,18 @@ describe('PrismaSlotsRepository', () => {
     });
   });
 
+  describe('lockBetween', () => {
+    it('locks the rows of the slots between the two dates, in id order, binding the dates', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.lockBetween('2026-11-09', '2026-11-22');
+      expect(queryText()).toMatch(/BETWEEN[\s\S]*ORDER BY id[\s\S]*FOR UPDATE/);
+      expect(queryValues()).toEqual([
+        new Date('2026-11-09T00:00:00.000Z'),
+        new Date('2026-11-22T00:00:00.000Z'),
+      ]);
+    });
+  });
+
   describe('findBetween', () => {
     it('returns the slots of the date range, both ends included, ordered by date and start', async () => {
       client.slot.findMany.mockResolvedValue([row(3), row(4)]);

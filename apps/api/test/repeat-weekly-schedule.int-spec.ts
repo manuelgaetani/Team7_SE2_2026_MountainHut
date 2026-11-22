@@ -295,11 +295,10 @@ describe('Repeat a weekly schedule with PostgreSQL (integration) - MH-09', () =>
     expect(new Set(weeks.map((s) => `${s.date} ${s.startTime}`)).size).toBe(weeks.length);
   });
 
-  // TODO(MH-09): fails now. The repeat checks the reservations under the day locks, but a booking
-  // locks the slot rows, not the day: a booking committed between the check and the delete is
-  // deleted with the slot, and the hiker is never told. Fix (review of MH-09): lock the rows of the
-  // target slots (SELECT ... FOR UPDATE) before checking the reservations.
-  it.skip('a booking made while the week is being replaced is never lost silently', async () => {
+  // A booking locks the slot rows, not the day: the repeat locks the target slots before checking
+  // the reservations, so a booking committed between the check and the delete cannot be deleted
+  // with the slot without the hiker being told (review of MH-09).
+  it('a booking made while the week is being replaced is never lost silently', async () => {
     await createSlot(prisma, day(0), '19:00', '21:00', [6]);
     const target = await createSlot(prisma, day(7), '19:00', '21:00', [4]);
     const { userId } = await createHiker(prisma, 'anna@example.test');

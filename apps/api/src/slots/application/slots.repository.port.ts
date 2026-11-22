@@ -17,6 +17,11 @@ export abstract class SlotsRepository {
   // the same day at the same time. Works even when the day has no slots yet.
   abstract lockDay(date: string): Promise<void>;
 
+  // Locks the slots from one date to another, both included, until the end of the transaction,
+  // in id order. A booking locks its slot row, not the day: this makes a booking in progress on
+  // these slots finish first, or wait until the transaction ends.
+  abstract lockBetween(from: string, to: string): Promise<void>;
+
   // Slots from one date to another, both included, by date and start time, with their tables.
   abstract findBetween(from: string, to: string): Promise<Slot[]>;
 
