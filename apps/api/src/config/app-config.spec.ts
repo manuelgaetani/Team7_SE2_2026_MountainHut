@@ -112,4 +112,33 @@ describe('loadAppConfig', () => {
       }
     });
   });
+
+  // MH-07: the address of the web app, used in the links of the reset emails.
+  describe('webUrl', () => {
+    it('is the local web app when WEB_URL is not set or is empty', () => {
+      expect(loadAppConfig(base).webUrl).toBe('http://localhost:3000');
+      expect(loadAppConfig({ ...base, WEB_URL: '' }).webUrl).toBe('http://localhost:3000');
+    });
+
+    it('reads the configured address', () => {
+      expect(loadAppConfig({ ...base, WEB_URL: 'https://hut.example.it' }).webUrl).toBe(
+        'https://hut.example.it',
+      );
+    });
+
+    it('removes the final slashes, so the links have no double slash', () => {
+      expect(loadAppConfig({ ...base, WEB_URL: 'https://hut.example.it/' }).webUrl).toBe(
+        'https://hut.example.it',
+      );
+      expect(loadAppConfig({ ...base, WEB_URL: 'https://hut.example.it/app//' }).webUrl).toBe(
+        'https://hut.example.it/app',
+      );
+    });
+
+    it('rejects a value that is not a URL', () => {
+      expect(() => loadAppConfig({ ...base, WEB_URL: 'hut.example' })).toThrow(
+        'WEB_URL must be a URL',
+      );
+    });
+  });
 });

@@ -34,6 +34,19 @@ export function decideBooking(req: BookingRequest): BookingDecision {
   return { ok: true, allocation };
 }
 
+export type StaffBookingDecision =
+  | { ok: true; allocation: SeatAllocation[] }
+  | { ok: false; reason: 'SLOT_STARTED' | 'NOT_ENOUGH_SEATS' };
+
+// The staff enter reservations taken by phone or at the desk. Their only time limit is
+// the start of the slot, not the 2 hours of the online bookings.
+export function decideStaffBooking(req: BookingRequest): StaffBookingDecision {
+  if (req.startsAt.getTime() <= req.now.getTime()) return { ok: false, reason: 'SLOT_STARTED' };
+  const allocation = allocateSeats(req.tables, req.partySize);
+  if (!allocation) return { ok: false, reason: 'NOT_ENOUGH_SEATS' };
+  return { ok: true, allocation };
+}
+
 export type AvailabilityStatus = 'AVAILABLE' | 'INSUFFICIENT_SEATS' | 'TOO_LATE';
 
 export interface AvailabilityCheck {

@@ -63,7 +63,15 @@ export interface BookingResult {
   tables: { tableNumber: number; assignedSeats: number }[];
 }
 
-// CANCELLED is stored only once MH-08 (cancel a booking) is merged.
+// Result of cancelling a booking. Its seats are free again.
+export interface CancelledBooking {
+  id: number;
+  slotId: number;
+  partySize: number;
+  status: 'CANCELLED';
+}
+
+// A booking cancelled by the hiker (MH-08) stays in the list, with status CANCELLED.
 export type MyBookingStatus = BookingResult['status'] | 'CANCELLED';
 
 // A booking of the logged hiker, as listed in GET /api/bookings/me.

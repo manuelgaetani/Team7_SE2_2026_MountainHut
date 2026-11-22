@@ -3,12 +3,18 @@ import { Login } from './login.js';
 import type { PasswordHasher, UsersRepository } from './ports.js';
 import type { AuthSession, SessionIssuer } from './session-issuer.js';
 
-const record = { id: 1, email: 'a@b.it', role: 'HIKER' as const, passwordHash: 'stored-hash' };
+const record = {
+  id: 1,
+  email: 'a@b.it',
+  role: 'HIKER' as const,
+  passwordHash: 'stored-hash',
+  mustChangePassword: false,
+};
 const session: AuthSession = {
   token: 'token-finto',
   refreshToken: 'refresh-finto',
   refreshExpiresAt: new Date('2026-11-01T10:00:00Z'),
-  user: { id: 1, email: 'a@b.it', role: 'HIKER' },
+  user: { id: 1, email: 'a@b.it', role: 'HIKER', mustChangePassword: false },
 };
 
 describe('Login', () => {
@@ -77,6 +83,22 @@ describe('Login', () => {
     hasher.compare.mockResolvedValue(true);
     sessions.issue.mockResolvedValue(session);
     await expect(login.execute({ email: 'a@b.it', password: 'giusta123' })).resolves.toBe(session);
-    expect(sessions.issue).toHaveBeenCalledWith({ id: 3, email: 'a@b.it', role: 'WARDEN' });
+    expect(sessions.issue).toHaveBeenCalledWith({
+      id: 3,
+      email: 'a@b.it',
+      role: 'WARDEN',
+      mustChangePassword: false,
+    });
+  });
+
+  // MH-07: the first login of an account created by the staff.
+  it('reports the forced change of the password in the session', async () => {
+    users.findByEmail.mockResolvedValue({ ...record, mustChangePassword: true });
+    hasher.compare.mockResolvedValue(true);
+    sessions.issue.mockResolvedValue(session);
+    await login.execute({ email: 'a@b.it', password: 'k7mq-x3tz-9pwa' });
+    expect(sessions.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ mustChangePassword: true }),
+    );
   });
 });

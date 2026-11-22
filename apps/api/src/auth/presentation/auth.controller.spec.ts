@@ -8,6 +8,7 @@ import { AppConfig } from '../../config/app-config.js';
 import { AuthController } from './auth.controller.js';
 import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
 import { AuthGuard } from './auth.guard.js';
+import { ChangePassword } from '../application/change-password.js';
 import { GetCurrentUser } from '../application/get-current-user.js';
 import { Login } from '../application/login.js';
 import { Logout } from '../application/logout.js';
@@ -15,7 +16,7 @@ import { RefreshSession } from '../application/refresh-session.js';
 import { RegisterUser } from '../application/register-user.js';
 import type { AuthSession } from '../application/session-issuer.js';
 
-const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const };
+const user = { id: 1, email: 'anna@example.it', role: 'HIKER' as const, mustChangePassword: false };
 const session: AuthSession = {
   token: 'access-token',
   refreshToken: 'refresh-token',
@@ -35,6 +36,7 @@ describe('AuthController', () => {
     refresh: vi.fn(),
     logout: vi.fn(),
     me: vi.fn(),
+    changePassword: vi.fn(),
   };
 
   const config = { secureCookies: false };
@@ -50,6 +52,7 @@ describe('AuthController', () => {
         { provide: RefreshSession, useValue: { execute: auth.refresh } },
         { provide: Logout, useValue: { execute: auth.logout } },
         { provide: GetCurrentUser, useValue: { execute: auth.me } },
+        { provide: ChangePassword, useValue: { execute: auth.changePassword } },
         { provide: AppConfig, useValue: config },
       ],
     })
@@ -224,6 +227,65 @@ describe('AuthController', () => {
       const authenticated: AuthenticatedUser = { id: 1, email: 'anna@example.com', role: 'HIKER' };
       await expect(controller.me(authenticated)).resolves.toEqual(user);
       expect(auth.me).toHaveBeenCalledWith(1);
+    });
+  });
+
+  // MH-07 black box: a logged-in user replaces their password and keeps a new session.
+  describe('changePassword', () => {
+    const authenticated: AuthenticatedUser = { id: 1, email: 'anna@example.it', role: 'HIKER' };
+    const body = { currentPassword: 'Generated1x', newPassword: 'MyOwnPass1' };
+
+    it('is protected by AuthGuard', () => {
+      const guards = new Reflector().get<unknown[] | undefined>(
+        GUARDS_METADATA,
+        AuthController.prototype.changePassword,
+      );
+      expect(guards).toEqual([AuthGuard]);
+    });
+
+    it('changes the password of the logged-in user, not of one named in the body', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      await controller.changePassword(authenticated, body, asResponse(fakeResponse()));
+      expect(auth.changePassword).toHaveBeenCalledWith(1, body);
+    });
+
+    it('sets the cookies of the new session', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      const res = fakeResponse();
+      await controller.changePassword(authenticated, body, asResponse(res));
+      expect(res.cookie).toHaveBeenCalledWith('token', 'access-token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+      });
+      expect(res.cookie).toHaveBeenCalledWith('refresh_token', 'refresh-token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+        path: '/api/auth',
+        expires: session.refreshExpiresAt,
+      });
+    });
+
+    it('returns only the user, never the tokens', async () => {
+      auth.changePassword.mockResolvedValue(session);
+      const result = await controller.changePassword(
+        authenticated,
+        body,
+        asResponse(fakeResponse()),
+      );
+      expect(result).toEqual(user);
+      expect(JSON.stringify(result)).not.toContain('access-token');
+      expect(JSON.stringify(result)).not.toContain('refresh-token');
+    });
+
+    it('sets no cookie when the change is refused', async () => {
+      auth.changePassword.mockRejectedValue(new Error('Current password is wrong'));
+      const res = fakeResponse();
+      await expect(controller.changePassword(authenticated, body, asResponse(res))).rejects.toThrow(
+        'Current password is wrong',
+      );
+      expect(res.cookie).not.toHaveBeenCalled();
     });
   });
 });

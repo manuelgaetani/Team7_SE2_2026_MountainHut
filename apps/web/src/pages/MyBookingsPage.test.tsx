@@ -243,4 +243,224 @@ describe('MyBookingsPage', () => {
       screen.queryByRole('article', { name: 'Sunday 29 November 2026' }),
     ).not.toBeInTheDocument();
   });
+
+  describe('cancel a booking (MH-08)', () => {
+    const CANCEL = {
+      button: 'Cancel booking of Saturday 21 November 2026',
+      title: 'Cancel booking',
+      question: 'Are you sure you want to cancel the following booking?',
+      recap: 'Saturday 21 November 2026 · 12:30–14:00 · 4 people',
+      goBack: 'Go back',
+      confirm: 'Confirm',
+      doneTitle: 'Booking cancelled',
+      ok: 'OK',
+      failed: 'The booking could not be cancelled. Please try again.',
+      alreadyCancelled: 'This booking is already cancelled',
+    } as const;
+
+    // The list of bookings changes once the API has cancelled the booking.
+    function asHikerWithCancel(answer: () => Response) {
+      let cancelledNow = false;
+      return stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () =>
+          json([cancelledNow ? { ...confirmed, status: 'CANCELLED' } : confirmed]),
+        '/api/bookings/1/cancel': () => {
+          const response = answer();
+          cancelledNow = response.ok;
+          return response;
+        },
+      });
+    }
+
+    async function openDialog() {
+      renderAt('/bookings');
+      fireEvent.click(await screen.findByRole('button', { name: CANCEL.button }));
+      return screen.getByRole('dialog', { name: CANCEL.title });
+    }
+
+    it('asks to confirm and shows a recap of the booking', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      expect(dialog).toHaveTextContent(CANCEL.question);
+      expect(dialog).toHaveTextContent(CANCEL.recap);
+      expect(within(dialog).getByRole('button', { name: CANCEL.goBack })).toHaveFocus();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('closes without cancelling on Go back', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.goBack }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(card('Saturday 21 November 2026')).toBeVisible();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('cancels on Confirm and moves the booking among the cancelled ones', async () => {
+      const fetchMock = asHikerWithCancel(() =>
+        json({ id: 1, slotId: 10, partySize: 4, status: 'CANCELLED' }),
+      );
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      const done = await screen.findByRole('dialog', { name: CANCEL.doneTitle });
+      expect(done).toHaveTextContent(CANCEL.recap);
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bookings/1/cancel',
+        expect.objectContaining({ method: 'POST' }),
+      );
+
+      fireEvent.click(within(done).getByRole('button', { name: CANCEL.ok }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
+
+      fireEvent.click(screen.getByRole('tab', { name: TEXT.cancelled }));
+      expect(card('Saturday 21 November 2026')).toHaveTextContent('Cancelled');
+    });
+
+    it('shows the message of the API when the booking cannot be cancelled', async () => {
+      asHikerWithCancel(() => json({ message: CANCEL.alreadyCancelled }, 409));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.alreadyCancelled);
+    });
+
+    it('asks to log in again when the session has expired', async () => {
+      asHikerWithCancel(() => json({}, 401));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(TEXT.sessionExpired);
+    });
+
+    it('shows a generic error when the cancellation fails', async () => {
+      asHikerWithCancel(() => json({}, 500));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.failed);
+    });
+
+    it('closes with the Escape key', async () => {
+      asHikerWithCancel(() => json({}));
+      await openDialog();
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('closes with the Close button without cancelling', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('closes on a click on the backdrop, not on a click inside the dialog', async () => {
+      asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(dialog);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      fireEvent.click(dialog.parentElement!);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('ignores other keys', async () => {
+      asHikerWithCancel(() => json({}));
+      await openDialog();
+
+      fireEvent.keyDown(document, { key: 'Enter' });
+
+      expect(screen.getByRole('dialog', { name: CANCEL.title })).toBeInTheDocument();
+    });
+
+    describe('while the request is on its way', () => {
+      // The cancellation never answers, so the dialog stays in its pending state.
+      async function openPending() {
+        const fetchMock = asHikerWithCancel(() => json({}));
+        const answer = fetchMock.getMockImplementation()!;
+        fetchMock.mockImplementation((url, init) =>
+          url === '/api/bookings/1/cancel' ? new Promise<Response>(() => {}) : answer(url, init),
+        );
+        const dialog = await openDialog();
+        fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+        await within(dialog).findByRole('button', { name: 'Cancelling…' });
+        return dialog;
+      }
+
+      it('disables both buttons and says that it is cancelling', async () => {
+        const dialog = await openPending();
+
+        expect(within(dialog).getByRole('button', { name: 'Cancelling…' })).toBeDisabled();
+        expect(within(dialog).getByRole('button', { name: CANCEL.goBack })).toBeDisabled();
+      });
+
+      it('stays open on Escape, on the Close button and on the backdrop', async () => {
+        const dialog = await openPending();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+        fireEvent.click(dialog.parentElement!);
+
+        expect(screen.getByRole('dialog', { name: CANCEL.title })).toBeInTheDocument();
+      });
+    });
+
+    it.each([
+      [403, 'A hiker profile is required to cancel a booking'],
+      [404, 'Booking not found'],
+      [409, 'A rejected booking cannot be cancelled'],
+    ])('shows the message of the API for a %i', async (status, message) => {
+      asHikerWithCancel(() => json({ message }, status));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+      expect(within(dialog).getByRole('heading', { name: CANCEL.title })).toBeVisible();
+    });
+
+    it('shows a generic error when the network fails', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const answer = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation((url, init) =>
+        url === '/api/bookings/1/cancel' ? Promise.reject(new Error('offline')) : answer(url, init),
+      );
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.failed);
+    });
+
+    it('writes "1 person" in the recap of a booking for one', async () => {
+      stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () => json([pending]),
+      });
+      renderAt('/bookings');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Cancel booking of Sunday 6 December 2026' }),
+      );
+
+      expect(screen.getByRole('dialog', { name: CANCEL.title })).toHaveTextContent(
+        'Sunday 6 December 2026 · 13:00–14:30 · 1 person',
+      );
+    });
+  });
 });
