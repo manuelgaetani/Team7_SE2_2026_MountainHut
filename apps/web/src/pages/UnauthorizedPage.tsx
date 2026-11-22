@@ -14,7 +14,7 @@ export function UnauthorizedPage() {
         <p className="landing-status__text">
           {!isPending && user
             ? `You are signed in as ${user.email}, but your account does not have permission to access this section of the mountain hut.`
-            : 'You must be signed in with an authorized staff account to access this section of the hut.'}
+            : 'You must be signed in to access this section of the hut.'}
         </p>
 
         <div className="landing-status__actions">

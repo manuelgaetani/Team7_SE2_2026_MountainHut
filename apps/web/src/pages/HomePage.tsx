@@ -1,16 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import type { HealthStatus } from '@mountain-hut/shared';
-import { apiGet } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function HomePage() {
-  const health = useQuery({
-    queryKey: ['health'],
-    queryFn: () => apiGet<HealthStatus>('/health'),
-  });
-
   const { data: user, isPending } = useCurrentUser();
   const staff = isStaff(user);
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
@@ -113,11 +105,6 @@ export function HomePage() {
           <p className="home-info__description">
             Always check the weather and trail conditions before starting your journey to the
             mountain hut.
-          </p>
-
-          <p className="api-status">
-            API status:{' '}
-            {health.isPending ? 'checking…' : health.isError ? 'unreachable' : health.data.status}
           </p>
         </div>
       </section>

@@ -1,12 +1,12 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyBooking } from '@mountain-hut/shared';
-import { json, renderAt, stubApi, user } from '../test/app.tsx';
+import { hikerProfile, json, renderAt, stubApi, user } from '../test/app.tsx';
 
 const TEXT = {
   title: 'My bookings',
+  profile: 'My profile',
   loading: 'Loading your bookings…',
-  logIn: 'Log in',
   staff: 'Staff accounts have no bookings.',
   upcoming: 'Upcoming',
   cancelled: 'Cancelled',
@@ -45,8 +45,12 @@ const pending: MyBooking = {
 };
 const cancelled: MyBooking = { ...confirmed, id: 3, date: '2026-11-29', status: 'CANCELLED' };
 
-const asHiker = (bookings: () => Response) =>
-  stubApi({ '/api/auth/me': () => json(user), '/api/bookings/me': bookings });
+const asHiker = (bookings: () => Response, myProfile: () => Response = () => json(hikerProfile)) =>
+  stubApi({
+    '/api/auth/me': () => json(user),
+    '/api/bookings/me': bookings,
+    '/api/hikers/me': myProfile,
+  });
 
 const card = (title: string) => screen.getByRole('article', { name: title });
 
@@ -62,10 +66,11 @@ describe('MyBookingsPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('asks visitors without a session to log in', async () => {
+  it('sends visitors without a session to the page for visitors not signed in', async () => {
     stubApi();
-    renderAt('/bookings');
-    expect(await screen.findByRole('link', { name: TEXT.logIn })).toHaveAttribute('href', '/login');
+    const router = renderAt('/bookings');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/unauthorized'));
+    expect(screen.queryByRole('heading', { name: TEXT.title })).not.toBeInTheDocument();
   });
 
   it.each(['EMPLOYEE', 'WARDEN'])(
@@ -74,17 +79,17 @@ describe('MyBookingsPage', () => {
       const fetchMock = stubApi({ '/api/auth/me': () => json({ ...user, role }) });
       renderAt('/bookings');
       expect(await screen.findByText(TEXT.staff)).toBeVisible();
-      expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/bookings/me');
+      const urls = fetchMock.mock.calls.map(([url]) => url);
+      expect(urls).not.toContain('/api/bookings/me');
+      expect(urls).not.toContain('/api/hikers/me');
+      expect(screen.queryByRole('heading', { name: TEXT.profile })).not.toBeInTheDocument();
     },
   );
 
   it('shows a loading status while the bookings arrive', async () => {
-    stubApi({
-      '/api/auth/me': () => json(user),
-      '/api/bookings/me': () => json([]),
-    });
+    asHiker(() => json([]));
     renderAt('/bookings');
-    expect(await screen.findByRole('status')).toHaveTextContent(TEXT.loading);
+    expect(await screen.findByText(TEXT.loading)).toHaveAttribute('role', 'status');
   });
 
   it('lists the upcoming bookings with date, time, party and status', async () => {
@@ -242,6 +247,52 @@ describe('MyBookingsPage', () => {
     expect(
       screen.queryByRole('article', { name: 'Sunday 29 November 2026' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('my profile', () => {
+    const profileBox = async () =>
+      within(await screen.findByRole('complementary', { name: TEXT.profile }));
+
+    it('shows the name, email and phone of the hiker next to the bookings', async () => {
+      asHiker(
+        () => json([]),
+        () => json({ ...hikerProfile, phone: '3331234567' }),
+      );
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByText('Mario Rossi')).toBeVisible();
+      expect(box.getByText(user.email)).toBeVisible();
+      expect(box.getByText('3331234567')).toBeVisible();
+      expect(screen.getByRole('heading', { name: TEXT.title })).toBeVisible();
+    });
+
+    it('says "Not provided" for an optional detail left empty', async () => {
+      asHiker(() => json([]));
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByText('Not provided')).toBeVisible();
+    });
+
+    it('shows a loading status while the profile arrives', async () => {
+      asHiker(() => json([]));
+      renderAt('/bookings');
+      expect(await (await profileBox()).findByRole('status')).toHaveTextContent(
+        'Loading your profile…',
+      );
+    });
+
+    it('shows an error when the profile cannot be loaded, and still the bookings', async () => {
+      asHiker(
+        () => json([confirmed]),
+        () => json({ message: 'Server error' }, 500),
+      );
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByRole('alert')).toHaveTextContent('Your profile could not be loaded.');
+      expect(
+        await screen.findByRole('article', { name: 'Saturday 21 November 2026' }),
+      ).toBeVisible();
+    });
   });
 
   describe('cancel a booking (MH-08)', () => {

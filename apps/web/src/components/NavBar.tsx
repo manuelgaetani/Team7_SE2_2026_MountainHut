@@ -1,10 +1,11 @@
-import { Link, NavLink, useLocation } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
 
 export function NavBar() {
   const { data: user, isPending } = useCurrentUser();
   const logout = useLogout();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   // The auth pages already have their own Sign in / Register tabs.
   const onAuthPage = pathname === '/login' || pathname === '/register';
 
@@ -14,14 +15,18 @@ export function NavBar() {
       account = (
         <>
           {user.role === 'HIKER' && (
-            <NavLink to="/bookings" className="nav-cta">
-              My bookings
+            <NavLink to="/bookings" className="pill">
+              Personal area
             </NavLink>
           )}
           <button
             type="button"
             className="pill"
-            onClick={() => logout.mutate()}
+            onClick={() =>
+              // After signing out the user goes back to the home page,
+              // so no page meant for a signed-in user stays on screen.
+              logout.mutate(undefined, { onSuccess: () => navigate('/', { replace: true }) })
+            }
             disabled={logout.isPending}
           >
             Sign out

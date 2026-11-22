@@ -316,7 +316,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     await page.getByRole('button', { name: 'Confirm changes' }).click();
     await expect(page.locator('.dialog [role="alert"]')).toContainText(
-      'Change at least one detail of the booking.',
+      'Nothing has changed: the booking is the same as before.',
     );
   });
 

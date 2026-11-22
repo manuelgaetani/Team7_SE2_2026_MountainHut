@@ -6,6 +6,17 @@ import { routes } from '../router.tsx';
 
 export const user = { id: 1, email: 'hiker@example.test', role: 'HIKER' };
 
+// The profile of `user`, shown on the My bookings page. Phone, notes and emergency contact empty.
+export const hikerProfile = {
+  id: 5,
+  fullName: 'Mario Rossi',
+  email: user.email,
+  phone: null,
+  notes: null,
+  emergencyContact: null,
+  temporary: false,
+};
+
 export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 type Routes = Record<string, () => Response>;
@@ -15,7 +26,7 @@ export function stubApi(handlers: Routes = {}) {
   const all: Routes = {
     '/api/auth/me': () => json({}, 401),
     '/api/auth/refresh': () => json({}, 401),
-    '/api/health': () => json({ status: 'ok' }),
+    '/api/hikers/me': () => json(hikerProfile),
     ...handlers,
   };
   const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) => {

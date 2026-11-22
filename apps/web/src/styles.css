@@ -71,20 +71,16 @@ body {
   cursor: pointer;
 }
 
-/* Main link of the signed-in hiker: stands out from the other actions. */
-.nav-cta {
-  padding: 9px 18px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
+/* Navigation bar buttons (Personal area, Sign out, Register): bigger, with a dark border to stand out. */
+.nav-actions .pill {
+  padding: 10px 20px;
+  border-color: var(--ink);
+  font-size: 0.9rem;
 }
 
-.nav-cta:hover,
-.nav-cta.active {
-  background: #0f2a23;
+.nav-actions .pill:hover {
+  background: var(--ink);
+  color: #fff;
 }
 
 /* Shared */
@@ -309,14 +305,6 @@ a.button-primary {
   gap: 4px;
 }
 
-.api-status {
-  margin: 0;
-  padding: 16px 24px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-align: center;
-}
-
 .home-section,
 .home-hero__content {
   width: min(100% - 40px, 1160px);
@@ -469,14 +457,6 @@ a.button-primary {
   line-height: 1.7;
 }
 
-.api-status {
-  margin-top: 40px;
-  color: rgb(255 255 255 / 45%);
-  font-size: 11px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
 /* On phones the brand and the account buttons must fit on one line each */
 @media (max-width: 600px) {
   .site-header {
@@ -494,7 +474,6 @@ a.button-primary {
     white-space: nowrap;
   }
 
-  .nav-cta,
   .nav-actions .pill {
     padding: 8px 12px;
     font-size: 0.8rem;

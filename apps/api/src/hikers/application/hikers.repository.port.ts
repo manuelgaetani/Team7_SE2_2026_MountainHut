@@ -9,6 +9,9 @@ export abstract class HikersRepository {
   // The hiker chosen by the staff. null if there is none.
   abstract findById(id: number): Promise<HikerProfile | null>;
 
+  // The profile of the account that is logged in. null if the account has no hiker profile.
+  abstract findByUserId(userId: number): Promise<HikerProfile | null>;
+
   // A hiker without an account, who cannot log in.
   abstract createTemporary(input: TemporaryHikerInput): Promise<HikerProfile>;
 
