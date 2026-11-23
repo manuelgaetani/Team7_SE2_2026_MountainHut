@@ -14,7 +14,7 @@ describe('UnauthorizedPage', () => {
     const main = screen.getByRole('main');
     expect(within(main).getByRole('heading', { name: 'Access restricted' })).toBeInTheDocument();
     expect(
-      await within(main).findByText(/must be signed in with an authorized staff account/i),
+      await within(main).findByText('You must be signed in to access this section of the hut.'),
     ).toBeInTheDocument();
     expect(await within(main).findByRole('link', { name: /Sign in/i })).toHaveAttribute(
       'href',

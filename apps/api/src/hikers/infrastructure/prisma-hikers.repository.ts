@@ -71,6 +71,11 @@ export class PrismaHikersRepository extends HikersRepository {
     return row ? toProfile(row) : null;
   }
 
+  async findByUserId(userId: number): Promise<HikerProfile | null> {
+    const row = await this.db().hiker.findUnique({ where: { userId }, select: profileFields });
+    return row ? toProfile(row) : null;
+  }
+
   async createTemporary(input: TemporaryHikerInput): Promise<HikerProfile> {
     const row = await this.db().hiker.create({
       data: { fullName: input.fullName, phone: input.phone },

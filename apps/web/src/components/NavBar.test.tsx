@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -27,7 +27,7 @@ describe('NavBar', () => {
   it('links a hiker to their bookings', async () => {
     stubApi({ '/api/auth/me': () => json(user) });
     renderAt('/');
-    expect(await screen.findByRole('link', { name: 'My bookings' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Personal area' })).toHaveAttribute(
       'href',
       '/bookings',
     );
@@ -37,7 +37,7 @@ describe('NavBar', () => {
     stubApi({ '/api/auth/me': () => json({ ...user, role: 'EMPLOYEE' }) });
     renderAt('/');
     expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'My bookings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Personal area' })).not.toBeInTheDocument();
   });
 
   it('renews an expired session', async () => {
@@ -64,5 +64,22 @@ describe('NavBar', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+  });
+
+  it('takes the user back to the home page after signing out', async () => {
+    // Like the real API: once signed out, the session is gone.
+    let signedIn = true;
+    stubApi({
+      '/api/auth/me': () => (signedIn ? json(user) : json({}, 401)),
+      '/api/auth/refresh': () => json({}, 401),
+      '/api/auth/logout': () => {
+        signedIn = false;
+        return json({ message: 'Logged out' });
+      },
+    });
+    const router = renderAt('/bookings');
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
   });
 });

@@ -5,10 +5,12 @@ import type { App } from 'supertest/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HikerProfile, Role } from '@mountain-hut/shared';
 import { AuthGuard } from '../../auth/presentation/auth.guard.js';
+import { GetMyProfile } from '../application/get-my-profile.js';
 import { SearchHikers } from '../application/search-hikers.js';
 import { HikersController } from './hikers.controller.js';
 
 // MH-07 black box: GET /hikers?search=... is for the staff only.
+// GET /hikers/me is the own profile of the logged-in hiker.
 
 const anna: HikerProfile = {
   id: 1,
@@ -24,13 +26,17 @@ describe('HikersController', () => {
   let app: INestApplication<App>;
   let role: Role;
   const searchHikers = { execute: vi.fn() };
+  const getMyProfile = { execute: vi.fn() };
 
   beforeEach(async () => {
     vi.resetAllMocks();
     role = 'EMPLOYEE';
     const module = await Test.createTestingModule({
       controllers: [HikersController],
-      providers: [{ provide: SearchHikers, useValue: searchHikers }],
+      providers: [
+        { provide: SearchHikers, useValue: searchHikers },
+        { provide: GetMyProfile, useValue: getMyProfile },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useValue({
@@ -47,6 +53,25 @@ describe('HikersController', () => {
 
   afterEach(async () => {
     await app.close();
+  });
+
+  describe('own profile', () => {
+    it('returns the profile of the logged-in hiker', async () => {
+      role = 'HIKER';
+      getMyProfile.execute.mockResolvedValue(anna);
+      const res = await request(app.getHttpServer()).get('/hikers/me').expect(200);
+      expect(res.body).toEqual(anna);
+      expect(getMyProfile.execute).toHaveBeenCalledWith(1);
+    });
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 to a %s without reading a profile',
+      async (staffRole) => {
+        role = staffRole;
+        await request(app.getHttpServer()).get('/hikers/me').expect(403);
+        expect(getMyProfile.execute).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('roles', () => {

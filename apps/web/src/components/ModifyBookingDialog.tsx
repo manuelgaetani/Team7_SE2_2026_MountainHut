@@ -143,7 +143,7 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
     const requirements = toRequirements(rows);
     if (!sameRequirements(requirements, booking.requirements)) input.requirements = requirements;
     if (Object.keys(input).length === 0) {
-      setFormError('Change at least one detail of the booking.');
+      setFormError('Nothing has changed: the booking is the same as before.');
       return;
     }
 

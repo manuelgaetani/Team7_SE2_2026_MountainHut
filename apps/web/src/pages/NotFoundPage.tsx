@@ -1,6 +1,13 @@
 import { Link } from 'react-router';
+import { isStaff } from '../api/roles.ts';
+import { useCurrentUser } from '../api/useAuth.ts';
 
 export function NotFoundPage() {
+  const { data: user, isPending } = useCurrentUser();
+
+  // The staff cannot book a table: they only get the way back home.
+  const offerBooking = !isPending && !isStaff(user);
+
   return (
     <section className="landing-status">
       <div className="landing-status__card">
@@ -16,9 +23,11 @@ export function NotFoundPage() {
             <span>Back to home</span>
             <span aria-hidden="true">→</span>
           </Link>
-          <Link to="/book" className="pill">
-            Book a table
-          </Link>
+          {offerBooking && (
+            <Link to="/book" className="pill">
+              Book a table
+            </Link>
+          )}
         </div>
       </div>
     </section>

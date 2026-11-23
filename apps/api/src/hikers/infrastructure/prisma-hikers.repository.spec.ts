@@ -135,6 +135,27 @@ describe('PrismaHikersRepository', () => {
     });
   });
 
+  describe('findByUserId', () => {
+    it('returns the profile linked to the account', async () => {
+      client.hiker.findUnique.mockResolvedValue(withAccount);
+      await expect(repository.findByUserId(7)).resolves.toEqual({
+        id: 15,
+        fullName: 'Mario Rossi',
+        email: 'mario@example.it',
+        phone: '3331234567',
+        notes: 'vegetarian',
+        emergencyContact: 'Anna 3339876543',
+        temporary: false,
+      });
+      expect(client.hiker.findUnique).toHaveBeenCalledWith({ where: { userId: 7 }, select });
+    });
+
+    it('returns null for an account without a hiker profile', async () => {
+      client.hiker.findUnique.mockResolvedValue(null);
+      await expect(repository.findByUserId(1)).resolves.toBeNull();
+    });
+  });
+
   describe('createTemporary', () => {
     it('creates a hiker without a user, so without email and login', async () => {
       client.hiker.create.mockResolvedValue({ ...temporaryRow, phone: '3201112233' });
