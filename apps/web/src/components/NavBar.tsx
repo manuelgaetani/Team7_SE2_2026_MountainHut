@@ -22,11 +22,12 @@ export function NavBar() {
           <button
             type="button"
             className="pill"
-            onClick={() =>
-              // After signing out the user goes back to the home page,
-              // so no page meant for a signed-in user stays on screen.
-              logout.mutate(undefined, { onSuccess: () => navigate('/', { replace: true }) })
-            }
+            onClick={() => {
+              // Go home first, then sign out: the page left behind never sees the user
+              // disappear, so it cannot send them somewhere else (e.g. /unauthorized).
+              void navigate('/', { replace: true });
+              logout.mutate();
+            }}
             disabled={logout.isPending}
           >
             Sign out
