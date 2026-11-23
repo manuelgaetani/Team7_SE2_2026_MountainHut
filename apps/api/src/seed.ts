@@ -1,26 +1,43 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '../src/generated/prisma/client.js';
+import { PrismaClient } from './generated/prisma/client.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is not defined');
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-const SEED_EMPLOYEES = [
+// Demo accounts, one per role. Their passwords are public: they are only for demos and tests.
+const SEED_USERS = [
   {
     email: 'employee@mountainhut.com',
     password: 'Password123!',
+    role: 'EMPLOYEE',
     fullName: 'Hut Employee',
     phone: '+39 012 3456789',
   },
   {
     email: 'employee2@mountainhut.com',
     password: 'Password123!',
+    role: 'EMPLOYEE',
     fullName: 'Hut Employee Two',
     phone: '+39 012 3456780',
   },
-];
+  {
+    email: 'warden@mountainhut.com',
+    password: 'Password123!',
+    role: 'WARDEN',
+    fullName: 'Hut Warden',
+    phone: '+39 012 3456781',
+  },
+  {
+    email: 'hiker@mountainhut.com',
+    password: 'Password123!',
+    role: 'HIKER',
+    fullName: 'Demo Hiker',
+    phone: '+39 333 1234567',
+  },
+] as const;
 
 const DAYS = 14;
 // Three contiguous lunch services and three contiguous dinner services: slots of a day never
@@ -33,7 +50,7 @@ const TIMES = [
   ['19:00', '20:00'],
   ['20:00', '21:00'],
 ] as const;
-// Tavoli di ogni turno: numero e posti (24 posti in totale).
+// Tables of every slot: number and seats (24 seats in all).
 const TABLES = [
   { tableNumber: 1, seats: 2 },
   { tableNumber: 2, seats: 2 },
@@ -43,15 +60,15 @@ const TABLES = [
   { tableNumber: 6, seats: 6 },
 ];
 
-// Le colonne @db.Date e @db.Time sono lette da Prisma come Date in UTC.
+// Prisma reads the @db.Date and @db.Time columns as Dates in UTC.
 const dayAt = (offset: number): Date => {
   const now = new Date();
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset));
 };
 const timeOf = (hhmm: string): Date => new Date(`1970-01-01T${hhmm}:00Z`);
 
-// Cancella tutti gli slot con i loro tavoli e le loro prenotazioni, così nel database non
-// restano gli slot di prima, che si sovrapponevano. Le notifiche restano, senza prenotazione.
+// Deletes every slot with its tables and bookings, so no older (possibly overlapping) slot is
+// left. Notifications stay, without their booking.
 async function clearSlots() {
   await prisma.$transaction([
     prisma.bookingTable.deleteMany(),
@@ -62,46 +79,42 @@ async function clearSlots() {
   console.log('Deleted the existing slots, tables and bookings');
 }
 
-async function seedEmployee(seed: (typeof SEED_EMPLOYEES)[number]) {
+// Creates the account, or resets its password and role if it exists, with its profile.
+async function seedUser(seed: (typeof SEED_USERS)[number]) {
   const passwordHash = await bcrypt.hash(seed.password, 10);
-  const employee = await prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { email: seed.email },
-    update: {
-      password: passwordHash,
-      role: 'EMPLOYEE',
-    },
-    create: {
-      email: seed.email,
-      password: passwordHash,
-      role: 'EMPLOYEE',
-      hiker: {
-        create: {
-          fullName: seed.fullName,
-          phone: seed.phone,
-        },
-      },
-    },
+    update: { password: passwordHash, role: seed.role },
+    create: { email: seed.email, password: passwordHash, role: seed.role },
   });
 
   await prisma.hiker.upsert({
-    where: { userId: employee.id },
-    update: {
-      fullName: seed.fullName,
-      phone: seed.phone,
-    },
-    create: {
-      userId: employee.id,
-      fullName: seed.fullName,
-      phone: seed.phone,
-    },
+    where: { userId: user.id },
+    update: { fullName: seed.fullName, phone: seed.phone },
+    create: { userId: user.id, fullName: seed.fullName, phone: seed.phone },
   });
 
-  console.log(`Seeded employee user: ${seed.email} (password: ${seed.password})`);
+  console.log(`Seeded ${seed.role.toLowerCase()} user: ${seed.email} (password: ${seed.password})`);
+}
+
+// With --on-start (how the Docker image runs it at every start) the seed runs only when
+// SEED_DEMO_DATA is "true" and the database has no users: a new installation of a release gets
+// the demo data, an existing one keeps its own, and the development and CI stacks stay empty.
+async function isEmpty(): Promise<boolean> {
+  return (await prisma.user.count()) === 0;
 }
 
 async function main() {
-  for (const employee of SEED_EMPLOYEES) {
-    await seedEmployee(employee);
+  if (process.argv.includes('--on-start')) {
+    if (process.env.SEED_DEMO_DATA !== 'true') return;
+    if (!(await isEmpty())) {
+      console.log('The database already has users: demo data not seeded');
+      return;
+    }
+  }
+
+  for (const user of SEED_USERS) {
+    await seedUser(user);
   }
 
   await clearSlots();

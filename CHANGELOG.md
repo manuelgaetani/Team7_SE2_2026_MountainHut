@@ -7,8 +7,20 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+## [release-1] - 2026-11-23
+
+Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
+
 ### Added
 
+- Release deployment without the repository: `docker-compose.release.yml` runs the published image `ghcr.io/manuelgaetani/team7_se2_2026_mountainhut:release-1` with PostgreSQL and Mailpit. It needs only this file and a `.env` with `JWT_SECRET` (and the `SMTP_*` settings for real emails).
+- Demo data on the first start: the container runs `node dist/seed.js --on-start` after the migrations. With `SEED_DEMO_DATA=true` (set by `docker-compose.release.yml`) and a database without users, it creates the demo accounts and 14 days of slots; a database that already has users is left as it is. The development `docker-compose.yml` does not set it, so the development and CI stacks start empty.
+- Demo accounts for every role: `employee@mountainhut.com`, `employee2@mountainhut.com` (employees), `warden@mountainhut.com` (warden) and `hiker@mountainhut.com` (hiker), all with the password `Password123!`.
+- Party requirements (MH-05): a booking has a list of requirements, each with an `allergies` flag and a description (e.g. `1 vegan, peanut allergy`), for subsets of the party. `POST /api/bookings` accepts `requirements` (optional, at most 20 entries, each description trimmed, 1 to 500 characters); the answer and `GET /api/bookings/me` return them in the order entered.
+- The confirmation email lists the requirements, one line per entry, and marks the ones with allergies with `Allergies (special care needed)` (MH-05).
+- Database (MH-05): new table `party_requirements`, deleted with its booking (migration `party_requirements`). Each old free-text requirement becomes one entry flagged as an allergy, and the column `bookings.requirements` is dropped.
+- Web app (MH-05): on the booking page the hiker can add, edit and remove requirement rows, each with an "Allergies" checkbox; the confirmation dialog lists them and marks the ones with allergies.
+- Documentation of MH-05 in [docs/stories](docs/stories/MH-05-provide-party-requirements.md).
 - Availability check (MH-04): public endpoint `GET /api/availability?date=&time=&partySize=`, no login required. `time` can be any time inside a slot: the slot that includes it is checked (start included, end excluded), and the answer gives its start and end in `slot`. The answer tells whether the party fits and, when it does, how it would be seated (e.g. `2 + 2 + 2 seats`), with the same seat allocation as a booking. No alternative slots are suggested.
 - When the party does not fit or cannot be booked, the availability check gives a reason: `NO_SLOT` (no slot starts at that time, or it has already started), `INSUFFICIENT_SEATS`, or `TOO_LATE` (less than 2 hours before the start: not bookable online, but the free seats and the seat split are still shown, since the staff can still take the reservation).
 - Reservation entered by the staff (MH-07): `POST /api/staff/bookings` (employees and warden) books for a hiker already in the system, for a new temporary hiker (name and optional phone, who cannot log in) or for a new hiker with an account, whose password is generated and returned only once. The reservation is `CONFIRMED` at once and can be entered until the slot starts: the 2 hours of the online bookings do not apply. A hiker with an email receives the confirmation.
@@ -19,7 +31,7 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Database (MH-07): hikers without an account may have no phone, new column `users.must_change_password`, new table `password_reset_tokens` and notification type `PASSWORD_RESET` (migrations `reserve_for_hiker` and `password_reset_notification`).
 - Web app (MH-07): the staff page _New booking_ (`/staff/bookings/new`) with hiker search, quick entry and full profile, and the generated password shown once; the forced change of the password after the first login (`/change-password`); the pages to ask for a reset link (`/forgot-password`) and to set a new password (`/reset-password?token=`).
 - Documentation of MH-07 in [docs/stories](docs/stories/MH-07-reserve-for-a-hiker.md).
-- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. A new slot must start in 2 hours or more; if the party no longer fits at its tables, it is seated again with the MH-01 rules, or the change is refused and the booking stays as it was. The hiker receives an email with the new details.
+- Change a booking (MH-06): `PATCH /api/bookings/:id` lets a hiker change the slot, the party size or the party requirements (the MH-05 list, replaced as a whole) of their own booking, up to 48 hours before the booked slot. The new slot must also start at least 48 hours later (course issue #43). Every change is treated as a new booking (course issues #38 and #48): the seats of the booking are released and the party is seated again with the MH-01 rules, even when it still fits at its tables or only the requirements change; if the seats are not enough, the change is refused and the booking stays as it was. The hiker receives an email with the new details.
 - Database: new notification type `BOOKING_CHANGE` (migration `add_booking_change_notification`).
 - Availability page at `/availability` (MH-04), open without an account and linked from the home page: date, time and party size, then "Available" with the slot, the table layout and the tables, or "Not available" with the reason.
 - From an available result, "Book a table" opens the booking page with the date, the slot and the party size already chosen; a visitor goes through registration or sign in first (`?next=`, only paths of the app) and then lands on that booking page.
@@ -32,18 +44,6 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 - Documentation of MH-08 in [docs/stories](docs/stories/MH-08-cancel-a-booking.md).
 - Integration and end-to-end tests for cancelling a booking (MH-08).
 - "My bookings" page (MH-08): the Cancel button asks to confirm with a recap of the booking, then says that it has been cancelled; the booking moves to the "Cancelled" tab and its seats are free again.
-
-### Changed
-
-- Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
-- The seed creates three slots a day that do not overlap: 12:00–13:00, 13:00–14:00 and 19:00–20:30. A database seeded before keeps its old slots.
-
-## [release-1] - 2026-11-06
-
-Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
-
-### Added
-
 - Project skeleton: NestJS API, React web app, shared package, Playwright end-to-end tests, Docker setup.
 - Database schema for authentication.
 - Authentication (MH-58): endpoints `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` and `GET /api/auth/me`.
@@ -74,6 +74,9 @@ Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
 
 ### Changed
 
+- Time slots of the same day can no longer overlap (MH-02, course issue #31): `POST /api/slots` answers `409` to a slot that overlaps another one, while contiguous slots (12:00–13:00 and 13:00–14:00) are accepted. Slots that already overlap in an existing database are kept.
+- The seed creates six slots a day that do not overlap, for 14 days from today: 12:00–13:00, 13:00–14:00, 14:00–15:00, 18:00–19:00, 19:00–20:00 and 20:00–21:00, each with 6 tables and 24 seats. It deletes the slots and bookings already in the database, so run it by hand (`npm run prisma:seed -w @mountain-hut/api`) only on a development database.
+- The seed moved from `apps/api/prisma/seed.ts` to `apps/api/src/seed.ts`, so that it is built into the Docker image; `npm run prisma:seed -w @mountain-hut/api` still runs it.
 - The application no longer starts without `JWT_SECRET`.
 - Accounts (`User`) are separated from the hiker profile (`Hiker`): registration now requires a full name and a phone number, with optional notes and emergency contact.
 - Bookings (`Booking`) refer to the hiker (`hikerId`) instead of the account.

@@ -25,7 +25,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "tsx --env-file=../../.env prisma/seed.ts"
+    "prisma:seed": "tsx --env-file=../../.env src/seed.ts"
   },
   "dependencies": {
     "@mountain-hut/shared": "*",
