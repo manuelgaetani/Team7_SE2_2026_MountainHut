@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import type { BookingResult, ChangeBookingInput, CreateBookingInput } from '@mountain-hut/shared';
+import type {
+  BookingResult,
+  CancelledBooking,
+  ChangeBookingInput,
+  CreateBookingInput,
+} from '@mountain-hut/shared';
 import { AppConfig } from '../../config/app-config.js';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
 import { isChangeAdmitted } from '../domain/booking-change-cutoff.js';
 import { decideBooking } from '../domain/booking-policy.js';
+import { decideCancellation } from '../domain/booking-cancellation-policy.js';
 import { canAccommodatePartyChange } from '../domain/change-seat-allocation.js';
 import { BookingsRepository } from './bookings.repository.port.js';
 import { ConfirmationSender } from './confirmation-sender.js';
@@ -74,6 +80,33 @@ export class BookingsService {
     return result;
   }
 
+  // Cancels a booking of the hiker, at any time. The seat queries ignore cancelled bookings,
+  // so the seats are free for other guests as soon as the unit of work commits.
+  async cancel(userId: number, bookingId: number): Promise<CancelledBooking> {
+    return this.uow.run(async () => {
+      const hikerId = await this.repo.findHikerIdByUserId(userId);
+      if (!hikerId)
+        throw new DomainError('FORBIDDEN', 'A hiker profile is required to cancel a booking');
+
+      const booking = await this.repo.lockBooking(bookingId);
+      // Someone else's booking looks like a missing one: its id must not be revealed.
+      if (!booking || booking.hikerId !== hikerId) {
+        throw new DomainError('NOT_FOUND', 'Booking not found');
+      }
+
+      const decision = decideCancellation({ status: booking.status });
+      if (!decision.ok) {
+        throw new DomainError(
+          'CONFLICT',
+          decision.reason === 'ALREADY_CANCELLED'
+            ? 'This booking is already cancelled'
+            : 'A rejected booking cannot be cancelled',
+        );
+      }
+      return this.repo.cancelBooking(bookingId);
+    });
+  }
+
   // Changes the slot, the party size or the requirements of a booking of the logged-in hiker.
   // Allowed up to 48 hours before the booked slot; a new slot must start in 2 hours or more.
   async change(
@@ -92,6 +125,9 @@ export class BookingsService {
       }
       if (booking.status === 'REJECTED') {
         throw new DomainError('CONFLICT', 'A rejected booking cannot be changed');
+      }
+      if (booking.status === 'CANCELLED') {
+        throw new DomainError('CONFLICT', 'A cancelled booking cannot be changed');
       }
 
       const slotId = input.slotId ?? booking.slotId;

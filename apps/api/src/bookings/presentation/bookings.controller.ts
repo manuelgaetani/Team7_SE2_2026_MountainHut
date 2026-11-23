@@ -12,6 +12,7 @@ import {
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type {
   BookingResult,
+  CancelledBooking,
   ChangeBookingInput,
   CreateBookingInput,
   MyBooking,
@@ -53,6 +54,16 @@ export class BookingsController {
     @Body(new ZodValidationPipe(createBookingSchema)) body: CreateBookingInput,
   ): Promise<BookingResult> {
     return this.bookings.create(user.id, body);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @Roles('HIKER')
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CancelledBooking> {
+    return this.bookings.cancel(user.id, id);
   }
 
   @Patch(':id')

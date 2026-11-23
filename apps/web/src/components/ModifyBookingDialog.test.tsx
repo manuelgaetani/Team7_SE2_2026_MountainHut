@@ -23,7 +23,7 @@ const TEXT = {
     'Changes are admitted up to 48 hours before the booked date, and a new time must start at least 48 hours from now.',
   peopleError: 'Enter a whole number of people, at least 1.',
   requirementError: 'A requirement can be at most 500 characters.',
-  unchanged: 'Change at least one detail of the booking.',
+  unchanged: 'Nothing has changed: the booking is the same as before.',
   saving: 'Saving changes…',
   updated: "Booking updated. We'll email you the new details.",
   sessionExpired: 'The session has expired. Please log in again.',

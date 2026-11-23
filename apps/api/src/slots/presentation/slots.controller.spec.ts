@@ -20,6 +20,7 @@ describe('SlotsController', () => {
     findOne: vi.fn(),
     defineTables: vi.fn(),
     floorPlan: vi.fn(),
+    repeatWeekly: vi.fn(),
   };
   const bookable = { execute: vi.fn() };
   const body = { date: '2026-11-02', startTime: '12:00', endTime: '13:00' };
@@ -106,6 +107,52 @@ describe('SlotsController', () => {
     expect(slots.defineTables).not.toHaveBeenCalled();
   });
 
+  it.each(['EMPLOYEE', 'WARDEN'] as const)('lets a %s read one slot', async (staffRole) => {
+    role = staffRole;
+    slots.findOne.mockResolvedValue({ id: 7, tables: [], totalSeats: 0 });
+    const res = await request(app.getHttpServer()).get('/slots/7').expect(200);
+    expect(res.body).toEqual({ id: 7, tables: [], totalSeats: 0 });
+    expect(slots.findOne).toHaveBeenCalledWith(7);
+  });
+
+  it('answers 400 without calling the service when the slot id is not a number', async () => {
+    await request(app.getHttpServer()).get('/slots/abc').expect(400);
+    await request(app.getHttpServer())
+      .put('/slots/abc/tables')
+      .send({ tables: [{ tableNumber: 1, seats: 4 }] })
+      .expect(400);
+    expect(slots.findOne).not.toHaveBeenCalled();
+    expect(slots.defineTables).not.toHaveBeenCalled();
+  });
+
+  it.each(['EMPLOYEE', 'WARDEN'] as const)(
+    'lets a %s define the tables of a slot',
+    async (staffRole) => {
+      role = staffRole;
+      const tables = { tables: [{ tableNumber: 1, seats: 4 }] };
+      slots.defineTables.mockResolvedValue({ id: 7, ...tables, totalSeats: 4 });
+      const res = await request(app.getHttpServer())
+        .put('/slots/7/tables')
+        .send(tables)
+        .expect(200);
+      expect(res.body).toEqual({ id: 7, ...tables, totalSeats: 4 });
+      expect(slots.defineTables).toHaveBeenCalledWith(7, tables);
+    },
+  );
+
+  it('answers 400 without calling the service when the tables body is invalid', async () => {
+    await request(app.getHttpServer())
+      .put('/slots/7/tables')
+      .send({ tables: [{ tableNumber: 1, seats: 0 }] })
+      .expect(400);
+    expect(slots.defineTables).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 without calling the service when the schedule date is missing', async () => {
+    await request(app.getHttpServer()).get('/slots/schedule').expect(400);
+    expect(slots.listByDate).not.toHaveBeenCalled();
+  });
+
   describe('GET /slots/:id/floor', () => {
     it.each(['EMPLOYEE', 'WARDEN'] as const)(
       'lets a %s see the plan of a slot',
@@ -186,6 +233,60 @@ describe('SlotsController', () => {
         new DomainError('CONFLICT', 'This slot already has tables: changing them is MH-19'),
       );
       await request(app.getHttpServer()).put('/slots/5/tables').send(tablesInput).expect(409);
+    });
+  });
+
+  // MH-09: repeat a weekly schedule.
+  describe('POST /slots/repeat-weekly', () => {
+    const repeat = { sourceStartDate: '2026-11-02', repeatWeeks: 2 };
+    const result = {
+      targetWeeks: 2,
+      createdSlotsCount: 0,
+      replacedSlotsCount: 0,
+      createdSlots: [],
+    };
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'lets a %s repeat a week and answers 201 with the result',
+      async (staffRole) => {
+        role = staffRole;
+        slots.repeatWeekly.mockResolvedValue(result);
+        const res = await request(app.getHttpServer())
+          .post('/slots/repeat-weekly')
+          .send(repeat)
+          .expect(201);
+        expect(res.body).toEqual(result);
+        expect(slots.repeatWeekly).toHaveBeenCalledWith(repeat);
+      },
+    );
+
+    it('answers 403 to a hiker without calling the service', async () => {
+      role = 'HIKER';
+      await request(app.getHttpServer()).post('/slots/repeat-weekly').send(repeat).expect(403);
+      expect(slots.repeatWeekly).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['repeatWeeks 0', { ...repeat, repeatWeeks: 0 }],
+      ['repeatWeeks 13', { ...repeat, repeatWeeks: 13 }],
+      ['repeatWeeks 1.5', { ...repeat, repeatWeeks: 1.5 }],
+      ['repeatWeeks as a string', { ...repeat, repeatWeeks: '2' }],
+      ['a non-existent date', { ...repeat, sourceStartDate: '2026-02-30' }],
+      ['a malformed date', { ...repeat, sourceStartDate: '02/11/2026' }],
+      ['no sourceStartDate', { repeatWeeks: 2 }],
+      ['no repeatWeeks', { sourceStartDate: '2026-11-02' }],
+    ])('answers 400 without calling the service for %s', async (_case, invalid) => {
+      await request(app.getHttpServer()).post('/slots/repeat-weekly').send(invalid).expect(400);
+      expect(slots.repeatWeekly).not.toHaveBeenCalled();
+    });
+
+    it('does not pass a conflictStrategy on to the service (course issue #45)', async () => {
+      slots.repeatWeekly.mockResolvedValue(result);
+      await request(app.getHttpServer())
+        .post('/slots/repeat-weekly')
+        .send({ ...repeat, conflictStrategy: 'SKIP' })
+        .expect(201);
+      expect(slots.repeatWeekly).toHaveBeenCalledWith(repeat);
     });
   });
 });

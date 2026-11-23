@@ -56,6 +56,18 @@ export type DefineSlotTablesInput = z.infer<typeof defineSlotTablesSchema>;
 export const listSlotsQuerySchema = z.object({ date });
 export type ListSlotsQuery = z.infer<typeof listSlotsQuerySchema>;
 
+// Most weeks a copy can cover at once: a limit against mistakes, not a rule of the story.
+export const MAX_REPEAT_WEEKS = 12;
+
+// MH-09: copies the slots of the 7 days starting at sourceStartDate into each of the next
+// repeatWeeks weeks. A target week that already has slots is replaced, unless one of its slots
+// has reservations (course issue #45).
+export const repeatWeeklyScheduleSchema = z.object({
+  sourceStartDate: date,
+  repeatWeeks: z.number().int().min(1).max(MAX_REPEAT_WEEKS),
+});
+export type RepeatWeeklyScheduleInput = z.infer<typeof repeatWeeklyScheduleSchema>;
+
 export interface SlotTable {
   tableNumber: number;
   seats: number;
@@ -68,4 +80,14 @@ export interface SlotDetails {
   endTime: string;
   tables: SlotTable[];
   totalSeats: number;
+}
+
+export interface RepeatWeeklyScheduleResult {
+  // Number of weeks the source week was copied into.
+  targetWeeks: number;
+  createdSlotsCount: number;
+  // Slots that were in the target weeks before the copy and were deleted.
+  replacedSlotsCount: number;
+  // Ordered by date and start time.
+  createdSlots: SlotDetails[];
 }

@@ -128,3 +128,22 @@ describe('ConfirmationSender', () => {
     });
   });
 });
+
+describe('TimerSleeper', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resolves only after the given number of milliseconds', async () => {
+    vi.useFakeTimers();
+    const resolved = vi.fn();
+    const done = new TimerSleeper().sleep(1_000).then(resolved);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(resolved).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(resolved).toHaveBeenCalledOnce();
+  });
+});

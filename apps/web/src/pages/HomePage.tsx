@@ -1,16 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import type { HealthStatus } from '@mountain-hut/shared';
-import { apiGet } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 
 export function HomePage() {
-  const health = useQuery({
-    queryKey: ['health'],
-    queryFn: () => apiGet<HealthStatus>('/health'),
-  });
-
   const { data: user, isPending } = useCurrentUser();
   const staff = isStaff(user);
   const mountainImage = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
@@ -33,10 +25,16 @@ export function HomePage() {
                   Define the time slots and the tables of each day, so the hut never takes more
                   guests than it can serve.
                 </p>
-                <Link to="/staff/slots" className="button-primary button-primary--inline">
-                  <span>Manage time slots</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
+                <div className="home-hero__actions">
+                  <Link to="/staff/slots" className="button-primary button-primary--inline">
+                    <span>Manage time slots</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
+                    <span>Reserve for a hiker</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
               </>
             ) : (
               <>
@@ -54,8 +52,9 @@ export function HomePage() {
                       <span>{user ? 'Book a table' : 'Register to book a table'}</span>
                       <span aria-hidden="true">→</span>
                     </Link>
-                    <Link to="/availability" className="home-hero__link">
-                      Check availability
+                    <Link to="/availability" className="button-primary button-primary--inline">
+                      <span>Check availability</span>
+                      <span aria-hidden="true">→</span>
                     </Link>
                   </div>
                 )}
@@ -106,11 +105,6 @@ export function HomePage() {
           <p className="home-info__description">
             Always check the weather and trail conditions before starting your journey to the
             mountain hut.
-          </p>
-
-          <p className="api-status">
-            API status:{' '}
-            {health.isPending ? 'checking…' : health.isError ? 'unreachable' : health.data.status}
           </p>
         </div>
       </section>

@@ -25,7 +25,7 @@ const result = {
 
 describe('BookingsController', () => {
   let app: INestApplication<App>;
-  const bookings = { create: vi.fn(), change: vi.fn() };
+  const bookings = { create: vi.fn(), change: vi.fn(), cancel: vi.fn() };
   const myBookings = { execute: vi.fn() };
   // Role of the fake authenticated user: each test can change it.
   let role: Role;
@@ -292,6 +292,109 @@ describe('BookingsController', () => {
     ])('maps %s from the service', async (error, status) => {
       bookings.change.mockRejectedValue(error);
       await patch('9', { partySize: 4 }).expect(status);
+    });
+  });
+
+  // MH-08: POST /bookings/:id/cancel.
+  describe('cancel', () => {
+    const cancelled = { id: 9, slotId: 3, partySize: 2, status: 'CANCELLED' };
+    const cancel = (id: string) =>
+      request(app.getHttpServer()).post(`/bookings/${id}/cancel`).send();
+
+    it('allows only hikers to cancel', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.cancel)).toEqual([
+        'HIKER',
+      ]);
+    });
+
+    it('answers 200 with the cancelled booking', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      const response = await cancel('9').expect(200);
+      expect(response.body).toEqual(cancelled);
+    });
+
+    it('cancels for the authenticated user, with the id of the path as a number', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      await cancel('9');
+      expect(bookings.cancel).toHaveBeenCalledWith(1, 9);
+    });
+
+    it.each(['abc', '1.5'])(
+      'answers 400 without calling the service for the id "%s"',
+      async (id) => {
+        await cancel(id).expect(400);
+        expect(bookings.cancel).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['EMPLOYEE', 'WARDEN'] as const)(
+      'answers 403 for a %s without calling the service',
+      async (staffRole) => {
+        role = staffRole;
+        await cancel('9').expect(403);
+        expect(bookings.cancel).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [new DomainError('NOT_FOUND', 'Booking not found'), 404],
+      [new DomainError('CONFLICT', 'This booking is already cancelled'), 409],
+      [new DomainError('FORBIDDEN', 'A hiker profile is required to cancel a booking'), 403],
+    ])('maps %s from the service', async (error, status) => {
+      bookings.cancel.mockRejectedValue(error);
+      const response = await cancel('9');
+      expect(response.status).toBe(status);
+      expect(response.body).toMatchObject({ message: error.message });
+    });
+
+    it.each([
+      ['NOT_FOUND', 'Booking not found', 404],
+      ['CONFLICT', 'This booking is already cancelled', 409],
+      ['CONFLICT', 'A rejected booking cannot be cancelled', 409],
+    ] as const)('sends the %s message "%s" of the service', async (code, message, status) => {
+      bookings.cancel.mockRejectedValue(new DomainError(code, message));
+      const response = await cancel('9').expect(status);
+      expect(response.body).toMatchObject({ statusCode: status, message });
+    });
+
+    it('answers 500 for an unexpected error of the service', async () => {
+      bookings.cancel.mockRejectedValue(new Error('database down'));
+      const response = await cancel('9');
+      expect(response.status).toBe(500);
+      // The internal error message must not leak to the client.
+      expect(JSON.stringify(response.body)).not.toContain('database down');
+    });
+
+    // ParseIntPipe only checks the format: the repository turns ids out of range into
+    // "not found", so they reach the service.
+    it.each([
+      ['0', 0],
+      ['-1', -1],
+      ['2147483648', 2_147_483_648],
+    ])('passes the id "%s" to the service as a number', async (id, expected) => {
+      bookings.cancel.mockRejectedValue(new DomainError('NOT_FOUND', 'Booking not found'));
+      await cancel(id).expect(404);
+      expect(bookings.cancel).toHaveBeenCalledWith(1, expected);
+    });
+
+    it('ignores a hiker or user id sent in the body', async () => {
+      bookings.cancel.mockResolvedValue(cancelled);
+      await request(app.getHttpServer())
+        .post('/bookings/9/cancel')
+        .send({ hikerId: 99, userId: 99 })
+        .expect(200);
+      expect(bookings.cancel).toHaveBeenCalledWith(1, 9);
+    });
+
+    it('checks the role before parsing the id', async () => {
+      role = 'EMPLOYEE';
+      await cancel('abc').expect(403);
+      expect(bookings.cancel).not.toHaveBeenCalled();
+    });
+
+    it('does not expose the cancellation on GET', async () => {
+      await request(app.getHttpServer()).get('/bookings/9/cancel').expect(404);
+      expect(bookings.cancel).not.toHaveBeenCalled();
     });
   });
 });

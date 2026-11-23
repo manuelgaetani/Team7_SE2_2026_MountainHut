@@ -1,12 +1,12 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyBooking } from '@mountain-hut/shared';
-import { json, renderAt, stubApi, user } from '../test/app.tsx';
+import { hikerProfile, json, renderAt, stubApi, user } from '../test/app.tsx';
 
 const TEXT = {
   title: 'My bookings',
+  profile: 'My profile',
   loading: 'Loading your bookings…',
-  logIn: 'Log in',
   staff: 'Staff accounts have no bookings.',
   upcoming: 'Upcoming',
   cancelled: 'Cancelled',
@@ -45,8 +45,12 @@ const pending: MyBooking = {
 };
 const cancelled: MyBooking = { ...confirmed, id: 3, date: '2026-11-29', status: 'CANCELLED' };
 
-const asHiker = (bookings: () => Response) =>
-  stubApi({ '/api/auth/me': () => json(user), '/api/bookings/me': bookings });
+const asHiker = (bookings: () => Response, myProfile: () => Response = () => json(hikerProfile)) =>
+  stubApi({
+    '/api/auth/me': () => json(user),
+    '/api/bookings/me': bookings,
+    '/api/hikers/me': myProfile,
+  });
 
 const card = (title: string) => screen.getByRole('article', { name: title });
 
@@ -62,10 +66,11 @@ describe('MyBookingsPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('asks visitors without a session to log in', async () => {
+  it('sends visitors without a session to the page for visitors not signed in', async () => {
     stubApi();
-    renderAt('/bookings');
-    expect(await screen.findByRole('link', { name: TEXT.logIn })).toHaveAttribute('href', '/login');
+    const router = renderAt('/bookings');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/unauthorized'));
+    expect(screen.queryByRole('heading', { name: TEXT.title })).not.toBeInTheDocument();
   });
 
   it.each(['EMPLOYEE', 'WARDEN'])(
@@ -74,17 +79,17 @@ describe('MyBookingsPage', () => {
       const fetchMock = stubApi({ '/api/auth/me': () => json({ ...user, role }) });
       renderAt('/bookings');
       expect(await screen.findByText(TEXT.staff)).toBeVisible();
-      expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/bookings/me');
+      const urls = fetchMock.mock.calls.map(([url]) => url);
+      expect(urls).not.toContain('/api/bookings/me');
+      expect(urls).not.toContain('/api/hikers/me');
+      expect(screen.queryByRole('heading', { name: TEXT.profile })).not.toBeInTheDocument();
     },
   );
 
   it('shows a loading status while the bookings arrive', async () => {
-    stubApi({
-      '/api/auth/me': () => json(user),
-      '/api/bookings/me': () => json([]),
-    });
+    asHiker(() => json([]));
     renderAt('/bookings');
-    expect(await screen.findByRole('status')).toHaveTextContent(TEXT.loading);
+    expect(await screen.findByText(TEXT.loading)).toHaveAttribute('role', 'status');
   });
 
   it('lists the upcoming bookings with date, time, party and status', async () => {
@@ -242,5 +247,290 @@ describe('MyBookingsPage', () => {
     expect(
       screen.queryByRole('article', { name: 'Sunday 29 November 2026' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('my profile', () => {
+    const profileBox = async () =>
+      within(await screen.findByRole('complementary', { name: TEXT.profile }));
+
+    it('shows the name, email and phone of the hiker next to the bookings', async () => {
+      asHiker(
+        () => json([]),
+        () => json({ ...hikerProfile, phone: '3331234567' }),
+      );
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByText('Mario Rossi')).toBeVisible();
+      expect(box.getByText(user.email)).toBeVisible();
+      expect(box.getByText('3331234567')).toBeVisible();
+      expect(screen.getByRole('heading', { name: TEXT.title })).toBeVisible();
+    });
+
+    it('says "Not provided" for an optional detail left empty', async () => {
+      asHiker(() => json([]));
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByText('Not provided')).toBeVisible();
+    });
+
+    it('shows a loading status while the profile arrives', async () => {
+      asHiker(() => json([]));
+      renderAt('/bookings');
+      expect(await (await profileBox()).findByRole('status')).toHaveTextContent(
+        'Loading your profile…',
+      );
+    });
+
+    it('shows an error when the profile cannot be loaded, and still the bookings', async () => {
+      asHiker(
+        () => json([confirmed]),
+        () => json({ message: 'Server error' }, 500),
+      );
+      renderAt('/bookings');
+      const box = await profileBox();
+      expect(await box.findByRole('alert')).toHaveTextContent('Your profile could not be loaded.');
+      expect(
+        await screen.findByRole('article', { name: 'Saturday 21 November 2026' }),
+      ).toBeVisible();
+    });
+  });
+
+  describe('cancel a booking (MH-08)', () => {
+    const CANCEL = {
+      button: 'Cancel booking of Saturday 21 November 2026',
+      title: 'Cancel booking',
+      question: 'Are you sure you want to cancel the following booking?',
+      recap: 'Saturday 21 November 2026 · 12:30–14:00 · 4 people',
+      goBack: 'Go back',
+      confirm: 'Confirm',
+      doneTitle: 'Booking cancelled',
+      ok: 'OK',
+      failed: 'The booking could not be cancelled. Please try again.',
+      alreadyCancelled: 'This booking is already cancelled',
+    } as const;
+
+    // The list of bookings changes once the API has cancelled the booking.
+    function asHikerWithCancel(answer: () => Response) {
+      let cancelledNow = false;
+      return stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () =>
+          json([cancelledNow ? { ...confirmed, status: 'CANCELLED' } : confirmed]),
+        '/api/bookings/1/cancel': () => {
+          const response = answer();
+          cancelledNow = response.ok;
+          return response;
+        },
+      });
+    }
+
+    async function openDialog() {
+      renderAt('/bookings');
+      fireEvent.click(await screen.findByRole('button', { name: CANCEL.button }));
+      return screen.getByRole('dialog', { name: CANCEL.title });
+    }
+
+    it('asks to confirm and shows a recap of the booking', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      expect(dialog).toHaveTextContent(CANCEL.question);
+      expect(dialog).toHaveTextContent(CANCEL.recap);
+      expect(within(dialog).getByRole('button', { name: CANCEL.goBack })).toHaveFocus();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('closes without cancelling on Go back', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.goBack }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(card('Saturday 21 November 2026')).toBeVisible();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('cancels on Confirm and moves the booking among the cancelled ones', async () => {
+      const fetchMock = asHikerWithCancel(() =>
+        json({ id: 1, slotId: 10, partySize: 4, status: 'CANCELLED' }),
+      );
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      const done = await screen.findByRole('dialog', { name: CANCEL.doneTitle });
+      expect(done).toHaveTextContent(CANCEL.recap);
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bookings/1/cancel',
+        expect.objectContaining({ method: 'POST' }),
+      );
+
+      fireEvent.click(within(done).getByRole('button', { name: CANCEL.ok }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
+
+      fireEvent.click(screen.getByRole('tab', { name: TEXT.cancelled }));
+      expect(card('Saturday 21 November 2026')).toHaveTextContent('Cancelled');
+    });
+
+    it('shows the message of the API when the booking cannot be cancelled', async () => {
+      asHikerWithCancel(() => json({ message: CANCEL.alreadyCancelled }, 409));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.alreadyCancelled);
+    });
+
+    // Cancelled in another tab: the API answers 409 and the list must not keep the old card.
+    it('reloads the list after a 409, so a booking cancelled elsewhere leaves Upcoming', async () => {
+      let cancelledElsewhere = false;
+      stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () =>
+          json([cancelledElsewhere ? { ...confirmed, status: 'CANCELLED' } : confirmed]),
+        '/api/bookings/1/cancel': () => json({ message: CANCEL.alreadyCancelled }, 409),
+      });
+      const dialog = await openDialog();
+      cancelledElsewhere = true;
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.alreadyCancelled);
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.goBack }));
+      expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
+    });
+
+    it('asks to log in again when the session has expired', async () => {
+      asHikerWithCancel(() => json({}, 401));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(TEXT.sessionExpired);
+    });
+
+    it('shows a generic error when the cancellation fails', async () => {
+      asHikerWithCancel(() => json({}, 500));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.failed);
+    });
+
+    it('closes with the Escape key', async () => {
+      asHikerWithCancel(() => json({}));
+      await openDialog();
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('closes with the Close button without cancelling', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
+    });
+
+    it('closes on a click on the backdrop, not on a click inside the dialog', async () => {
+      asHikerWithCancel(() => json({}));
+      const dialog = await openDialog();
+
+      fireEvent.click(dialog);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      fireEvent.click(dialog.parentElement!);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('ignores other keys', async () => {
+      asHikerWithCancel(() => json({}));
+      await openDialog();
+
+      fireEvent.keyDown(document, { key: 'Enter' });
+
+      expect(screen.getByRole('dialog', { name: CANCEL.title })).toBeInTheDocument();
+    });
+
+    describe('while the request is on its way', () => {
+      // The cancellation never answers, so the dialog stays in its pending state.
+      async function openPending() {
+        const fetchMock = asHikerWithCancel(() => json({}));
+        const answer = fetchMock.getMockImplementation()!;
+        fetchMock.mockImplementation((url, init) =>
+          url === '/api/bookings/1/cancel' ? new Promise<Response>(() => {}) : answer(url, init),
+        );
+        const dialog = await openDialog();
+        fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+        await within(dialog).findByRole('button', { name: 'Cancelling…' });
+        return dialog;
+      }
+
+      it('disables both buttons and says that it is cancelling', async () => {
+        const dialog = await openPending();
+
+        expect(within(dialog).getByRole('button', { name: 'Cancelling…' })).toBeDisabled();
+        expect(within(dialog).getByRole('button', { name: CANCEL.goBack })).toBeDisabled();
+      });
+
+      it('stays open on Escape, on the Close button and on the backdrop', async () => {
+        const dialog = await openPending();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+        fireEvent.click(dialog.parentElement!);
+
+        expect(screen.getByRole('dialog', { name: CANCEL.title })).toBeInTheDocument();
+      });
+    });
+
+    it.each([
+      [403, 'A hiker profile is required to cancel a booking'],
+      [404, 'Booking not found'],
+      [409, 'A rejected booking cannot be cancelled'],
+    ])('shows the message of the API for a %i', async (status, message) => {
+      asHikerWithCancel(() => json({ message }, status));
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+      expect(within(dialog).getByRole('heading', { name: CANCEL.title })).toBeVisible();
+    });
+
+    it('shows a generic error when the network fails', async () => {
+      const fetchMock = asHikerWithCancel(() => json({}));
+      const answer = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation((url, init) =>
+        url === '/api/bookings/1/cancel' ? Promise.reject(new Error('offline')) : answer(url, init),
+      );
+      const dialog = await openDialog();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCEL.failed);
+    });
+
+    it('writes "1 person" in the recap of a booking for one', async () => {
+      stubApi({
+        '/api/auth/me': () => json(user),
+        '/api/bookings/me': () => json([pending]),
+      });
+      renderAt('/bookings');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Cancel booking of Sunday 6 December 2026' }),
+      );
+
+      expect(screen.getByRole('dialog', { name: CANCEL.title })).toHaveTextContent(
+        'Sunday 6 December 2026 · 13:00–14:30 · 1 person',
+      );
+    });
   });
 });

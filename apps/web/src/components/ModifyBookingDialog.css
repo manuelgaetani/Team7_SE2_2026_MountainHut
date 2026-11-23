@@ -60,6 +60,8 @@
 }
 
 .modify-dialog__requirements {
+  /* A fieldset is as wide as its content by default: let it shrink with the dialog */
+  min-width: 0;
   margin: 0 0 16px;
   padding: 0;
   border: 0;
@@ -198,4 +200,20 @@
   border-radius: 50%;
   font-size: 11px;
   font-weight: 700;
+}
+
+/* On phones: less padding, and the requirement text takes its own line */
+@media (max-width: 600px) {
+  .modify-dialog {
+    padding: 24px 20px 20px;
+  }
+  .requirement-row__fields {
+    flex-wrap: wrap;
+  }
+  .requirement-row__fields input[type='text'] {
+    flex-basis: 100%;
+  }
+  .requirement-row__remove {
+    margin-left: auto;
+  }
 }
