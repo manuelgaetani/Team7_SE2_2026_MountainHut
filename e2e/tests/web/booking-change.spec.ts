@@ -232,8 +232,11 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
   // TODO(MH-06-integration): to be added when web frontend integration testing is performed (requires /bookings UI integration)
   test('R1: Asks signed-out visitor to log in before modifying reservations', async ({ page }) => {
     await page.goto('/bookings');
-    // Unauthenticated user is redirected or prompted to sign in
-    await expect(page.getByRole('link', { name: /Log in/i })).toBeVisible();
+    // Unauthenticated user is redirected to the page for visitors not signed in
+    await expect(page).toHaveURL(/\/unauthorized$/);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { name: 'Access restricted' })).toBeVisible();
+    await expect(main.getByRole('link', { name: /Sign in/i })).toHaveAttribute('href', '/login');
     await expect(page.getByRole('button', { name: /Modify/i })).toHaveCount(0);
   });
 });
