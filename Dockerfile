@@ -40,6 +40,6 @@ WORKDIR /app/apps/api
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
-# Apply pending migrations before starting, so a new database gets its tables.
-# `migrate deploy` only applies migrations that are not applied yet, so restarts are safe.
-CMD ["sh", "-c", "npx --no-install prisma migrate deploy && exec node dist/main.js"]
+# Then, with SEED_DEMO_DATA=true, a database without users gets the demo accounts and slots
+# (see src/seed.ts); a database that already has users is left as it is.
+CMD ["sh", "-c", "npx --no-install prisma migrate deploy && node dist/seed.js --on-start && exec node dist/main.js"]

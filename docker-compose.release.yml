@@ -1,0 +1,42 @@
+services:
+  app:
+    image: ghcr.io/manuelgaetani/team7_se2_2026_mountainhut:${RELEASE_TAG:-release-2}
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mountainhut}:${POSTGRES_PASSWORD:-mountainhut}@db:5432/${POSTGRES_DB:-mountainhut}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set, see the README}
+      BOOKING_TIMEZONE: ${BOOKING_TIMEZONE:-Europe/Rome}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Mountain Hut <no-reply@mountain-hut.test>}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      # On the first start (no users yet) the database gets the demo accounts and 14 days of slots.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mountainhut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mountainhut}
+      POSTGRES_DB: ${POSTGRES_DB:-mountainhut}
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.32
+    ports:
+      - '8025:8025'
+volumes:
+  db-data:
