@@ -35,7 +35,7 @@ sections:
 | 6     | 7       | 5      | 8h 45m     | 10h 10m      |
 | 7     | 8       | 8      | 9h 15m     | 10h 40m      |
 | 8     | 7       | 3      | 5h 15m     | 5h 47m       |
-| 9     | 7       | 8      | 8h 30m     | 7h 50m       |
+| 9     | 7       | 8      | 8h 30m     | 8h 10m       |
 
 > place technical tasks corresponding to story `#0` and leave out story points (not applicable in this case)
 
@@ -47,9 +47,9 @@ sections:
   | Fabiana Fimiani      | 13      | 17h 32m     | 1.35h           | 0.77h   |
   | Manuel Gaetani       | 11      | 15h 55m     | 1.45h           | 0.52h   |
   | Kiara Kapllani       | 12      | 16h 40m     | 1.39h           | 0.78h   |
-  | Peyman Rivandi       | 17      | 16h 15m     | 0.96h           | 0.71h   |
+  | Peyman Rivandi       | 17      | 16h 35m     | 0.98h           | 0.71h   |
 
-- Total task estimation error ratio: sum of total hours estimation / sum of total hours spent -1 = 80h / 82h 32m - 1 = -0.0307 (-3.07%)
+- Total task estimation error ratio: sum of total hours estimation / sum of total hours spent -1 = 80h / 82h 52m - 1 = -0.0346 (-3.46%)
 
 ## QUALITY MEASURES
 
@@ -66,7 +66,7 @@ sections:
   - Total hours spent: 6h 15m
 - Code review:
   - Total hours estimated: 9h
-  - Total hours spent: 9h
+  - Total hours spent: 9h 20m
 
 ## ASSESSMENT
 
