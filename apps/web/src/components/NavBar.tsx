@@ -36,7 +36,7 @@ export function NavBar() {
     } else if (!onAuthPage) {
       account = (
         <>
-          <Link to="/login" className="nav-link">
+          <Link to="/login" className="pill">
             Sign in
           </Link>
           <Link to="/register" className="pill">

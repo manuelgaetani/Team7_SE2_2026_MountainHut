@@ -52,12 +52,6 @@ body {
   gap: 16px;
 }
 
-.nav-link {
-  color: var(--muted);
-  font-size: 0.8rem;
-  text-decoration: none;
-}
-
 .pill {
   padding: 8px 16px;
   border: 1px solid var(--border);
@@ -71,7 +65,7 @@ body {
   cursor: pointer;
 }
 
-/* Navigation bar buttons (Personal area, Sign out, Register): bigger, with a dark border to stand out. */
+/* Navigation bar buttons (Personal area, Sign out, Sign in, Register): bigger, with a dark border to stand out. */
 .nav-actions .pill {
   padding: 10px 20px;
   border-color: var(--ink);
