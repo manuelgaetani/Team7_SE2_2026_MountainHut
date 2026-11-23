@@ -27,15 +27,15 @@ sections:
 
 ### Detailed statistics
 
-| Story | # Tasks | Points | Hours est. | Hours actual |
-| ----- | ------- | ------ | ---------- | ------------ |
-| _#0_  | 9       | -      | 33h        | 31h 15m      |
-| 4     | 7       | 3      | 7h 30m     | 8h 30m       |
-| 5     | 7       | 5      | 7h 45m     | 8h 20m       |
-| 6     | 7       | 5      | 8h 45m     | 10h 10m      |
-| 7     | 8       | 8      | 9h 15m     | 10h 40m      |
-| 8     | 7       | 3      | 5h 15m     | 5h 47m       |
-| 9     | 7       | 8      | 8h 30m     | 8h 10m       |
+| Story  | # Tasks | Points  | Hours est.  | Hours actual  |
+| ------ | ------- | ------- | ----------- | ------------- |
+| _#0_   | 9       | -       | 33h         | 31h 15m       |
+| 4      | 7       | 3       | 7h 30m      | 8h 30m        |
+| 5      | 7       | 5       | 7h 45m      | 8h 20m        |
+| 6      | 7       | 5       | 8h 45m      | 10h 10m       |
+| 7      | 8       | 8       | 9h 15m      | 10h 40m       |
+| 8      | 7       | 3       | 5h 15m      | 5h 47m        |
+| 9      | 7       | 8       | 8h 30m      | 8h 10m        |
 
 > place technical tasks corresponding to story `#0` and leave out story points (not applicable in this case)
 
@@ -54,19 +54,19 @@ sections:
 ## QUALITY MEASURES
 
 - Unit Testing:
-  - Total hours estimated: 6h
-  - Total hours spent: 6h 50m
-  - Nr of automated unit test cases: 1873
-  - Coverage (if available): 98.9%
+    - Total hours estimated: 6h
+    - Total hours spent: 6h 50m
+    - Nr of automated unit test cases: 1873
+    - Coverage (if available): 98.9%
 - Integration testing:
-  - Total hours estimated: 6h
-  - Total hours spent: 6h 35m
+    - Total hours estimated: 6h
+    - Total hours spent: 6h 35m
 - E2E testing:
-  - Total hours estimated: 6h
-  - Total hours spent: 6h 15m
+    - Total hours estimated: 6h
+    - Total hours spent: 6h 15m
 - Code review:
-  - Total hours estimated: 9h
-  - Total hours spent: 9h 20m
+    - Total hours estimated: 9h
+    - Total hours spent: 9h 20m
 
 ## ASSESSMENT
 
@@ -95,4 +95,3 @@ We worked together in person only when strictly necessary.
 - One thing you are proud of as a Team!!
 
 Great coordination: as soon as we find a problem, we manage to solve it quite quickly. When issues come up, everyone is ready to step in if needed.
-
