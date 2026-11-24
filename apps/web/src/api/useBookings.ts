@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChangeBookingInput } from '@mountain-hut/shared';
 import {
@@ -43,16 +44,38 @@ export function useChangeBooking() {
   });
 }
 
-export function useCancelBooking() {
+// Sends a change outside of a mounted form, e.g. from the Undo of a toast after the dialog closed.
+export function useSendBookingChange() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: cancelBooking,
-    // The booking moves to the cancelled ones and its seats are free again. Also after an error:
-    // a 404 or 409 means the booking changed elsewhere, so the list must not stay stale.
-    onSettled: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: MY_BOOKINGS_KEY }),
-        queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
-      ]),
-  });
+  return useCallback(
+    async (id: number, input: ChangeBookingInput) => {
+      try {
+        return await changeBooking(id, input);
+      } finally {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: MY_BOOKINGS_KEY }),
+          queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
+        ]);
+      }
+    },
+    [queryClient],
+  );
+}
+
+// Cancels outside of a mounted dialog: the cancellation is sent when its Undo toast goes away.
+export function useSendCancellation() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (id: number) => {
+      try {
+        return await cancelBooking(id);
+      } finally {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: MY_BOOKINGS_KEY }),
+          queryClient.invalidateQueries({ queryKey: SLOTS_KEY }),
+        ]);
+      }
+    },
+    [queryClient],
+  );
 }

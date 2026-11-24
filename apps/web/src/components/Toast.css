@@ -1,0 +1,115 @@
+/* Above .dialog-backdrop (z-index 10) so a toast stays readable while a dialog is open. */
+.toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(460px, calc(100vw - 48px));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid transparent;
+  border-left-width: 6px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgb(20 28 22 / 0.28);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: auto;
+  animation: toast-in 0.2s ease-out;
+}
+.toast--ok {
+  border-color: #c9d6cb;
+  border-left-color: var(--green);
+  background: #fff;
+  color: var(--green-dark);
+}
+.toast--error {
+  border-color: #ecc9c1;
+  border-left-color: var(--error);
+  background: #fff6f3;
+  color: var(--error);
+}
+
+.toast__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 0;
+}
+.toast--ok .toast__icon {
+  background: var(--green);
+}
+.toast--error .toast__icon {
+  background: var(--error);
+}
+
+.toast__message {
+  flex: 1;
+}
+
+.toast__action {
+  flex: none;
+  padding: 8px 14px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toast__action:hover {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.toast__close {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+@media (max-width: 599px) {
+  .toasts {
+    right: 16px;
+    left: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}

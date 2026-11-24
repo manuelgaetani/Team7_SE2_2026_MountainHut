@@ -2,7 +2,7 @@
   --bg: #f3efe5;
   --surface: #f8f5ee;
   --ink: #173d33;
-  --muted: #7d9189;
+  --muted: #566a61;
   --border: #e0dccf;
   --tab-bg: #e8e4d9;
   --error: #b3261e;
@@ -25,16 +25,23 @@ body {
   font-family: var(--font-body);
 }
 
-/* Header */
+/* Header: a full-width navigation bar, sticky at the top of the page. */
 .site-header {
-  padding: 20px 32px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  background: rgb(248 245 238 / 0.94);
+  backdrop-filter: blur(8px);
 }
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 8px 32px;
+  min-height: 68px;
 }
 
 .brand {
@@ -46,10 +53,140 @@ body {
   text-transform: uppercase;
 }
 
+.nav-links {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  position: relative;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nav-link:hover {
+  background: var(--tab-bg);
+}
+/* The current page: a bar under the link. */
+.nav-link--active::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  bottom: 2px;
+  left: 14px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--ink);
+}
+
 .nav-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 8px 12px;
+}
+
+/* Account indicator and its menu */
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.avatar--large {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+
+.profile-menu {
+  position: relative;
+}
+.profile-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-menu__toggle:hover,
+.profile-menu__toggle[aria-expanded='true'] {
+  border-color: var(--ink);
+}
+.profile-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  width: 280px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgb(20 28 22 / 0.18);
+}
+.profile-menu__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  padding: 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.profile-menu__who strong {
+  display: block;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.profile-menu__role {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.profile-menu__item {
+  display: block;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.profile-menu__item:hover {
+  background: var(--tab-bg);
+}
+.profile-menu__signout {
+  width: 100%;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  color: var(--error);
+  font-weight: 600;
 }
 
 .pill {
@@ -65,16 +202,31 @@ body {
   cursor: pointer;
 }
 
-/* Navigation bar buttons (Personal area, Sign out, Sign in, Register): bigger, with a dark border to stand out. */
+/* Sign in and Register in the navigation bar: bigger, with a dark border to stand out. */
 .nav-actions .pill {
   padding: 10px 20px;
   border-color: var(--ink);
   font-size: 0.9rem;
 }
 
-.nav-actions .pill:hover {
+.nav-actions .pill:hover,
+.nav-actions .pill[aria-current='page'],
+.pill--solid {
   background: var(--ink);
   color: #fff;
+}
+
+.pill--hero {
+  padding: 14px 24px;
+  border-color: #fff;
+  color: #fff;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.pill--hero:hover {
+  background: #fff;
+  color: var(--ink);
 }
 
 /* Shared */
@@ -251,6 +403,35 @@ body {
   border-color: var(--error);
 }
 
+/* Password input with the show/hide eye inside, on the right. */
+.field__password {
+  position: relative;
+}
+.field .field__password input {
+  padding-right: 52px;
+}
+.field__reveal {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.field__reveal:hover,
+.field__reveal[aria-pressed='true'] {
+  background: var(--tab-bg);
+  color: var(--ink);
+}
+
 .field-error,
 .form-error {
   margin: 6px 0 0;
@@ -345,7 +526,8 @@ a.button-primary {
 
 .eyebrow {
   margin: 0 0 20px;
-  color: #e9ddc4;
+  /* Dark by default: the pages on the light background need contrast. */
+  color: var(--ink);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -354,6 +536,14 @@ a.button-primary {
 
 .eyebrow--dark {
   color: #173d33;
+}
+
+/* On the photo of the home hero the eyebrow is light. */
+.home-hero .eyebrow {
+  color: #e9ddc4;
+}
+.home-hero .eyebrow::before {
+  background: #e9ddc4;
 }
 
 .home-hero h1 {
@@ -454,12 +644,31 @@ a.button-primary {
 /* On phones the brand and the account buttons must fit on one line each */
 @media (max-width: 600px) {
   .site-header {
-    padding: 16px 20px;
+    padding: 8px 16px;
   }
 
   .nav,
   .nav-actions {
     gap: 8px;
+  }
+
+  /* The links take their own row under the brand and the account. */
+  .nav-links {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .nav-actions {
+    margin-left: auto;
+  }
+
+  .nav-link {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .profile-menu__name {
+    display: none;
   }
 
   .brand {
@@ -564,4 +773,21 @@ a.button-primary {
     text-align: center;
     justify-content: center;
   }
+}
+
+/* Party requirements with allergies: one mark and one checkbox colour on every page. */
+.allergy-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f4dcd9;
+  color: var(--error);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: baseline;
+}
+.requirement__allergy input[type='checkbox'] {
+  accent-color: var(--error);
 }

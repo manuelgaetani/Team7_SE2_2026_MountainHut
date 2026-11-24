@@ -16,7 +16,6 @@ const TEXT = {
   notAvailable: 'Not available',
   dateError: 'Choose a date.',
   timeError: 'Choose a time.',
-  partyError: 'Enter the number of people, 1 or more.',
   bookTable: 'Book a table',
   registerToBook: 'Register to book a table',
   signIn: 'Sign in',
@@ -56,6 +55,18 @@ function stubAvailability({
 const availabilityCalls = (fetchMock: ReturnType<typeof stubApi>) =>
   fetchMock.mock.calls.filter(([url]) => url.startsWith('/api/availability?'));
 
+const partyValue = () => screen.getByRole('status', { name: TEXT.partySize });
+
+// The stepper starts at 2.
+function setParty(target: number) {
+  while (Number(partyValue().textContent) < target) {
+    fireEvent.click(screen.getByRole('button', { name: 'More guests' }));
+  }
+  while (Number(partyValue().textContent) > target) {
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer guests' }));
+  }
+}
+
 function fillAndSubmit({
   date,
   time = '12:30',
@@ -63,14 +74,12 @@ function fillAndSubmit({
 }: {
   date?: string;
   time?: string;
-  partySize?: string;
+  partySize?: number;
 } = {}) {
   if (date !== undefined)
     fireEvent.change(screen.getByLabelText(TEXT.date), { target: { value: date } });
   fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: time } });
-  if (partySize !== undefined) {
-    fireEvent.change(screen.getByLabelText(TEXT.partySize), { target: { value: partySize } });
-  }
+  if (partySize !== undefined) setParty(partySize);
   fireEvent.click(screen.getByRole('button', { name: new RegExp(TEXT.submit) }));
 }
 
@@ -92,31 +101,33 @@ describe('AvailabilityPage', () => {
     expect(screen.getByRole('heading', { name: TEXT.title })).toBeVisible();
     expect(screen.getByLabelText(TEXT.date)).toHaveValue('2026-11-14');
     expect(screen.getByLabelText(TEXT.time)).toHaveValue('');
-    expect(screen.getByLabelText(TEXT.partySize)).toHaveValue(2);
+    expect(partyValue()).toHaveTextContent('2');
+    expect(screen.getByLabelText(TEXT.date)).toHaveAttribute('min', '2026-11-14');
     expect(availabilityCalls(fetchMock)).toHaveLength(0);
   });
 
-  it('validates date, time, and partySize client-side without calling the API', () => {
+  it('validates date and time client-side without calling the API', () => {
     const fetchMock = stubAvailability();
     renderAt('/availability');
 
-    fillAndSubmit({ date: '', time: '', partySize: '0' });
+    fillAndSubmit({ date: '', time: '' });
     expect(screen.getByText(TEXT.dateError)).toHaveAttribute('role', 'alert');
     expect(screen.getByText(TEXT.timeError)).toHaveAttribute('role', 'alert');
-    expect(screen.getByText(TEXT.partyError)).toHaveAttribute('role', 'alert');
     expect(screen.getByLabelText(TEXT.date)).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText(TEXT.time)).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByLabelText(TEXT.partySize)).toHaveAttribute('aria-invalid', 'true');
     expect(availabilityCalls(fetchMock)).toHaveLength(0);
   });
 
-  it.each(['-1', '2.5', 'abc'])('rejects invalid partySize %j client-side', (badPartySize) => {
-    const fetchMock = stubAvailability();
+  it('steps the party size from 1 upwards with no upper limit', () => {
+    stubAvailability();
     renderAt('/availability');
 
-    fillAndSubmit({ partySize: badPartySize });
-    expect(screen.getByText(TEXT.partyError)).toHaveAttribute('role', 'alert');
-    expect(availabilityCalls(fetchMock)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer guests' }));
+    expect(partyValue()).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: 'Fewer guests' })).toBeDisabled();
+    setParty(40);
+    expect(partyValue()).toHaveTextContent('40');
+    expect(screen.getByRole('button', { name: 'More guests' })).toBeEnabled();
   });
 
   it('shows loading status while checking and disables submit button', async () => {
@@ -129,8 +140,8 @@ describe('AvailabilityPage', () => {
     });
     renderAt('/availability');
 
-    fillAndSubmit({ time: '12:30', partySize: '5' });
-    expect(screen.getByRole('status')).toHaveTextContent(TEXT.loading);
+    fillAndSubmit({ time: '12:30', partySize: 5 });
+    expect(screen.getByText(TEXT.loading)).toHaveAttribute('role', 'status');
     expect(screen.getByRole('button', { name: new RegExp(TEXT.submitting) })).toBeDisabled();
 
     resolveCheck(json(availableResult));
@@ -141,7 +152,7 @@ describe('AvailabilityPage', () => {
     const fetchMock = stubAvailability();
     renderAt('/availability');
 
-    fillAndSubmit({ time: '12:30', partySize: '5' });
+    fillAndSubmit({ time: '12:30', partySize: 5 });
 
     expect(await screen.findByText(TEXT.available)).toBeVisible();
     expect(availabilityCalls(fetchMock)[0]?.[0]).toBe(
@@ -179,16 +190,15 @@ describe('AvailabilityPage', () => {
     stubAvailability({ session: user, handler: () => json(minimalResult) });
     renderAt('/availability');
 
-    fillAndSubmit({ time: '12:30', partySize: '2' });
+    fillAndSubmit({ time: '12:30', partySize: 2 });
 
     expect(await screen.findByText(TEXT.available)).toBeVisible();
     expect(screen.getByText('Sat 14 Nov at 12:30 for 2 people')).toBeVisible();
     expect(screen.queryByText(/Table layout:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Tables for the party' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: TEXT.bookTable })).toHaveAttribute(
-      'href',
-      bookingPath({ date: '2026-11-14', time: '12:30', partySize: 2 }),
-    );
+    expect(
+      within(screen.getByRole('main')).getByRole('link', { name: TEXT.bookTable }),
+    ).toHaveAttribute('href', bookingPath({ date: '2026-11-14', time: '12:30', partySize: 2 }));
   });
 
   it.each([
@@ -245,7 +255,7 @@ describe('AvailabilityPage', () => {
     stubAvailability({ handler: () => json(payload) });
     renderAt('/availability');
 
-    fillAndSubmit({ time: payload.time, partySize: String(payload.partySize) });
+    fillAndSubmit({ time: payload.time, partySize: payload.partySize });
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(TEXT.notAvailable);
@@ -269,10 +279,10 @@ describe('AvailabilityPage', () => {
 
     fillAndSubmit({ time: '13:00' });
     expect(await screen.findByText(TEXT.available)).toBeVisible();
-    fireEvent.change(screen.getByLabelText(TEXT.partySize), { target: { value: '3' } });
+    setParty(3);
     expect(screen.queryByText(TEXT.available)).not.toBeInTheDocument();
 
-    fillAndSubmit({ time: '', partySize: '3' });
+    fillAndSubmit({ time: '', partySize: 3 });
     expect(screen.getByText(TEXT.timeError)).toBeVisible();
     fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: '12:30' } });
     expect(screen.queryByText(TEXT.timeError)).not.toBeInTheDocument();

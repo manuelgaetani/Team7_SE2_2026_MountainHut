@@ -1,17 +1,25 @@
+import { useId } from 'react';
 import { dateShort, fromIsoDate, monthYear, weekdayShort } from '../lib/dates.ts';
 
 interface DayPickerProps {
   dates: string[];
   value: string;
   onChange: (isoDate: string) => void;
+  label?: string;
 }
 
-export function DayPicker({ dates, value, onChange }: DayPickerProps) {
+export function DayPicker({
+  dates,
+  value,
+  onChange,
+  label = 'When are you coming?',
+}: DayPickerProps) {
+  const labelId = useId();
   return (
-    <section className="field" aria-labelledby="when-label">
+    <section className="field" aria-labelledby={labelId}>
       <div className="field__head">
-        <h3 id="when-label" className="field__label">
-          When are you coming?
+        <h3 id={labelId} className="field__label">
+          {label}
         </h3>
         <span className="field__meta">
           {monthYear(fromIsoDate(value))}
@@ -29,7 +37,7 @@ export function DayPicker({ dates, value, onChange }: DayPickerProps) {
           </svg>
         </span>
       </div>
-      <div className="days" role="radiogroup" aria-labelledby="when-label">
+      <div className="days" role="radiogroup" aria-labelledby={labelId}>
         {dates.map((iso) => {
           const d = fromIsoDate(iso);
           return (
