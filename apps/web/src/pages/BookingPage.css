@@ -494,9 +494,6 @@
   padding-left: 18px;
   font-size: 12px;
 }
-.dialog__allergy {
-  font-weight: 600;
-}
 /* On phones the description takes its own line, with the allergy box and Remove below it */
 @media (max-width: 600px) {
   .requirements__head {

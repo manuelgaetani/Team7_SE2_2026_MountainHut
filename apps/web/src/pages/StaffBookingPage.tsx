@@ -29,6 +29,7 @@ import {
 import './BookingPage.css';
 import './StaffBookingPage.css';
 import { apiErrorMessage } from '../lib/errors.ts';
+import { AllergyBadge } from '../components/AllergyBadge.tsx';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 const FOOTER_TEXT: Record<HikerMode, string> = {
@@ -262,7 +263,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
                   .filter((r) => r.description.trim() !== '')
                   .map((r) => (
                     <li key={r.key}>
-                      {r.allergies && <span className="allergy-badge">Allergies</span>}
+                      {r.allergies && <AllergyBadge />}
                       {r.description}
                     </li>
                   ))}
