@@ -49,13 +49,23 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
+  const slots = slotsQuery.data ?? [];
+  // The seats of the booking go back to its own slot.
+  const maxFor = (s: SlotSummary): number =>
+    s.freeSeats + (s.id === booking.slotId ? booking.partySize : 0);
+  const chosen = slots.find((s) => s.id === slotId);
+  // A smaller slot lowers the party only on screen: going back to a bigger one restores it.
+  const guests = chosen ? Math.min(partySize, maxFor(chosen)) : partySize;
+
   // Edits that were reverted to the original values do not count.
   const dirty =
     slotId !== booking.slotId ||
-    partySize !== booking.partySize ||
+    guests !== booking.partySize ||
     !sameRequirements(toRequirements(rows), booking.requirements);
 
+  // While the change is being saved the dialog stays open, so its toast is shown.
   const requestClose = () => {
+    if (change.isPending) return;
     if (dirty) setConfirmingDiscard(true);
     else onClose();
   };
@@ -70,16 +80,15 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || change.isPending) return;
       if (confirmingDiscard) setConfirmingDiscard(false);
       else if (dirty) setConfirmingDiscard(true);
       else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose, dirty, confirmingDiscard]);
+  }, [onClose, dirty, confirmingDiscard, change.isPending]);
 
-  const slots = slotsQuery.data ?? [];
   const dates = [...new Set(slots.map((s) => s.date))].sort((a, b) => a.localeCompare(b));
   const daySlots = slots
     .filter((s) => s.date === date)
@@ -96,15 +105,8 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
     if (s.availability === 'TOO_LATE') return 'Closed';
     return canChoose(s) ? null : `Within ${CHANGE_LEAD_HOURS} hours`;
   };
-  // The seats of the booking go back to its own slot.
-  const maxFor = (s: SlotSummary): number =>
-    s.freeSeats + (s.id === booking.slotId ? booking.partySize : 0);
-  const chosen = slots.find((s) => s.id === slotId);
-
   function chooseSlot(id: number | null) {
     setSlotId(id);
-    const slot = slots.find((s) => s.id === id);
-    if (slot) setPartySize((size) => Math.min(size, maxFor(slot)));
     setFormError(null);
   }
 
@@ -138,7 +140,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
     // Only the details that change are sent.
     const input: ChangeBookingInput = {};
     if (slotId !== booking.slotId) input.slotId = slotId;
-    if (partySize !== booking.partySize) input.partySize = partySize;
+    if (guests !== booking.partySize) input.partySize = guests;
     const requirements = toRequirements(rows);
     if (!sameRequirements(requirements, booking.requirements)) input.requirements = requirements;
     if (Object.keys(input).length === 0) {
@@ -213,7 +215,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
               <DayPicker dates={dates} value={date} onChange={chooseDate} label="Date" />
               <TimeSlotPicker
                 slots={daySlots}
-                guests={partySize}
+                guests={guests}
                 value={slotId}
                 onChange={chooseSlot}
                 label="Time"
@@ -224,7 +226,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
           )}
 
           <GuestStepper
-            value={partySize}
+            value={guests}
             max={chosen ? maxFor(chosen) : undefined}
             onChange={(size) => {
               setPartySize(size);
@@ -239,6 +241,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
             errors={errors}
             onChange={(next) => {
               setRows(next);
+              setErrors({});
               setFormError(null);
             }}
           />
@@ -257,7 +260,12 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
                 >
                   Keep editing
                 </button>
-                <button type="button" className="modify-dialog__danger" onClick={onClose}>
+                <button
+                  type="button"
+                  className="modify-dialog__danger"
+                  onClick={onClose}
+                  disabled={change.isPending}
+                >
                   Discard
                 </button>
               </div>

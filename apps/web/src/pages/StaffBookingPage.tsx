@@ -100,7 +100,8 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const navigate = useNavigate();
   const createBooking = useCreateStaffBooking();
   const [hiker, setHiker] = useState<HikerDraft>(emptyHikerDraft);
-  const [date, setDate] = useState(() => toIsoDate(new Date()));
+  const [today] = useState(() => toIsoDate(new Date()));
+  const [date, setDate] = useState(today);
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(DEFAULT_PARTY);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
@@ -122,10 +123,13 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const slotFree = slot ? freeSeats.get(slot.id) : undefined;
   // A slot with fewer free seats than the party lowers the party to them.
   const guests = slotFree === undefined ? partySize : Math.max(1, Math.min(partySize, slotFree));
-  // Edits that were reverted to the initial values do not count.
+  // Edits that were reverted to the initial values do not count. A party lowered by a small slot
+  // is not an edit of the user.
   const dirty =
     JSON.stringify(hiker) !== JSON.stringify(emptyHikerDraft()) ||
-    guests !== DEFAULT_PARTY ||
+    date !== today ||
+    chosenSlotId !== null ||
+    partySize !== DEFAULT_PARTY ||
     requirements.length > 0;
 
   useEffect(() => {

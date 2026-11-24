@@ -9,6 +9,8 @@ const TEXT = {
   dialog: 'Repeat weekly schedule',
   weeks: 'Number of weeks to repeat',
   confirm: 'Repeat schedule',
+  // The label while the slots of the target weeks are unknown (the stub does not serve them).
+  confirmUnknown: 'Confirm and repeat schedule',
   replaceThree: 'Replace 3 slots and repeat',
   close: 'Close',
   atLeastOne: 'Must be at least 1 week.',
@@ -65,6 +67,13 @@ async function openDialog() {
   renderAt('/staff/slots');
   fireEvent.click(await screen.findByRole('button', { name: TEXT.open }));
   return screen.getByRole('dialog', { name: TEXT.dialog });
+}
+
+// The confirm button is disabled until the slots of the target weeks are counted (or fail to load).
+async function confirmButton(dialog: HTMLElement, name: string = TEXT.confirmUnknown) {
+  const button = await within(dialog).findByRole('button', { name });
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  return button;
 }
 
 const repeatCalls = (fetchMock: ReturnType<typeof stub>) =>
@@ -162,6 +171,18 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     );
     expect(dialog).toHaveTextContent(TEXT.replaced);
     expect(dialog).not.toHaveTextContent('will be replaced.');
+    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeEnabled();
+  });
+
+  it('keeps the confirm button neutral and disabled while the target weeks are counted', async () => {
+    // The days never answer: fetch resolves with a promise that stays pending.
+    const never = () => new Promise<Response>(() => {}) as unknown as Response;
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, never]));
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeDisabled();
+    expect(within(dialog).queryByRole('button', { name: TEXT.confirm })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -176,7 +197,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
 
     const input = within(dialog).getByLabelText(TEXT.weeks);
     fireEvent.change(input, { target: { value: weeks } });
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog, TEXT.confirm));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
     expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -188,7 +209,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const dialog = await openDialog();
 
     fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '12' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog));
 
     expect(await screen.findByRole('status')).toHaveTextContent('across 12 weeks');
     expect(sentBody(fetchMock, REPEAT_URL)).toEqual({
@@ -202,7 +223,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const dialog = await openDialog();
 
     fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '2' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog));
 
     expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done2);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -220,7 +241,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     );
     const dialog = await openDialog();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog));
 
     expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done1Replaced);
   });
@@ -231,7 +252,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const scheduleCalls = () => fetchMock.mock.calls.filter(([u]) => u === SCHEDULE_URL).length;
     const before = scheduleCalls();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog));
 
     await screen.findByRole('status');
     await vi.waitFor(() => expect(scheduleCalls()).toBeGreaterThan(before));
@@ -245,7 +266,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     stub(employee, () => json({ message }, status));
     const dialog = await openDialog();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
+    fireEvent.click(await confirmButton(dialog));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(shown);
     expect(screen.getByRole('dialog', { name: TEXT.dialog })).toBeInTheDocument();

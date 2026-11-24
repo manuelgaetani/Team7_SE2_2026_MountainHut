@@ -156,9 +156,6 @@
   background: #fff;
   font-size: 15px;
 }
-.my-bookings__body .booking-card__updated {
-  margin-top: 16px;
-}
 .my-bookings__body .booking-card__locked {
   margin-top: 16px;
   background: #f4efe6;

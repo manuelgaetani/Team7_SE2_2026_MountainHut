@@ -258,6 +258,20 @@ describe('ModifyBookingDialog', () => {
       expect(partySize()).toHaveTextContent('3');
     });
 
+    it('restores the party on going back to the booked slot', async () => {
+      setup(() =>
+        json([
+          ...slots.slice(0, 2),
+          slot({ id: 21, date: '2026-11-29', startTime: '13:00', freeSeats: 3 }),
+        ]),
+      );
+      await openDialog();
+      fireEvent.click(day(DAY.second));
+      expect(partySize()).toHaveTextContent('3');
+      fireEvent.click(day(DAY.first));
+      expect(partySize()).toHaveTextContent('4');
+    });
+
     it('cannot go below one person', async () => {
       setup();
       await openDialog();

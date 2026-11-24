@@ -73,9 +73,12 @@ export function RepeatWeeklyScheduleDialog({
   const sourceEnd = addDays(sourceStartDate, 6);
   // While the number is not valid there is no target period, so nothing is loaded.
   const existing = useSchedules(validWeeks ? targetDays(sourceStartDate, n) : []);
+  // Until the count is known the label stays neutral: the copy may still replace slots.
+  const countUnknown = validWeeks && existing.total === undefined;
   const toReplace = validWeeks ? (existing.total ?? 0) : 0;
-  const submitLabel =
-    toReplace > 0 ? `Replace ${slotsLabel(toReplace)} and repeat` : 'Repeat schedule';
+  let submitLabel = 'Repeat schedule';
+  if (countUnknown) submitLabel = 'Confirm and repeat schedule';
+  else if (toReplace > 0) submitLabel = `Replace ${slotsLabel(toReplace)} and repeat`;
   const replaced = validWeeks ? replacedHint(existing.total, existing.isPending) : null;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -177,7 +180,11 @@ export function RepeatWeeklyScheduleDialog({
 
           {error && <ErrorNotice message={error} />}
 
-          <button type="submit" className="cta cta--center" disabled={repeat.isPending}>
+          <button
+            type="submit"
+            className="cta cta--center"
+            disabled={repeat.isPending || (validWeeks && existing.isPending)}
+          >
             {repeat.isPending ? 'Repeating…' : submitLabel}
           </button>
           <button type="button" className="pill slot-form__cancel" onClick={onClose}>
