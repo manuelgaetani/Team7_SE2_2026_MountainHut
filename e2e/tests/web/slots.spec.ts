@@ -25,7 +25,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     const loginLink = notice.getByRole('link', { name: 'Sign in' });
     await expect(loginLink).toBeVisible();
     await expect(loginLink).toHaveAttribute('href', '/login');
-    await expect(page.getByLabel('Day')).toHaveCount(0);
+    await expect(page.getByLabel('Day', { exact: true })).toHaveCount(0);
   });
 
   test('forbids standard hikers from accessing the staff slots page', async ({
@@ -42,7 +42,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     // Directly navigating shows the staff-only notice
     await page.goto('/staff/slots');
     await expect(page.getByText('This page is for the hut staff.')).toBeVisible();
-    await expect(page.getByLabel('Day')).toHaveCount(0);
+    await expect(page.getByLabel('Day', { exact: true })).toHaveCount(0);
   });
 
   test('employee logs in, sees "Time slots" in nav, and manages slots', async ({
@@ -59,7 +59,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await expect(page).toHaveURL('/staff/slots');
 
     // Select the isolated test date
-    const dayInput = page.getByLabel('Day');
+    const dayInput = page.getByLabel('Day', { exact: true });
     await dayInput.fill(testDate);
     await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
 
@@ -125,6 +125,6 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     ).toBeVisible();
     await page.goto('/staff/slots');
     await expect(page.getByText('Time slots and tables')).toBeVisible();
-    await expect(page.getByLabel('Day')).toBeVisible();
+    await expect(page.getByLabel('Day', { exact: true })).toBeVisible();
   });
 });
