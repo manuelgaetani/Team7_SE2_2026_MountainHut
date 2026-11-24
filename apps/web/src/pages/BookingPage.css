@@ -112,8 +112,8 @@
   color: #fff;
 }
 .choice:disabled {
-  color: #b3b3aa;
-  text-decoration: line-through;
+  /* No strike-through: the reason under the time (e.g. "Only 3 seats") must stay readable. */
+  color: #8a8f87;
   cursor: not-allowed;
   background: var(--tint);
 }
@@ -149,22 +149,26 @@
   gap: 14px;
 }
 .stepper__btn {
-  width: 28px;
-  height: 28px;
+  /* Grid centring: the glyphs + and − sit in the middle of the circle on every browser. */
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   border-radius: 50%;
-  border: 1px solid var(--line);
+  /* Same look for + and −, with a border thick enough to see. */
+  border: 2px solid var(--green);
   background: var(--surface);
-  font-size: 16px;
-  line-height: 1;
+  color: var(--green-dark);
+  font-size: 18px;
+  line-height: 0;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
-.stepper__btn--plus {
+.stepper__btn:hover:not(:disabled) {
   background: var(--green);
-  border-color: var(--green);
   color: #fff;
-}
-.stepper__btn--plus:hover:not(:disabled) {
-  background: var(--green-dark);
-  border-color: var(--green-dark);
 }
 .stepper__btn:disabled {
   opacity: 0.4;
@@ -190,9 +194,9 @@
 .slot__reason {
   display: block;
   margin-top: 2px;
-  color: var(--muted);
-  font-size: 10px;
-  text-decoration: none;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .cta {
@@ -229,6 +233,12 @@
 .notice--ok {
   background: var(--tint);
   color: var(--green-dark);
+}
+/* Links inside a notice (e.g. "Sign in") follow the notice colour, not the browser blue. */
+.notice a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .summary {
@@ -280,7 +290,13 @@
   display: grid;
   place-items: center;
   padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgb(20 28 22 / 0.55);
+}
+/* While a dialog is open the page behind it does not scroll. */
+body:has(.dialog-backdrop) {
+  overflow: hidden;
 }
 .dialog {
   position: relative;
@@ -477,7 +493,12 @@
   font-size: 14px;
 }
 .requirements .pill {
+  border: 2px solid var(--green);
   font-size: 14px;
+}
+.requirements .pill:hover:not(:disabled) {
+  background: var(--green);
+  color: #fff;
 }
 .dialog__requirements {
   margin-bottom: 20px;

@@ -26,7 +26,7 @@ async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
 }
 
 interface ListedSlot {
@@ -105,7 +105,8 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await expect(page.getByText('Slot created: 12:00–13:30, 4 seats.')).toBeVisible();
 
     // 2. Staff logs out: visitor is anonymous (no login required)
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click();
 
     // 3. Anonymous visitor navigates to the availability check page
     await page.goto('/availability');
