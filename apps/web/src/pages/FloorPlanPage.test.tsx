@@ -10,7 +10,7 @@ const TEXT = {
   loading: 'Loading the floor plan…',
   notFound: 'Slot not found',
   loadFailed: 'The floor plan could not be loaded. Please try again.',
-  sessionExpired: 'The session has expired. Please sign in again.',
+  sessionExpired: 'The session has expired. Please log in again.',
   staffOnly: 'This page is for the hut staff.',
   logInHint: /with a staff account to see the floor plan/,
   noTables: 'No tables yet: hikers cannot book this slot.',
@@ -142,8 +142,7 @@ function renderFloorPage(
 const floorRequests = (fetchMock: ReturnType<typeof stubApi>) =>
   fetchMock.mock.calls.filter(([url]) => String(url).includes('/floor'));
 
-const tableCard = (n: number) =>
-  screen.getByRole('heading', { level: 3, name: `Table ${n}` }).closest('li') as HTMLElement;
+const tableCard = (n: number) => screen.getByText(`Table ${n}`).closest('li') as HTMLElement;
 
 describe('FloorPlanPage', () => {
   afterEach(() => {
@@ -155,8 +154,9 @@ describe('FloorPlanPage', () => {
       const fetchMock = stubApi({ user: null });
       renderFloorPage();
 
-      const hint = await screen.findByText(TEXT.logInHint, undefined, { timeout: 4000 });
-      expect(within(hint).getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+      const loginLink = await screen.findByRole('link', { name: 'Log in' }, { timeout: 4000 });
+      expect(loginLink).toHaveAttribute('href', '/login');
+      expect(screen.getByText(TEXT.logInHint)).toBeInTheDocument();
       expect(floorRequests(fetchMock)).toHaveLength(0);
     });
 
@@ -197,7 +197,7 @@ describe('FloorPlanPage', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.notFound);
     });
 
-    it('asks to sign in again when the session has expired', async () => {
+    it('asks to log in again when the session has expired', async () => {
       stubApi({ floor: () => json({ message: 'Unauthorized' }, 401) });
       renderFloorPage();
 

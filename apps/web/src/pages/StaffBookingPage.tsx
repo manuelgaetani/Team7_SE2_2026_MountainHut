@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   createStaffBookingSchema,
   MAX_REQUIREMENTS_LENGTH,
   type PartyRequirement,
-  type SlotSummary,
   type StaffBookingHiker,
   type StaffBookingResult,
 } from '@mountain-hut/shared';
+import { ApiError } from '../api/client.ts';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -15,12 +15,10 @@ import { useBookableSlots } from '../api/useBookings.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
 import { FormField } from '../components/FormField.tsx';
-import { GuestStepper } from '../components/GuestStepper.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
 import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
 import { StaffBookingErrorDialog } from '../components/StaffBookingErrorDialog.tsx';
-import { TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateLong, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import {
   emptyHikerDraft,
@@ -30,9 +28,6 @@ import {
 } from '../lib/hikerDraft.ts';
 import './BookingPage.css';
 import './StaffBookingPage.css';
-import { apiErrorMessage } from '../lib/errors.ts';
-import { AllergyBadge } from '../components/AllergyBadge.tsx';
-import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 const FOOTER_TEXT: Record<HikerMode, string> = {
   EXISTING: 'This booking will be linked to the selected hiker.',
@@ -47,8 +42,6 @@ const FIELD_MESSAGES: FieldErrors = {
   email: 'Enter a valid email address.',
   requirements: `Describe each requirement in at most ${MAX_REQUIREMENTS_LENGTH} characters.`,
 };
-
-const DEFAULT_PARTY = 2;
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 const seats = (n: number): string => (n === 1 ? '1 free seat' : `${n} free seats`);
@@ -72,22 +65,10 @@ function hasStarted(slot: SlotDetails, now: Date): boolean {
 
 // Why a slot cannot be chosen; empty when it can. freeSeats is unknown until GET /slots answers.
 function slotNote(slot: SlotDetails, now: Date, freeSeats: number | undefined): string {
-  if (hasStarted(slot, now)) return 'Already started';
-  if (slot.totalSeats === 0) return 'No tables';
-  if (freeSeats === 0) return 'Full';
+  if (hasStarted(slot, now)) return ' (already started)';
+  if (slot.totalSeats === 0) return ' (no tables)';
+  if (freeSeats === 0) return ' (full)';
   return '';
-}
-
-// The schedule slots in the shape of the time buttons of the booking page.
-function toPickable(slot: SlotDetails, freeSeats: number | undefined, note: string): SlotSummary {
-  return {
-    id: slot.id,
-    date: slot.date,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    freeSeats: freeSeats ?? 0,
-    availability: note === '' ? 'AVAILABLE' : 'FULL',
-  };
 }
 
 function toHiker(draft: HikerDraft): StaffBookingHiker | null {
@@ -108,22 +89,24 @@ function toHiker(draft: HikerDraft): StaffBookingHiker | null {
 }
 
 // The API explains these cases: slot started or full, email already used, not a staff account.
-const bookingError = (e: unknown): string =>
-  apiErrorMessage(e, 'The booking could not be created. Please try again.', [403, 404, 409, 422]);
+function bookingError(e: unknown): string {
+  if (e instanceof ApiError && e.status === 401) {
+    return 'The session has expired. Please log in again.';
+  }
+  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
+  return 'The booking could not be created. Please try again.';
+}
 
 function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const navigate = useNavigate();
   const createBooking = useCreateStaffBooking();
   const [hiker, setHiker] = useState<HikerDraft>(emptyHikerDraft);
-  const [today] = useState(() => toIsoDate(new Date()));
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(() => toIsoDate(new Date()));
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
-  const [partySize, setPartySize] = useState(DEFAULT_PARTY);
+  const [partySize, setPartySize] = useState('2');
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
-  const keepRef = useRef<HTMLButtonElement>(null);
   const [done, setDone] = useState<{ summary: string; result: StaffBookingResult } | null>(null);
 
   const schedule = useSchedule(date);
@@ -132,26 +115,15 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const freeSeats = new Map(upcoming.data?.map((s) => [s.id, s.freeSeats]));
   const now = new Date();
   const slots = schedule.data ?? [];
-  const notes = new Map(slots.map((s) => [s.id, slotNote(s, now, freeSeats.get(s.id))]));
-  const bookable = slots.filter((s) => notes.get(s.id) === '');
-  const pickable = slots.map((s) => toPickable(s, freeSeats.get(s.id), notes.get(s.id) ?? ''));
+  const bookable = slots.filter((s) => slotNote(s, now, freeSeats.get(s.id)) === '');
   const slot = bookable.find((s) => s.id === chosenSlotId) ?? bookable[0] ?? null;
+  const guests = Number(partySize);
   const summary = slot ? `${dateLong(fromIsoDate(date))} · ${slot.startTime}` : null;
   const slotFree = slot ? freeSeats.get(slot.id) : undefined;
-  // A slot with fewer free seats than the party lowers the party to them.
-  const guests = slotFree === undefined ? partySize : Math.max(1, Math.min(partySize, slotFree));
-  // Edits that were reverted to the initial values do not count. A party lowered by a small slot
-  // is not an edit of the user.
-  const dirty =
-    JSON.stringify(hiker) !== JSON.stringify(emptyHikerDraft()) ||
-    date !== today ||
-    chosenSlotId !== null ||
-    partySize !== DEFAULT_PARTY ||
-    requirements.length > 0;
-
-  useEffect(() => {
-    if (confirmingDiscard) keepRef.current?.focus();
-  }, [confirmingDiscard]);
+  const tooFewSeats =
+    slotFree !== undefined && guests > slotFree
+      ? `Only ${seats(slotFree)} left in this slot.`
+      : null;
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -161,6 +133,10 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
     const chosenHiker = toHiker(hiker);
     if (!chosenHiker) {
       setErrors({ hikerId: 'Select a hiker, or add a new one with Quick entry or Full profile.' });
+      return;
+    }
+    if (tooFewSeats) {
+      setErrors({ slotId: tooFewSeats });
       return;
     }
     if (requirements.some((r) => r.description.trim() === '')) {
@@ -216,42 +192,50 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             }}
           />
 
-          {/* The same time buttons as the booking page of the hikers. */}
-          <TimeSlotPicker
-            slots={pickable}
-            guests={guests}
-            value={slot?.id ?? null}
-            onChange={setChosenSlotId}
-            label="Time *"
-            canChoose={(s) => notes.get(s.id) === ''}
-            reason={(s) => {
-              const note = notes.get(s.id) ?? '';
-              if (note !== '') return note;
-              const free = freeSeats.get(s.id);
-              return free === undefined ? null : seats(free);
-            }}
-          />
-          {errors.slotId && (
-            <p role="alert" className="field-error">
-              {errors.slotId}
-            </p>
-          )}
-          <GuestStepper
+          <div className="field">
+            <label htmlFor="booking-slot">Time *</label>
+            <select
+              id="booking-slot"
+              value={slot?.id ?? ''}
+              disabled={!schedule.isSuccess || bookable.length === 0}
+              aria-invalid={errors.slotId ? true : undefined}
+              onChange={(e) => setChosenSlotId(Number(e.target.value))}
+            >
+              {bookable.length === 0 && <option value="">No time slots</option>}
+              {slots.map((s) => {
+                const free = freeSeats.get(s.id);
+                const note = slotNote(s, now, free);
+                return (
+                  <option key={s.id} value={s.id} disabled={note !== ''}>
+                    {s.startTime}–{s.endTime}
+                    {note || (free === undefined ? '' : ` · ${seats(free)}`)}
+                  </option>
+                );
+              })}
+            </select>
+            {(errors.slotId ?? tooFewSeats) && (
+              <p role="alert" className="field-error">
+                {errors.slotId ?? tooFewSeats}
+              </p>
+            )}
+          </div>
+          <FormField
             id="booking-party"
-            label="Number of people"
-            hint={null}
-            value={guests}
-            max={slotFree}
-            onChange={setPartySize}
+            label="Number of people *"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={partySize}
+            onChange={(e) => setPartySize(e.target.value)}
+            error={errors.partySize}
           />
-          {errors.partySize && (
-            <p role="alert" className="field-error">
-              {errors.partySize}
-            </p>
-          )}
 
           {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
-          {schedule.isError && <ErrorNotice message={bookingError(schedule.error)} />}
+          {schedule.isError && (
+            <p role="alert" className="notice notice--error">
+              {bookingError(schedule.error)}
+            </p>
+          )}
           {schedule.isSuccess && bookable.length === 0 && (
             <p className="notice notice--ok">No time slots can be booked on this day.</p>
           )}
@@ -272,7 +256,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
                   .filter((r) => r.description.trim() !== '')
                   .map((r) => (
                     <li key={r.key}>
-                      {r.allergies && <AllergyBadge />}
+                      {r.allergies && <span className="allergy-badge">Allergies</span>}
                       {r.description}
                     </li>
                   ))}
@@ -285,48 +269,15 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
 
       <div className="action-bar">
         <div className="action-bar__inner">
-          {confirmingDiscard ? (
-            <>
-              <p className="action-bar__text action-bar__discard">Discard this booking?</p>
-              <div className="action-bar__buttons">
-                <button
-                  ref={keepRef}
-                  type="button"
-                  className="pill"
-                  onClick={() => setConfirmingDiscard(false)}
-                >
-                  Keep editing
-                </button>
-                <button
-                  type="button"
-                  className="pill pill--danger"
-                  onClick={() => void navigate('/')}
-                >
-                  Discard
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="action-bar__text">{FOOTER_TEXT[hiker.mode]}</p>
-              <div className="action-bar__buttons">
-                <button
-                  type="button"
-                  className="pill"
-                  onClick={() => (dirty ? setConfirmingDiscard(true) : void navigate('/'))}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="pill pill--primary"
-                  disabled={createBooking.isPending}
-                >
-                  {createBooking.isPending ? 'Creating…' : 'Create booking'}
-                </button>
-              </div>
-            </>
-          )}
+          <p className="action-bar__text">{FOOTER_TEXT[hiker.mode]}</p>
+          <div className="action-bar__buttons">
+            <button type="button" className="pill" onClick={() => void navigate('/')}>
+              Cancel
+            </button>
+            <button type="submit" className="pill pill--primary" disabled={createBooking.isPending}>
+              {createBooking.isPending ? 'Creating…' : 'Create booking'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -349,7 +300,7 @@ export function StaffBookingPage() {
     if (!user) {
       content = (
         <p className="notice notice--ok">
-          <Link to="/login">Sign in</Link> with a staff account to enter a booking.
+          <Link to="/login">Log in</Link> with a staff account to enter a booking.
         </p>
       );
     } else if (!isStaff(user)) {

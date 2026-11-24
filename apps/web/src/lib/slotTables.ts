@@ -1,4 +1,4 @@
-import { apiErrorMessage } from './errors.ts';
+import { ApiError } from '../api/client.ts';
 import type { TablesSource } from '../api/slots.ts';
 
 // A table row as typed in the form: the inputs hold text until the form is sent.
@@ -60,7 +60,11 @@ export function toTablesSource(
 // The API explains these cases: slot not found, slot already existing or with tables, nothing
 // to copy, not a staff account.
 export function slotErrorMessage(e: unknown): string {
-  return apiErrorMessage(e, 'Saving failed. Please try again.', [403, 404, 409, 422]);
+  if (e instanceof ApiError && e.status === 401) {
+    return 'The session has expired. Please log in again.';
+  }
+  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
+  return 'Saving failed. Please try again.';
 }
 
 export const seatsLabel = (n: number): string => (n === 1 ? '1 seat' : `${n} seats`);

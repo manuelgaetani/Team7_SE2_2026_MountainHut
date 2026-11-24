@@ -63,11 +63,4 @@ describe('ForgotPasswordPage (MH-07)', () => {
 
     expect(await screen.findByText(TEXT.failed)).toBeVisible();
   });
-
-  it('labels the page as the account area', () => {
-    stubApi();
-    renderAt('/forgot-password');
-    expect(screen.getByText('Your account')).toBeVisible();
-    expect(screen.queryByText('Personal area')).not.toBeInTheDocument();
-  });
 });

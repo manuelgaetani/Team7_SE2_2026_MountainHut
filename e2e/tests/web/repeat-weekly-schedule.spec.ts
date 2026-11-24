@@ -28,9 +28,9 @@ function addDays(isoDate: string, days: number): string {
 async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password', { exact: true }).fill(user.password);
+  await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 }
 
 test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
@@ -39,9 +39,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       page,
     }) => {
       await page.goto('/staff/slots');
-      const notice = page.getByText('with a staff account to manage the time slots');
-      await expect(notice).toBeVisible();
-      const loginLink = notice.getByRole('link', { name: 'Sign in' });
+      await expect(page.getByText('with a staff account to manage the time slots')).toBeVisible();
+      const loginLink = page.getByRole('link', { name: 'Log in' });
       await expect(loginLink).toBeVisible();
       await expect(loginLink).toHaveAttribute('href', '/login');
       await expect(page.getByRole('button', { name: /Repeat weekly schedule/i })).toHaveCount(0);
@@ -54,9 +53,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, registeredUser);
 
       // NavBar must not show staff links
-      await expect(
-        page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
-      ).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Time slots' })).toHaveCount(0);
 
       // Direct URL navigation displays staff-only warning
       await page.goto('/staff/slots');
@@ -77,7 +74,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, employeeUser);
 
       // 1. Navigate to staff time slots management
-      await page.getByRole('navigation').getByRole('link', { name: 'Time slots' }).click();
+      await page.getByRole('link', { name: 'Time slots' }).click();
       await expect(page).toHaveURL('/staff/slots');
 
       // 2. Select source Monday and create a base slot with 2 tables
@@ -113,9 +110,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       const repeated = page.waitForResponse(
         (r) => new URL(r.url()).pathname === '/api/slots/repeat-weekly',
       );
-      await dialog
-        .getByRole('button', { name: /^(Repeat schedule|Replace \d+ slots? and repeat)$/ })
-        .click();
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
       const repeatedRes = await repeated;
       expect(repeatedRes.status()).toBe(201);
       const repeat = (await repeatedRes.json()) as { createdSlots: { id: number }[] };
@@ -145,7 +140,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     }) => {
       await signIn(page, wardenUser);
 
-      await page.getByRole('navigation').getByRole('link', { name: 'Time slots' }).click();
+      await page.getByRole('link', { name: 'Time slots' }).click();
       await expect(page).toHaveURL('/staff/slots');
       await expect(page.getByRole('button', { name: /Repeat weekly schedule/i })).toBeVisible();
     });
@@ -182,9 +177,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       // Enter invalid weeks (0)
       const weeksInput = dialog.getByLabel(/Number of weeks to repeat/i);
       await weeksInput.fill('0');
-      await dialog
-        .getByRole('button', { name: /^(Repeat schedule|Replace \d+ slots? and repeat)$/ })
-        .click();
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
 
       await expect(dialog.getByText(/Must be at least 1 week/i)).toBeVisible();
     });
@@ -218,9 +211,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await page.getByLabel('Day', { exact: true }).fill(monday);
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
-      await dialog
-        .getByRole('button', { name: /^(Repeat schedule|Replace \d+ slots? and repeat)$/ })
-        .click();
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
       await expect(page.getByRole('alert')).toContainText('has reservations');
     });
   });
@@ -263,9 +254,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       });
       const dialog = await openRepeatDialog(page, employeeUser);
 
-      await dialog
-        .getByRole('button', { name: /^(Repeat schedule|Replace \d+ slots? and repeat)$/ })
-        .click();
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
 
       await expect(dialog.getByRole('button', { name: 'Repeating…' })).toBeDisabled();
       release();
@@ -286,9 +275,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       const dialog = await openRepeatDialog(page, employeeUser);
 
       await dialog.getByLabel(/Number of weeks to repeat/i).fill('2');
-      await dialog
-        .getByRole('button', { name: /^(Repeat schedule|Replace \d+ slots? and repeat)$/ })
-        .click();
+      await dialog.getByRole('button', { name: /Confirm and repeat/i }).click();
 
       await expect(
         page.getByRole('status').filter({ hasText: 'Schedule successfully repeated' }),
@@ -360,7 +347,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
       await dialog.getByLabel(/Number of weeks to repeat/i).fill('2');
-      await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
       await expect(dialog).toBeHidden();
 
       expect(repeatRequests).toEqual([]);

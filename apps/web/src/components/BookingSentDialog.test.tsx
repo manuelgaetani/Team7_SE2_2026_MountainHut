@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BookingSentDialog } from './BookingSentDialog.tsx';
 
 describe('BookingSentDialog', () => {
-  it('renders summary and title and focuses the Done button', () => {
+  it('renders summary and title and focuses the Got it button', () => {
     const onClose = vi.fn();
     render(<BookingSentDialog summary="Tue 15 Jan · 19:00 · 3 people" onClose={onClose} />);
 
@@ -12,7 +12,7 @@ describe('BookingSentDialog', () => {
     expect(screen.getByText('Booking request sent')).toBeInTheDocument();
     expect(screen.getByText('Awaiting confirmation')).toBeInTheDocument();
 
-    const gotItBtn = screen.getByRole('button', { name: 'Done' });
+    const gotItBtn = screen.getByRole('button', { name: 'Got it' });
     expect(gotItBtn).toHaveFocus();
   });
 
@@ -34,13 +34,13 @@ describe('BookingSentDialog', () => {
     );
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      'Allergies1 vegan, peanut allergy',
+      'Allergies (special care needed): 1 vegan, peanut allergy',
       '2 vegetarians',
     ]);
-    expect(screen.getAllByText('Allergies')).toHaveLength(1);
+    expect(screen.getAllByText(/special care/i)).toHaveLength(1);
   });
 
-  it('calls onClose when close button or Done button is clicked', () => {
+  it('calls onClose when close button or Got it button is clicked', () => {
     const onClose = vi.fn();
     const { rerender } = render(<BookingSentDialog summary="Test" onClose={onClose} />);
 
@@ -48,7 +48,7 @@ describe('BookingSentDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
 
     rerender(<BookingSentDialog summary="Test" onClose={onClose} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 

@@ -6,8 +6,7 @@ import { bookingStatus, createSlot, deleteSlot } from '../../fixtures/db.js';
 
 // Spec MH-08: as a hiker, I want to cancel a table booking, so that the hut can make the places
 // available to other guests. There are no time constraints: a booking can be cancelled at any time.
-// The hiker cancels from "My bookings" (/bookings): Cancel booking, then Cancel booking again in the dialog; a toast says it is done
-// and offers Undo. The request leaves when the toast goes away.
+// The hiker cancels from "My bookings" (/bookings): Cancel, then Confirm in the dialog.
 
 interface SlotSummary {
   id: number;
@@ -96,23 +95,15 @@ async function freeSeats(request: APIRequestContext, slotId: number): Promise<nu
 async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password', { exact: true }).fill(user.password);
+  await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 }
 
 // Opens "My bookings" and waits for the only booking of the hiker.
 async function openMyBookings(page: Page): Promise<void> {
   await page.goto('/bookings');
   await expect(page.locator('.booking-card')).toHaveCount(1);
-}
-
-// The cancellation leaves when its Undo toast goes away: closing the toast sends it now.
-async function sendCancellation(page: Page): Promise<void> {
-  const toast = page.locator('.toast', { hasText: 'Booking cancelled. Seats are free again.' });
-  await expect(toast).toBeVisible();
-  await toast.getByRole('button', { name: 'Dismiss notification' }).click();
-  await expect(toast).toHaveCount(0);
 }
 
 const cancelButton = (page: Page) => page.getByRole('button', { name: /^Cancel booking of / });
@@ -136,12 +127,15 @@ test.describe('MH-08 Web: cancel a booking', () => {
     await expect(dialog).toContainText('Are you sure you want to cancel the following booking?');
     await expect(dialog).toContainText('19:00–21:00 · 3 people');
 
-    await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
 
-    await sendCancellation(page);
-    await expect.poll(() => bookingStatus(booking.id)).toBe('CANCELLED');
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('its seats are free again');
+    await expect(dialog).toContainText('19:00–21:00 · 3 people');
+    expect(bookingStatus(booking.id)).toBe('CANCELLED');
     expect(await freeSeats(loggedInRequest, slotId)).toBe(4);
 
+    await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // The booking has left the upcoming ones and is among the cancelled ones, without actions.
@@ -154,7 +148,7 @@ test.describe('MH-08 Web: cancel a booking', () => {
     await expect(card.getByRole('button')).toHaveCount(0);
   });
 
-  test('Keep booking and Escape close the dialog without cancelling', async ({
+  test('Go back and Escape close the dialog without cancelling', async ({
     page,
     registeredUser,
     loggedInRequest,
@@ -166,7 +160,7 @@ test.describe('MH-08 Web: cancel a booking', () => {
     await openMyBookings(page);
 
     await cancelButton(page).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Keep booking' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Go back' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
     await cancelButton(page).click();
@@ -198,12 +192,12 @@ test.describe('MH-08 Web: cancel a booking', () => {
 
     await cancelButton(page).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
-    await sendCancellation(page);
-    await expect.poll(() => bookingStatus(bookingId)).toBe('CANCELLED');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
+    expect(bookingStatus(bookingId)).toBe('CANCELLED');
   });
 
-  test('a booking already cancelled elsewhere: a toast shows the message of the API', async ({
+  test('a booking already cancelled elsewhere: the dialog shows the message of the API', async ({
     page,
     registeredUser,
     loggedInRequest,
@@ -219,11 +213,13 @@ test.describe('MH-08 Web: cancel a booking', () => {
     expect((await loggedInRequest.post(`/api/bookings/${booking.id}/cancel`)).status()).toBe(200);
 
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
-    await sendCancellation(page);
-    await expect(page.getByRole('alert')).toHaveText('This booking is already cancelled');
-    await expect.poll(() => bookingStatus(booking.id)).toBe('CANCELLED');
-    await expect(page.getByText('You have no upcoming bookings.')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('alert')).toHaveText('This booking is already cancelled');
+    await expect(dialog.getByRole('heading', { name: 'Cancel booking' })).toBeVisible();
+    expect(bookingStatus(booking.id)).toBe('CANCELLED');
+
+    await dialog.getByRole('button', { name: 'Go back' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 });
 
@@ -246,11 +242,11 @@ test.describe('MH-08 Web: cancel a booking, further cases', () => {
     await target.getByRole('button', { name: /^Cancel booking of / }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('3 people');
-    await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
-    await sendCancellation(page);
-    await expect(dialog).toBeHidden();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'OK' }).click();
 
-    await expect.poll(() => bookingStatus(cancelled.id)).toBe('CANCELLED');
+    expect(bookingStatus(cancelled.id)).toBe('CANCELLED');
     expect(bookingStatus(kept.id)).not.toBe('CANCELLED');
     expect(await freeSeats(loggedInRequest, cancelledSlot)).toBe(4);
     expect(await freeSeats(loggedInRequest, keptSlot)).toBe(2);
@@ -276,13 +272,13 @@ test.describe('MH-08 Web: cancel a booking, further cases', () => {
     await openMyBookings(page);
     await cancelButton(page).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
-    await sendCancellation(page);
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Booking cancelled' })).toBeVisible();
 
     await page.reload();
     await expect(page.getByText('You have no upcoming bookings.')).toBeVisible();
     await page.getByRole('tab', { name: 'Cancelled' }).click();
     await expect(page.locator('.booking-card')).toHaveCount(1);
-    await expect.poll(() => bookingStatus(booking.id)).toBe('CANCELLED');
+    expect(bookingStatus(booking.id)).toBe('CANCELLED');
   });
 });

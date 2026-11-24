@@ -37,8 +37,8 @@ describe('NotFoundPage', () => {
     stubApi({ '/api/auth/me': () => json({ ...user, role }) });
     renderAt('/non-existent-route');
     const main = screen.getByRole('main');
-    // The navigation bar shows the account menu once the user is known.
-    expect(await screen.findByRole('button', { name: 'Account menu' })).toBeInTheDocument();
+    // The navigation bar shows Sign out once the user is known.
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     expect(
       within(main)
         .getAllByRole('link')

@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MAX_REQUIREMENTS_COUNT } from '@mountain-hut/shared';
 import { RequirementsEditor } from './RequirementsEditor.tsx';
-import { ToastProvider } from './Toast.tsx';
 import type { RequirementDraft } from './RequirementsEditor.tsx';
 
 const TEXT = {
@@ -15,19 +14,9 @@ const TEXT = {
   row: (n: number) => `Requirement ${n}`,
 } as const;
 
-function Harness({
-  initial = [],
-  errors,
-}: {
-  initial?: RequirementDraft[];
-  errors?: Partial<Record<number, string>>;
-}) {
+function Harness({ initial = [] }: { initial?: RequirementDraft[] }) {
   const [rows, setRows] = useState<RequirementDraft[]>(initial);
-  return (
-    <ToastProvider>
-      <RequirementsEditor value={rows} onChange={setRows} errors={errors} />
-    </ToastProvider>
-  );
+  return <RequirementsEditor value={rows} onChange={setRows} />;
 }
 
 const row = (key: number, description = '', allergies = false): RequirementDraft => ({
@@ -76,20 +65,6 @@ describe('RequirementsEditor', () => {
     expect(screen.getByRole('textbox')).toHaveValue('vegetarian');
   });
 
-  it('offers to undo a removal, and puts the entry back in its place', () => {
-    render(<Harness initial={[row(1, 'vegan', true), row(2, 'vegetarian')]} />);
-    fireEvent.click(group(1).getByRole('button', { name: TEXT.remove }));
-    expect(screen.getByRole('status')).toHaveTextContent('Allergy requirement removed.');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(screen.getAllByRole('textbox').map((t) => (t as HTMLInputElement).value)).toEqual([
-      'vegan',
-      'vegetarian',
-    ]);
-    expect(group(1).getByRole('checkbox', { name: TEXT.allergies })).toBeChecked();
-    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
-  });
-
   it('does not reuse the key of a removed entry', () => {
     render(<Harness initial={[row(1, 'a'), row(2, 'b')]} />);
     fireEvent.click(group(2).getByRole('button', { name: TEXT.remove }));
@@ -106,27 +81,5 @@ describe('RequirementsEditor', () => {
     const rows = Array.from({ length: MAX_REQUIREMENTS_COUNT }, (_, i) => row(i + 1, 'x'));
     render(<Harness initial={rows} />);
     expect(screen.getByRole('button', { name: TEXT.addAnother })).toBeDisabled();
-  });
-
-  it('shows a row error and marks only that input invalid', () => {
-    render(<Harness initial={[row(1), row(2)]} errors={{ 2: 'Describe this requirement.' }} />);
-    expect(group(2).getByRole('alert')).toHaveTextContent('Describe this requirement.');
-    expect(group(2).getByRole('textbox', { name: TEXT.details })).toHaveAttribute(
-      'aria-invalid',
-      'true',
-    );
-    expect(group(1).queryByRole('alert')).not.toBeInTheDocument();
-    expect(group(1).getByRole('textbox', { name: TEXT.details })).not.toHaveAttribute(
-      'aria-invalid',
-      'true',
-    );
-  });
-
-  it('shows a single hint', () => {
-    render(<Harness initial={[row(1)]} />);
-    expect(
-      screen.getByText('Add one entry for each person or group with the same needs.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/say how many people/)).not.toBeInTheDocument();
   });
 });

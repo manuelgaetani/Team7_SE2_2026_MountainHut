@@ -13,8 +13,6 @@ import { isIsoDate, toIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
-import { ErrorNotice } from '../components/ErrorNotice.tsx';
-import { useToast } from '../components/Toast.tsx';
 
 function SlotsManager() {
   // The day comes from ?date= when the staff return from a floor plan; otherwise it is today.
@@ -24,9 +22,9 @@ function SlotsManager() {
     return isIsoDate(fromUrl) ? fromUrl : toIsoDate(new Date());
   });
   const [defining, setDefining] = useState<SlotDetails | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
   const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
-  const toast = useToast();
 
   return (
     <div className="layout layout--staff">
@@ -40,16 +38,41 @@ function SlotsManager() {
             if (!e.target.value) return;
             setDate(e.target.value);
             setDefining(null);
+            setSaved(null);
           }}
         />
         <div className="schedule-toolbar">
-          <button type="button" className="pill" onClick={() => setRepeating(true)}>
+          <button
+            type="button"
+            className="pill"
+            onClick={() => {
+              setRepeating(true);
+              setSaved(null);
+            }}
+          >
             Repeat weekly schedule
           </button>
         </div>
+        {saved && (
+          <p role="status" className="notice notice--ok">
+            {saved}
+          </p>
+        )}
         {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
-        {schedule.isError && <ErrorNotice message={slotErrorMessage(schedule.error)} />}
-        {schedule.isSuccess && <SlotSchedule slots={schedule.data} onDefineTables={setDefining} />}
+        {schedule.isError && (
+          <p role="alert" className="notice notice--error">
+            {slotErrorMessage(schedule.error)}
+          </p>
+        )}
+        {schedule.isSuccess && (
+          <SlotSchedule
+            slots={schedule.data}
+            onDefineTables={(slot) => {
+              setDefining(slot);
+              setSaved(null);
+            }}
+          />
+        )}
       </div>
 
       <div className="layout__side">
@@ -59,7 +82,7 @@ function SlotsManager() {
             slot={defining}
             onDone={(message) => {
               setDefining(null);
-              toast.show({ message });
+              setSaved(message);
             }}
             onCancel={() => setDefining(null)}
           />
@@ -72,7 +95,7 @@ function SlotsManager() {
           sourceStartDate={date}
           onDone={(message) => {
             setRepeating(false);
-            toast.show({ message });
+            setSaved(message);
           }}
           onClose={() => setRepeating(false)}
         />
@@ -90,7 +113,7 @@ export function SlotsPage() {
     if (!user) {
       content = (
         <p className="notice notice--ok">
-          <Link to="/login">Sign in</Link> with a staff account to manage the time slots.
+          <Link to="/login">Log in</Link> with a staff account to manage the time slots.
         </p>
       );
     } else if (!isStaff(user)) {

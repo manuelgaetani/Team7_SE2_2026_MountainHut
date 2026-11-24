@@ -6,13 +6,11 @@ import { ApiError } from '../api/client.ts';
 import { useLogin } from '../api/useAuth.ts';
 import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
-import { useToast } from '../components/Toast.tsx';
 import { authPath, safeNext } from '../lib/bookingRedirect.ts';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
-  const toast = useToast();
   // Where to go after signing in, e.g. the booking chosen in the availability check.
   const next = safeNext(useSearchParams()[0].get('next'));
   const [email, setEmail] = useState('');
@@ -31,7 +29,6 @@ export function LoginPage() {
 
     login.mutate(parsed.data, {
       onSuccess: () => {
-        toast.show({ message: 'Welcome back.' });
         void navigate(next ?? '/');
       },
       onError: (e) => {
@@ -46,7 +43,7 @@ export function LoginPage() {
 
   return (
     <section className="auth">
-      <p className="eyebrow">Your account</p>
+      <p className="eyebrow">Personal area</p>
       <h1>Welcome back.</h1>
       <p className="auth-subtitle">Sign in to manage your bookings.</p>
       <AuthTabs />

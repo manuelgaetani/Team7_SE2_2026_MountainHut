@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { MyBooking, MyBookingStatus } from '@mountain-hut/shared';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateFull, fromIsoDate, monthShort } from '../lib/dates.ts';
-import { AllergyBadge } from './AllergyBadge.tsx';
 import { ModifyBookingDialog } from './ModifyBookingDialog.tsx';
 
 const STATUS_LABEL: Record<MyBookingStatus, string> = {
@@ -23,7 +22,7 @@ function CardFooter({ booking }: { booking: MyBooking }) {
         <ul className="booking-card__requirements">
           {booking.requirements.map((r, i) => (
             <li key={i}>
-              {r.allergies && <AllergyBadge />}
+              {r.allergies && <span className="badge badge--allergies">Allergies</span>}
               {r.description}
             </li>
           ))}
@@ -53,6 +52,7 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
   // Within 48 hours of the slot the API refuses every change (MH-06).
   const changeable = active && isChangeOpen(booking.date, booking.startTime);
   const [modifying, setModifying] = useState(false);
+  const [updated, setUpdated] = useState(false);
 
   return (
     <article className="booking-card" aria-labelledby={titleId}>
@@ -83,7 +83,10 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
               className="pill"
               aria-label={`Modify booking of ${title}`}
               disabled={!changeable}
-              onClick={() => setModifying(true)}
+              onClick={() => {
+                setUpdated(false);
+                setModifying(true);
+              }}
             >
               Modify
             </button>
@@ -93,7 +96,7 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
               aria-label={`Cancel booking of ${title}`}
               onClick={onCancel}
             >
-              Cancel booking
+              Cancel
             </button>
           </div>
         )}
@@ -108,7 +111,22 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
         </p>
       )}
 
-      {modifying && <ModifyBookingDialog booking={booking} onClose={() => setModifying(false)} />}
+      {updated && (
+        <p role="status" className="notice notice--ok booking-card__updated">
+          Booking updated. We'll email you the new details.
+        </p>
+      )}
+
+      {modifying && (
+        <ModifyBookingDialog
+          booking={booking}
+          onClose={() => setModifying(false)}
+          onChanged={() => {
+            setModifying(false);
+            setUpdated(true);
+          }}
+        />
+      )}
     </article>
   );
 }

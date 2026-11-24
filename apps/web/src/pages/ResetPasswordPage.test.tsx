@@ -66,14 +66,4 @@ describe('ResetPasswordPage (MH-07)', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.invalidLink);
   });
-
-  it('shows the password rules before submitting', () => {
-    stubApi();
-    renderAt(`/reset-password?token=${TOKEN}`);
-    expect(screen.getByText('At least 8 characters, with a letter and a digit.')).toBeVisible();
-    expect(screen.getByLabelText(TEXT.password)).toHaveAccessibleDescription(
-      'At least 8 characters, with a letter and a digit.',
-    );
-    expect(screen.getByText('Your account')).toBeVisible();
-  });
 });

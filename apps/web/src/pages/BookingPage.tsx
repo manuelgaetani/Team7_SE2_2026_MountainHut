@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
+import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useBookableSlots, useCreateBooking } from '../api/useBookings.ts';
@@ -15,14 +16,17 @@ import { draftFromSearch } from '../lib/bookingRedirect.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
-import { apiErrorMessage } from '../lib/errors.ts';
-import { ErrorNotice } from '../components/ErrorNotice.tsx';
-
-// The API explains these cases: slot not found, full or started, not a hiker.
-const bookingError = (e: unknown): string =>
-  apiErrorMessage(e, 'Booking failed. Please try again.', [403, 404, 409, 422]);
 
 const plural = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
+
+function bookingError(e: unknown): string {
+  if (e instanceof ApiError && e.status === 401) {
+    return 'The session has expired. Please log in again.';
+  }
+
+  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
+  return 'Booking failed. Please try again.';
+}
 
 // The rows with a description, trimmed as the API stores them. The key of each row is
 // kept: it identifies the requirement in the lists of the summary and of the dialog.
@@ -43,7 +47,6 @@ function BookingFlow() {
   const [chosenSlotId, setChosenSlotId] = useState<number | null | undefined>(undefined);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [requirementErrors, setRequirementErrors] = useState<Partial<Record<number, string>>>({});
   const [sent, setSent] = useState<{
     summary: string;
     requirements: RequirementDraft[];
@@ -81,23 +84,20 @@ function BookingFlow() {
     (v: T) => {
       set(v);
       setError(null);
-      setRequirementErrors({});
       book.reset();
     };
 
   function handleSubmit() {
     if (!slot) return;
     setError(null);
-    const rowErrors: Partial<Record<number, string>> = {};
-    for (const r of requirements) {
-      const length = r.description.trim().length;
-      if (length === 0) rowErrors[r.key] = 'Describe the requirement or remove it.';
-      else if (length > MAX_REQUIREMENTS_LENGTH) {
-        rowErrors[r.key] = `A requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters.`;
-      }
+    if (requirements.some((r) => r.description.trim() === '')) {
+      setError('Describe each requirement or remove it.');
+      return;
     }
-    setRequirementErrors(rowErrors);
-    if (Object.keys(rowErrors).length > 0) return;
+    if (requirements.some((r) => r.description.trim().length > MAX_REQUIREMENTS_LENGTH)) {
+      setError(`Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`);
+      return;
+    }
     const parsed = createBookingSchema.safeParse({
       slotId: slot.id,
       partySize: guests,
@@ -123,7 +123,11 @@ function BookingFlow() {
 
   if (slotsQuery.isPending) return <p role="status">Loading time slots…</p>;
   if (slotsQuery.isError) {
-    return <ErrorNotice message={bookingError(slotsQuery.error)} />;
+    return (
+      <p role="alert" className="notice notice--error">
+        {bookingError(slotsQuery.error)}
+      </p>
+    );
   }
   if (date === null) {
     return <p className="notice notice--ok">At the moment there are no available time slots.</p>;
@@ -140,13 +144,16 @@ function BookingFlow() {
           value={slot?.id ?? null}
           onChange={handle(setChosenSlotId)}
         />
-        <RequirementsEditor
-          value={requirements}
-          onChange={handle(setRequirements)}
-          errors={requirementErrors}
-        />
+        <RequirementsEditor value={requirements} onChange={handle(setRequirements)} />
 
-        {error && <ErrorNotice message={error} />}
+        {slot && (
+          <p className="recap">
+            <strong>
+              {dateShort(fromIsoDate(date))} · {slot.startTime} · {plural(guests)}
+            </strong>
+            <span>A table is waiting for you at {slot.startTime}</span>
+          </p>
+        )}
 
         <button
           type="button"
@@ -157,6 +164,12 @@ function BookingFlow() {
           {book.isPending ? 'Booking in progress…' : 'Book your table'}
           <span aria-hidden="true">→</span>
         </button>
+
+        {error && (
+          <p role="alert" className="notice notice--error">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="layout__side">
@@ -167,6 +180,10 @@ function BookingFlow() {
           tables={book.isSuccess ? book.data.tables : null}
           requirements={filledRequirements(requirements)}
         />
+        <aside className="experience">
+          <h3>An Alpine Experience</h3>
+          <p>Mountain cuisine, best enjoyed at a leisurely pace.</p>
+        </aside>
       </div>
 
       {sent && (
@@ -192,7 +209,7 @@ export function BookingPage() {
     if (!user) {
       content = (
         <p className="notice notice--ok">
-          <Link to="/login">Sign in</Link> to book a table.
+          <Link to="/login">Log in</Link> to book a table.
         </p>
       );
     } else if (isStaff(user)) {

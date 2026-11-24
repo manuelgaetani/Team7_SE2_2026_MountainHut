@@ -8,11 +8,8 @@ const TEXT = {
   open: 'Repeat weekly schedule',
   dialog: 'Repeat weekly schedule',
   weeks: 'Number of weeks to repeat',
-  confirm: 'Repeat schedule',
-  // The label while the slots of the target weeks are unknown (the stub does not serve them).
-  confirmUnknown: 'Confirm and repeat schedule',
-  replaceThree: 'Replace 3 slots and repeat',
-  close: 'Close',
+  confirm: 'Confirm and repeat schedule',
+  cancel: 'Cancel',
   atLeastOne: 'Must be at least 1 week.',
   atMost: 'At most 12 weeks.',
   replaced: 'The slots already in those weeks are replaced.',
@@ -22,7 +19,7 @@ const TEXT = {
   done1Replaced: 'Schedule successfully repeated across 1 week: 1 slot created. 3 slots replaced.',
   conflict: 'The week starting 2026-11-11 has reservations: its schedule cannot be replaced',
   emptySource: 'Source week contains no time slots to repeat',
-  sessionExpired: 'The session has expired. Please sign in again.',
+  sessionExpired: 'The session has expired. Please log in again.',
 } as const;
 
 const employee = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
@@ -67,13 +64,6 @@ async function openDialog() {
   renderAt('/staff/slots');
   fireEvent.click(await screen.findByRole('button', { name: TEXT.open }));
   return screen.getByRole('dialog', { name: TEXT.dialog });
-}
-
-// The confirm button is disabled until the slots of the target weeks are counted (or fail to load).
-async function confirmButton(dialog: HTMLElement, name: string = TEXT.confirmUnknown) {
-  const button = await within(dialog).findByRole('button', { name });
-  await vi.waitFor(() => expect(button).toBeEnabled());
-  return button;
 }
 
 const repeatCalls = (fetchMock: ReturnType<typeof stub>) =>
@@ -138,18 +128,6 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     expect(
       await within(dialog).findByText('3 slots already in the target weeks will be replaced.'),
     ).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: TEXT.replaceThree })).toBeInTheDocument();
-  });
-
-  it('names the single slot to replace in the singular', async () => {
-    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
-    days[firstTargetWeek[0]!] = () => json([lunch]);
-    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
-    const dialog = await openDialog();
-
-    expect(
-      await within(dialog).findByRole('button', { name: 'Replace 1 slot and repeat' }),
-    ).toBeInTheDocument();
   });
 
   it('says when the target weeks have no slots to replace', async () => {
@@ -171,18 +149,6 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     );
     expect(dialog).toHaveTextContent(TEXT.replaced);
     expect(dialog).not.toHaveTextContent('will be replaced.');
-    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeEnabled();
-  });
-
-  it('keeps the confirm button neutral and disabled while the target weeks are counted', async () => {
-    // The days never answer: fetch resolves with a promise that stays pending.
-    const never = () => new Promise<Response>(() => {}) as unknown as Response;
-    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, never]));
-    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
-    const dialog = await openDialog();
-
-    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeDisabled();
-    expect(within(dialog).queryByRole('button', { name: TEXT.confirm })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -197,7 +163,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
 
     const input = within(dialog).getByLabelText(TEXT.weeks);
     fireEvent.change(input, { target: { value: weeks } });
-    fireEvent.click(await confirmButton(dialog, TEXT.confirm));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
     expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -209,7 +175,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const dialog = await openDialog();
 
     fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '12' } });
-    fireEvent.click(await confirmButton(dialog));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     expect(await screen.findByRole('status')).toHaveTextContent('across 12 weeks');
     expect(sentBody(fetchMock, REPEAT_URL)).toEqual({
@@ -223,7 +189,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const dialog = await openDialog();
 
     fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '2' } });
-    fireEvent.click(await confirmButton(dialog));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done2);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -241,7 +207,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     );
     const dialog = await openDialog();
 
-    fireEvent.click(await confirmButton(dialog));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done1Replaced);
   });
@@ -252,7 +218,7 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     const scheduleCalls = () => fetchMock.mock.calls.filter(([u]) => u === SCHEDULE_URL).length;
     const before = scheduleCalls();
 
-    fireEvent.click(await confirmButton(dialog));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     await screen.findByRole('status');
     await vi.waitFor(() => expect(scheduleCalls()).toBeGreaterThan(before));
@@ -266,21 +232,15 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     stub(employee, () => json({ message }, status));
     const dialog = await openDialog();
 
-    fireEvent.click(await confirmButton(dialog));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.confirm }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(shown);
     expect(screen.getByRole('dialog', { name: TEXT.dialog })).toBeInTheDocument();
   });
 
   it.each([
-    [
-      'the Close button',
-      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[1]!),
-    ],
-    [
-      'the X button',
-      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[0]!),
-    ],
+    ['the Cancel button', () => fireEvent.click(screen.getByRole('button', { name: TEXT.cancel }))],
+    ['the close button', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
     ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })],
   ])('closes with %s without calling the API', async (_how, close) => {
     const fetchMock = stub();

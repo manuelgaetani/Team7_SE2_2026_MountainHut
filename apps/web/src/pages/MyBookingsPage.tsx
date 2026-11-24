@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import type { MyBooking } from '@mountain-hut/shared';
+import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
-import { useMyBookings, useSendCancellation } from '../api/useBookings.ts';
+import { useMyBookings } from '../api/useBookings.ts';
+import { useMyProfile } from '../api/useProfile.ts';
 import { CancelBookingDialog } from '../components/CancelBookingDialog.tsx';
 import { MyBookingCard } from '../components/MyBookingCard.tsx';
-import { useToast } from '../components/Toast.tsx';
 import './MyBookingsPage.css';
-import { apiErrorMessage } from '../lib/errors.ts';
-import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 type Tab = 'upcoming' | 'cancelled';
 
@@ -20,68 +19,31 @@ const TABS: { id: Tab; label: string; empty: string }[] = [
 const inTab = (booking: MyBooking, tab: Tab): boolean =>
   (booking.status === 'CANCELLED') === (tab === 'cancelled');
 
+function loadError(e: unknown): string {
+  if (e instanceof ApiError && e.status === 401) {
+    return 'The session has expired. Please log in again.';
+  }
+  if (e instanceof ApiError && e.status === 403) return e.message;
+  return 'Your bookings could not be loaded. Please try again.';
+}
+
 function MyBookingsList() {
   const bookingsQuery = useMyBookings();
   const [tab, setTab] = useState<Tab>('upcoming');
   // The booking being cancelled. The dialog stays open after the list has been reloaded.
   const [cancelling, setCancelling] = useState<MyBooking | null>(null);
-  // Cancelled on screen, but still undoable: the request leaves when the toast goes away.
-  const [pendingCancel, setPendingCancel] = useState<ReadonlySet<number>>(new Set());
-  const sendCancellation = useSendCancellation();
-  const toast = useToast();
-
-  const setPending = (id: number, pending: boolean) =>
-    setPendingCancel((ids) => {
-      const next = new Set(ids);
-      if (pending) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-
-  function confirmCancel(booking: MyBooking) {
-    setCancelling(null);
-    setPending(booking.id, true);
-    toast.show({
-      message: 'Booking cancelled. Seats are free again.',
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          setPending(booking.id, false);
-          toast.show({ message: 'Cancellation undone: your booking is still active.' });
-        },
-      },
-      onExpire: () => {
-        sendCancellation(booking.id)
-          .catch((err: unknown) =>
-            toast.show({
-              kind: 'error',
-              message: apiErrorMessage(
-                err,
-                'The booking could not be cancelled. Please try again.',
-                [403, 404, 409],
-              ),
-            }),
-          )
-          .finally(() => setPending(booking.id, false));
-      },
-    });
-  }
 
   if (bookingsQuery.isPending) return <p role="status">Loading your bookings…</p>;
   if (bookingsQuery.isError) {
     return (
-      <ErrorNotice
-        message={apiErrorMessage(
-          bookingsQuery.error,
-          'Your bookings could not be loaded. Please try again.',
-          [403],
-        )}
-      />
+      <p role="alert" className="notice notice--error">
+        {loadError(bookingsQuery.error)}
+      </p>
     );
   }
 
   const current = TABS.find((t) => t.id === tab) ?? TABS[0];
-  const shown = bookingsQuery.data.filter((b) => inTab(b, tab) && !pendingCancel.has(b.id));
+  const shown = bookingsQuery.data.filter((b) => inTab(b, tab));
 
   return (
     <>
@@ -117,13 +79,52 @@ function MyBookingsList() {
       </div>
 
       {cancelling && (
-        <CancelBookingDialog
-          booking={cancelling}
-          onClose={() => setCancelling(null)}
-          onConfirm={() => confirmCancel(cancelling)}
-        />
+        <CancelBookingDialog booking={cancelling} onClose={() => setCancelling(null)} />
       )}
     </>
+  );
+}
+
+// Name, email and phone of the hiker. Optional details left empty at registration show as
+// "Not provided".
+function MyProfile({ userId }: { userId: number }) {
+  const profileQuery = useMyProfile(userId);
+
+  let details;
+  if (profileQuery.isPending) {
+    details = <p role="status">Loading your profile…</p>;
+  } else if (profileQuery.isError) {
+    details = (
+      <p role="alert" className="notice notice--error">
+        Your profile could not be loaded.
+      </p>
+    );
+  } else {
+    const profile = profileQuery.data;
+    const fields = [
+      { label: 'Full name', value: profile.fullName },
+      { label: 'Email', value: profile.email },
+      { label: 'Phone', value: profile.phone },
+    ];
+    details = (
+      <dl className="my-profile__card">
+        {fields.map((f) => (
+          <div key={f.label} className="my-profile__field">
+            <dt>{f.label}</dt>
+            <dd>{f.value || 'Not provided'}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  return (
+    <aside className="my-profile" aria-labelledby="my-profile-title">
+      <h2 id="my-profile-title" className="my-bookings__title">
+        My profile
+      </h2>
+      {details}
+    </aside>
   );
 }
 
@@ -145,9 +146,20 @@ export function MyBookingsPage() {
 
   return (
     <div className="my-bookings">
-      <div className="my-bookings__body">
+      <section className="my-bookings__hero">
+        <p className="my-bookings__eyebrow">Your personal area</p>
+        <h1 className="my-bookings__headline">Your next seat in the mountains.</h1>
+        <p className="my-bookings__lead">Find your bookings and plan your next visit to the hut.</p>
+      </section>
+
+      <div
+        className={
+          user && !isStaff ? 'my-bookings__body my-bookings__body--split' : 'my-bookings__body'
+        }
+      >
+        {user && !isStaff && <MyProfile userId={user.id} />}
         <section>
-          <h1 className="my-bookings__title">My bookings</h1>
+          <h2 className="my-bookings__title">My bookings</h2>
           {content}
         </section>
       </div>

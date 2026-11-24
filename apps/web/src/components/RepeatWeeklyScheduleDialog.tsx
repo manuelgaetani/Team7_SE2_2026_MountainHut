@@ -7,7 +7,6 @@ import { useRepeatWeeklySchedule, useSchedules } from '../api/useSlots.ts';
 import { addDays, dateShort, fromIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import { FormField } from './FormField.tsx';
-import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface RepeatWeeklyScheduleDialogProps {
   // First day of the source week: the day chosen on the page.
@@ -33,7 +32,7 @@ function replacedHint(total: number | undefined, isPending: boolean): string | n
 const range = (from: string, to: string): string =>
   `${dateShort(fromIsoDate(from))} – ${dateShort(fromIsoDate(to))}`;
 
-// The toast the page shows once the copy is done.
+// The banner the page shows once the copy is done.
 function repeatDoneMessage(result: RepeatWeeklyScheduleResult): string {
   const replaced =
     result.replacedSlotsCount > 0 ? ` ${slotsLabel(result.replacedSlotsCount)} replaced.` : '';
@@ -73,12 +72,6 @@ export function RepeatWeeklyScheduleDialog({
   const sourceEnd = addDays(sourceStartDate, 6);
   // While the number is not valid there is no target period, so nothing is loaded.
   const existing = useSchedules(validWeeks ? targetDays(sourceStartDate, n) : []);
-  // Until the count is known the label stays neutral: the copy may still replace slots.
-  const countUnknown = validWeeks && existing.total === undefined;
-  const toReplace = validWeeks ? (existing.total ?? 0) : 0;
-  let submitLabel = 'Repeat schedule';
-  if (countUnknown) submitLabel = 'Confirm and repeat schedule';
-  else if (toReplace > 0) submitLabel = `Replace ${slotsLabel(toReplace)} and repeat`;
   const replaced = validWeeks ? replacedHint(existing.total, existing.isPending) : null;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -178,17 +171,17 @@ export function RepeatWeeklyScheduleDialog({
             </p>
           )}
 
-          {error && <ErrorNotice message={error} />}
+          {error && (
+            <p role="alert" className="notice notice--error">
+              {error}
+            </p>
+          )}
 
-          <button
-            type="submit"
-            className="cta cta--center"
-            disabled={repeat.isPending || (validWeeks && existing.isPending)}
-          >
-            {repeat.isPending ? 'Repeating…' : submitLabel}
+          <button type="submit" className="cta cta--center" disabled={repeat.isPending}>
+            {repeat.isPending ? 'Repeating…' : 'Confirm and repeat schedule'}
           </button>
           <button type="button" className="pill slot-form__cancel" onClick={onClose}>
-            Close
+            Cancel
           </button>
         </form>
       </div>

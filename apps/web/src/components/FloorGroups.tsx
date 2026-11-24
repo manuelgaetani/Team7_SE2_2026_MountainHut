@@ -55,7 +55,7 @@ export function FloorGroups({ groups, selected, onSelect }: FloorGroupsProps) {
                 <dl className="floor-group__assignment">
                   {group.tables.map((t) => (
                     <div key={t.tableNumber} className="floor-group__assigned">
-                      <dt>Table {t.tableNumber}</dt>
+                      <dt>T{t.tableNumber}</dt>
                       <dd>{peopleLabel(t.seats)}</dd>
                     </div>
                   ))}

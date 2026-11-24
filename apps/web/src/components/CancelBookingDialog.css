@@ -8,6 +8,10 @@
   text-transform: uppercase;
 }
 
+.cancel-dialog__error {
+  margin: 0 0 16px;
+}
+
 .cancel-dialog__actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

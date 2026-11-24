@@ -6,18 +6,18 @@ import type { AvailabilityResult, CheckAvailabilityQuery } from '@mountain-hut/s
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useAvailability } from '../api/useAvailability.ts';
 import { FormField } from '../components/FormField.tsx';
-import { GuestStepper } from '../components/GuestStepper.tsx';
 import { toIsoDate } from '../lib/dates.ts';
 import { askedLabel, availabilityError, unavailableReason } from '../lib/availability.ts';
 import { authPath, bookingPath } from '../lib/bookingRedirect.ts';
 import './BookingPage.css';
 import './AvailabilityPage.css';
 
-type Field = 'date' | 'time';
+type Field = 'date' | 'time' | 'partySize';
 
 const FIELD_ERRORS: Record<Field, string> = {
   date: 'Choose a date.',
   time: 'Choose a time.',
+  partySize: 'Enter the number of people, 1 or more.',
 };
 
 function Result({ result }: { result: AvailabilityResult }) {
@@ -75,27 +75,21 @@ function Result({ result }: { result: AvailabilityResult }) {
 export function AvailabilityPage() {
   const [date, setDate] = useState(() => toIsoDate(new Date()));
   const [time, setTime] = useState('');
-  const [partySize, setPartySize] = useState(2);
+  const [partySize, setPartySize] = useState('2');
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [asked, setAsked] = useState<CheckAvailabilityQuery | null>(null);
   const check = useAvailability(asked);
 
   // A changed field hides the answer about the previous values.
-  const edit =
-    <T,>(set: (v: T) => void) =>
-    (v: T) => {
-      set(v);
-      setErrors({});
-      setAsked(null);
-    };
+  const edit = (set: (v: string) => void) => (v: string) => {
+    set(v);
+    setErrors({});
+    setAsked(null);
+  };
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const parsed = checkAvailabilityQuerySchema.safeParse({
-      date,
-      time,
-      partySize: String(partySize),
-    });
+    const parsed = checkAvailabilityQuerySchema.safeParse({ date, time, partySize });
     if (!parsed.success) {
       const found: Partial<Record<Field, string>> = {};
       for (const issue of parsed.error.issues) {
@@ -125,7 +119,6 @@ export function AvailabilityPage() {
                 id="availability-date"
                 label="Date"
                 type="date"
-                min={toIsoDate(new Date())}
                 value={date}
                 error={errors.date}
                 onChange={(e) => edit(setDate)(e.target.value)}
@@ -138,14 +131,17 @@ export function AvailabilityPage() {
                 error={errors.time}
                 onChange={(e) => edit(setTime)(e.target.value)}
               />
+              <FormField
+                id="availability-party"
+                label="Party size"
+                type="number"
+                min={1}
+                inputMode="numeric"
+                value={partySize}
+                error={errors.partySize}
+                onChange={(e) => edit(setPartySize)(e.target.value)}
+              />
             </div>
-            <GuestStepper
-              id="availability-party"
-              label="Party size"
-              hint={null}
-              value={partySize}
-              onChange={edit(setPartySize)}
-            />
             <button type="submit" className="cta" disabled={check.isFetching}>
               {check.isFetching ? 'Checking…' : 'Check availability'}
               <span aria-hidden="true">→</span>
