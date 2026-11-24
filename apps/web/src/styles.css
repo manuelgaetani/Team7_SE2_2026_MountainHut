@@ -32,6 +32,7 @@ body {
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -48,8 +49,9 @@ body {
 
 .nav-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 8px 16px;
 }
 
 .pill {
@@ -65,16 +67,30 @@ body {
   cursor: pointer;
 }
 
-/* Navigation bar buttons (Personal area, Sign out, Sign in, Register): bigger, with a dark border to stand out. */
+/* Navigation bar buttons (links and Sign out): bigger, with a dark border to stand out. */
 .nav-actions .pill {
   padding: 10px 20px;
   border-color: var(--ink);
   font-size: 0.9rem;
 }
 
-.nav-actions .pill:hover {
+.nav-actions .pill:hover,
+.nav-actions .pill[aria-current='page'] {
   background: var(--ink);
   color: #fff;
+}
+
+.pill--hero {
+  padding: 14px 24px;
+  border-color: #fff;
+  color: #fff;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.pill--hero:hover {
+  background: #fff;
+  color: var(--ink);
 }
 
 /* Shared */

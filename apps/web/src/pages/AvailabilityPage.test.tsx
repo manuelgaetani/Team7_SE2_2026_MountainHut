@@ -196,10 +196,9 @@ describe('AvailabilityPage', () => {
     expect(screen.getByText('Sat 14 Nov at 12:30 for 2 people')).toBeVisible();
     expect(screen.queryByText(/Table layout:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Tables for the party' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: TEXT.bookTable })).toHaveAttribute(
-      'href',
-      bookingPath({ date: '2026-11-14', time: '12:30', partySize: 2 }),
-    );
+    expect(
+      within(screen.getByRole('main')).getByRole('link', { name: TEXT.bookTable }),
+    ).toHaveAttribute('href', bookingPath({ date: '2026-11-14', time: '12:30', partySize: 2 }));
   });
 
   it.each([

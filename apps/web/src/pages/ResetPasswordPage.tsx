@@ -77,7 +77,7 @@ export function ResetPasswordPage() {
   return (
     <section className="auth auth--large">
       <p className="eyebrow">Your account</p>
-      <h1>Set a new password.</h1>
+      <h1>Set a new password</h1>
       {content}
       {!confirmReset.isSuccess && (
         <p className="auth-switch">

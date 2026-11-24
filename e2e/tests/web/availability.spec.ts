@@ -206,7 +206,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       await test.step('a signed-in hiker can book an available slot', async () => {
         await signIn(page, registeredUser);
         const slots = await openBookingPage(page, () =>
-          page.getByRole('link', { name: 'Book a table' }).click(),
+          page.getByRole('navigation').getByRole('link', { name: 'Book a table' }).click(),
         );
         await expect(page).toHaveURL(/\/book$/);
         await chooseDay(page, slots, dateOf(slots, slotId));

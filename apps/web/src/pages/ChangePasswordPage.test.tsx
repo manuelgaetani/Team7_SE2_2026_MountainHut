@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, sentBody, stubApi } from '../test/app.tsx';
 
 const TEXT = {
-  title: 'Change password.',
+  title: 'Change password',
   current: 'Current password',
   temporary: 'Temporary password',
   newPassword: 'New password',

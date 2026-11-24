@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -24,20 +24,83 @@ describe('NavBar', () => {
     expect(screen.queryByText(user.email)).not.toBeInTheDocument();
   });
 
-  it('links a hiker to their bookings', async () => {
-    stubApi({ '/api/auth/me': () => json(user) });
+  const navLinks = () =>
+    within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((link) => link.textContent);
+
+  it('lists availability, sign in and register for a visitor', async () => {
+    stubApi();
     renderAt('/');
-    expect(await screen.findByRole('link', { name: 'Personal area' })).toHaveAttribute(
-      'href',
-      '/bookings',
-    );
+    await screen.findByRole('link', { name: 'Sign in' });
+    expect(navLinks()).toEqual(['Mountain Hut', 'Availability', 'Sign in', 'Register']);
   });
 
-  it('does not link the staff to the bookings of a hiker', async () => {
-    stubApi({ '/api/auth/me': () => json({ ...user, role: 'EMPLOYEE' }) });
+  it('keeps availability visible on the auth pages, without the auth links', async () => {
+    stubApi();
+    renderAt('/login');
+    expect(await screen.findByRole('link', { name: 'Availability' })).toHaveAttribute(
+      'href',
+      '/availability',
+    );
+    expect(
+      within(screen.getByRole('navigation')).queryByRole('link', { name: 'Sign in' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('gives a hiker the booking links', async () => {
+    stubApi({ '/api/auth/me': () => json(user) });
     renderAt('/');
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Personal area' })).not.toBeInTheDocument();
+    await screen.findByRole('button', { name: 'Sign out' });
+    expect(navLinks()).toEqual([
+      'Mountain Hut',
+      'Book a table',
+      'Availability',
+      'My bookings',
+      'Change password',
+    ]);
+    const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'Book a table' })).toHaveAttribute('href', '/book');
+    expect(nav.getByRole('link', { name: 'My bookings' })).toHaveAttribute('href', '/bookings');
+    expect(nav.getByRole('link', { name: 'Change password' })).toHaveAttribute(
+      'href',
+      '/change-password',
+    );
+    expect(nav.queryByRole('link', { name: 'Personal area' })).not.toBeInTheDocument();
+  });
+
+  it.each(['EMPLOYEE', 'WARDEN'])('gives a %s the staff links', async (role) => {
+    stubApi({ '/api/auth/me': () => json({ ...user, role }) });
+    renderAt('/');
+    await screen.findByRole('button', { name: 'Sign out' });
+    expect(navLinks()).toEqual(['Mountain Hut', 'Time slots', 'New booking', 'Change password']);
+    const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'Time slots' })).toHaveAttribute('href', '/staff/slots');
+    expect(nav.getByRole('link', { name: 'New booking' })).toHaveAttribute(
+      'href',
+      '/staff/bookings/new',
+    );
+    expect(nav.queryByRole('link', { name: 'My bookings' })).not.toBeInTheDocument();
+  });
+
+  it('marks the link of the current page', async () => {
+    stubApi({ '/api/auth/me': () => json(user) });
+    renderAt('/availability');
+    const nav = within(screen.getByRole('navigation'));
+    expect(await nav.findByRole('link', { name: 'Availability' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(nav.getByRole('link', { name: 'My bookings' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps a user who must change the password on the change-password page', async () => {
+    stubApi({ '/api/auth/me': () => json({ ...user, mustChangePassword: true }) });
+    const router = renderAt('/change-password');
+    fireEvent.click(
+      await within(screen.getByRole('navigation')).findByRole('link', { name: 'Book a table' }),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe('/change-password'));
   });
 
   it('renews an expired session', async () => {

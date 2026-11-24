@@ -72,7 +72,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
     await signIn(page, registeredUser);
 
     const slots = await openBookingPage(page, () =>
-      page.getByRole('link', { name: 'Book a table' }).click(),
+      page.getByRole('navigation').getByRole('link', { name: 'Book a table' }).click(),
     );
     const slot = await chooseDayOf(page, slots, slotId);
     await page.getByRole('button', { name: 'More guests' }).click(); // the stepper starts at 2
@@ -94,7 +94,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
 
 test('asks a signed-out visitor to sign in before booking', async ({ page }) => {
   await page.goto('/book');
-  await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('to book a table')).toBeVisible();
   await expect(page.getByRole('radiogroup')).toHaveCount(0);
 });

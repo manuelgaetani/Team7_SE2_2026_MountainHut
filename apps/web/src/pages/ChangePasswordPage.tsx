@@ -131,7 +131,7 @@ export function ChangePasswordPage() {
   return (
     <section className="auth auth--large">
       <p className="eyebrow">Your account</p>
-      <h1>Change password.</h1>
+      <h1>Change password</h1>
       {content}
     </section>
   );

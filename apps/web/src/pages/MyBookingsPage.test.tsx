@@ -191,7 +191,9 @@ describe('MyBookingsPage', () => {
     asHiker(() => json([]));
     renderAt('/bookings');
     expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
-    expect(screen.getByRole('link', { name: TEXT.bookTable })).toHaveAttribute('href', '/book');
+    expect(
+      within(screen.getByRole('main')).getByRole('link', { name: TEXT.bookTable }),
+    ).toHaveAttribute('href', '/book');
   });
 
   it('says when there are no cancelled bookings', async () => {

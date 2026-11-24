@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
 
@@ -20,7 +20,8 @@ describe('HomePage', () => {
   it('lets a hiker go to the booking page', async () => {
     stubApi({ '/api/auth/me': () => json(user) });
     renderAt('/');
-    expect(await screen.findByRole('link', { name: /^Book a table/ })).toHaveAttribute(
+    const main = within(await screen.findByRole('main'));
+    expect(await main.findByRole('link', { name: /^Book a table/ })).toHaveAttribute(
       'href',
       '/book',
     );
@@ -36,5 +37,13 @@ describe('HomePage', () => {
       '/staff/slots',
     );
     expect(screen.queryByRole('link', { name: /Book a table/ })).not.toBeInTheDocument();
+  });
+
+  it('has a single main landmark and a pill secondary action', async () => {
+    stubApi();
+    renderAt('/');
+    const link = await screen.findByRole('link', { name: /Check availability/ });
+    expect(document.querySelectorAll('main')).toHaveLength(1);
+    expect(link).toHaveClass('pill');
   });
 });
