@@ -76,9 +76,9 @@ describe('FloorGroups', () => {
       'false',
     );
     expect(screen.getByText('Group assignment')).toBeInTheDocument();
-    expect(screen.getByText('T4')).toBeInTheDocument();
+    expect(screen.getByText('Table 4')).toBeInTheDocument();
     expect(screen.getByText('6 people')).toBeInTheDocument();
-    expect(screen.getByText('T5')).toBeInTheDocument();
+    expect(screen.getByText('Table 5')).toBeInTheDocument();
     expect(screen.getByText('2 people')).toBeInTheDocument();
     expect(screen.getByText(/one group seated on different tables/)).toBeInTheDocument();
   });

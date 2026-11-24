@@ -142,7 +142,8 @@ function renderFloorPage(
 const floorRequests = (fetchMock: ReturnType<typeof stubApi>) =>
   fetchMock.mock.calls.filter(([url]) => String(url).includes('/floor'));
 
-const tableCard = (n: number) => screen.getByText(`Table ${n}`).closest('li') as HTMLElement;
+const tableCard = (n: number) =>
+  screen.getByRole('heading', { level: 3, name: `Table ${n}` }).closest('li') as HTMLElement;
 
 describe('FloorPlanPage', () => {
   afterEach(() => {
@@ -154,9 +155,8 @@ describe('FloorPlanPage', () => {
       const fetchMock = stubApi({ user: null });
       renderFloorPage();
 
-      const loginLink = await screen.findByRole('link', { name: 'Log in' }, { timeout: 4000 });
-      expect(loginLink).toHaveAttribute('href', '/login');
-      expect(screen.getByText(TEXT.logInHint)).toBeInTheDocument();
+      const hint = await screen.findByText(TEXT.logInHint, undefined, { timeout: 4000 });
+      expect(within(hint).getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
       expect(floorRequests(fetchMock)).toHaveLength(0);
     });
 

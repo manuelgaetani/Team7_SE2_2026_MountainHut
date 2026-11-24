@@ -8,8 +8,9 @@ const TEXT = {
   open: 'Repeat weekly schedule',
   dialog: 'Repeat weekly schedule',
   weeks: 'Number of weeks to repeat',
-  confirm: 'Confirm and repeat schedule',
-  cancel: 'Cancel',
+  confirm: 'Repeat schedule',
+  replaceThree: 'Replace 3 slots and repeat',
+  close: 'Close',
   atLeastOne: 'Must be at least 1 week.',
   atMost: 'At most 12 weeks.',
   replaced: 'The slots already in those weeks are replaced.',
@@ -128,6 +129,18 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
     expect(
       await within(dialog).findByText('3 slots already in the target weeks will be replaced.'),
     ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: TEXT.replaceThree })).toBeInTheDocument();
+  });
+
+  it('names the single slot to replace in the singular', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    days[firstTargetWeek[0]!] = () => json([lunch]);
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByRole('button', { name: 'Replace 1 slot and repeat' }),
+    ).toBeInTheDocument();
   });
 
   it('says when the target weeks have no slots to replace', async () => {
@@ -239,8 +252,14 @@ describe('MH-09 Repeat weekly schedule dialog', () => {
   });
 
   it.each([
-    ['the Cancel button', () => fireEvent.click(screen.getByRole('button', { name: TEXT.cancel }))],
-    ['the close button', () => fireEvent.click(screen.getByRole('button', { name: 'Close' }))],
+    [
+      'the Close button',
+      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[1]!),
+    ],
+    [
+      'the X button',
+      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[0]!),
+    ],
     ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })],
   ])('closes with %s without calling the API', async (_how, close) => {
     const fetchMock = stub();

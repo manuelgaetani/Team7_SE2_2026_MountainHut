@@ -108,7 +108,7 @@ export function FloorPlanPage() {
     if (!user) {
       content = (
         <p className="notice notice--ok">
-          <Link to="/login">Log in</Link> with a staff account to see the floor plan.
+          <Link to="/login">Sign in</Link> with a staff account to see the floor plan.
         </p>
       );
     } else if (!isStaff) {

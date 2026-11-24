@@ -81,7 +81,7 @@ function FillLegend() {
 
 // The tables of a slot and its seats taken out of all its seats: "6 tables · 22/24 seats taken".
 // It reads the same floor plan as the tables below, so there is no extra request. Until the
-// plan arrives, or if it fails, it shows the seats only.
+// plan arrives it says so; if it fails, it shows the seats only.
 function SlotSeats({ slot }: { slot: SlotDetails }) {
   const floor = useFloorPlan(slot.id);
   // The sum of the tables below, so the two numbers always agree.
@@ -89,7 +89,13 @@ function SlotSeats({ slot }: { slot: SlotDetails }) {
   return (
     <span className="field__meta">
       {tablesLabel(slot.tables.length)} ·{' '}
-      {taken === undefined ? seatsLabel(slot.totalSeats) : takenLabel(taken, slot.totalSeats)}
+      {floor.isPending ? (
+        <span>Loading seats…</span>
+      ) : taken === undefined ? (
+        seatsLabel(slot.totalSeats)
+      ) : (
+        takenLabel(taken, slot.totalSeats)
+      )}
     </span>
   );
 }

@@ -33,7 +33,7 @@ function replacedHint(total: number | undefined, isPending: boolean): string | n
 const range = (from: string, to: string): string =>
   `${dateShort(fromIsoDate(from))} – ${dateShort(fromIsoDate(to))}`;
 
-// The banner the page shows once the copy is done.
+// The toast the page shows once the copy is done.
 function repeatDoneMessage(result: RepeatWeeklyScheduleResult): string {
   const replaced =
     result.replacedSlotsCount > 0 ? ` ${slotsLabel(result.replacedSlotsCount)} replaced.` : '';
@@ -73,6 +73,9 @@ export function RepeatWeeklyScheduleDialog({
   const sourceEnd = addDays(sourceStartDate, 6);
   // While the number is not valid there is no target period, so nothing is loaded.
   const existing = useSchedules(validWeeks ? targetDays(sourceStartDate, n) : []);
+  const toReplace = validWeeks ? (existing.total ?? 0) : 0;
+  const submitLabel =
+    toReplace > 0 ? `Replace ${slotsLabel(toReplace)} and repeat` : 'Repeat schedule';
   const replaced = validWeeks ? replacedHint(existing.total, existing.isPending) : null;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -175,10 +178,10 @@ export function RepeatWeeklyScheduleDialog({
           {error && <ErrorNotice message={error} />}
 
           <button type="submit" className="cta cta--center" disabled={repeat.isPending}>
-            {repeat.isPending ? 'Repeating…' : 'Confirm and repeat schedule'}
+            {repeat.isPending ? 'Repeating…' : submitLabel}
           </button>
           <button type="button" className="pill slot-form__cancel" onClick={onClose}>
-            Cancel
+            Close
           </button>
         </form>
       </div>

@@ -18,10 +18,11 @@ async function signIn(page: Page, user: TestUser): Promise<void> {
 }
 
 test.describe('MH-02 UI: Time slots and table capacity management', () => {
-  test('asks a signed-out visitor to log in before managing slots', async ({ page }) => {
+  test('asks a signed-out visitor to sign in before managing slots', async ({ page }) => {
     await page.goto('/staff/slots');
-    await expect(page.getByText('with a staff account to manage the time slots')).toBeVisible();
-    const loginLink = page.getByRole('link', { name: 'Log in' });
+    const notice = page.getByText('with a staff account to manage the time slots');
+    await expect(notice).toBeVisible();
+    const loginLink = notice.getByRole('link', { name: 'Sign in' });
     await expect(loginLink).toBeVisible();
     await expect(loginLink).toHaveAttribute('href', '/login');
     await expect(page.getByLabel('Day')).toHaveCount(0);
