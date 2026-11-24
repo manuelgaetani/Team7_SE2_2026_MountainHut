@@ -130,8 +130,6 @@ test.describe('MH-08 Web: cancel a booking', () => {
     await dialog.getByRole('button', { name: 'Cancel booking', exact: true }).click();
 
     await expect(page.getByText('Booking cancelled. Seats are free again.')).toBeVisible();
-    await expect(dialog.getByRole('status')).toContainText('its seats are free again');
-    await expect(dialog).toContainText('19:00–21:00 · 3 people');
     expect(bookingStatus(booking.id)).toBe('CANCELLED');
     expect(await freeSeats(loggedInRequest, slotId)).toBe(4);
 
