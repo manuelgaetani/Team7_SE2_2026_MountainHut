@@ -15,7 +15,7 @@ async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
 }
 
 // Opens the booking page and returns the slots exactly as the page received them.

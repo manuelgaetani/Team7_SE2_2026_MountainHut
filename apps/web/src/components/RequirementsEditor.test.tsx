@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MAX_REQUIREMENTS_COUNT } from '@mountain-hut/shared';
 import { RequirementsEditor } from './RequirementsEditor.tsx';
+import { ToastProvider } from './Toast.tsx';
 import type { RequirementDraft } from './RequirementsEditor.tsx';
 
 const TEXT = {
@@ -22,7 +23,11 @@ function Harness({
   errors?: Partial<Record<number, string>>;
 }) {
   const [rows, setRows] = useState<RequirementDraft[]>(initial);
-  return <RequirementsEditor value={rows} onChange={setRows} errors={errors} />;
+  return (
+    <ToastProvider>
+      <RequirementsEditor value={rows} onChange={setRows} errors={errors} />
+    </ToastProvider>
+  );
 }
 
 const row = (key: number, description = '', allergies = false): RequirementDraft => ({
@@ -69,6 +74,20 @@ describe('RequirementsEditor', () => {
     fireEvent.click(group(1).getByRole('button', { name: TEXT.remove }));
     expect(screen.getAllByRole('textbox')).toHaveLength(1);
     expect(screen.getByRole('textbox')).toHaveValue('vegetarian');
+  });
+
+  it('offers to undo a removal, and puts the entry back in its place', () => {
+    render(<Harness initial={[row(1, 'vegan', true), row(2, 'vegetarian')]} />);
+    fireEvent.click(group(1).getByRole('button', { name: TEXT.remove }));
+    expect(screen.getByRole('status')).toHaveTextContent('Allergy requirement removed.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getAllByRole('textbox').map((t) => (t as HTMLInputElement).value)).toEqual([
+      'vegan',
+      'vegetarian',
+    ]);
+    expect(group(1).getByRole('checkbox', { name: TEXT.allergies })).toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });
 
   it('does not reuse the key of a removed entry', () => {

@@ -4,6 +4,7 @@ import {
   createStaffBookingSchema,
   MAX_REQUIREMENTS_LENGTH,
   type PartyRequirement,
+  type SlotSummary,
   type StaffBookingHiker,
   type StaffBookingResult,
 } from '@mountain-hut/shared';
@@ -19,6 +20,7 @@ import { HikerPicker } from '../components/HikerPicker.tsx';
 import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
 import { StaffBookingErrorDialog } from '../components/StaffBookingErrorDialog.tsx';
+import { TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateLong, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import {
   emptyHikerDraft,
@@ -70,10 +72,22 @@ function hasStarted(slot: SlotDetails, now: Date): boolean {
 
 // Why a slot cannot be chosen; empty when it can. freeSeats is unknown until GET /slots answers.
 function slotNote(slot: SlotDetails, now: Date, freeSeats: number | undefined): string {
-  if (hasStarted(slot, now)) return ' (already started)';
-  if (slot.totalSeats === 0) return ' (no tables)';
-  if (freeSeats === 0) return ' (full)';
+  if (hasStarted(slot, now)) return 'Already started';
+  if (slot.totalSeats === 0) return 'No tables';
+  if (freeSeats === 0) return 'Full';
   return '';
+}
+
+// The schedule slots in the shape of the time buttons of the booking page.
+function toPickable(slot: SlotDetails, freeSeats: number | undefined, note: string): SlotSummary {
+  return {
+    id: slot.id,
+    date: slot.date,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    freeSeats: freeSeats ?? 0,
+    availability: note === '' ? 'AVAILABLE' : 'FULL',
+  };
 }
 
 function toHiker(draft: HikerDraft): StaffBookingHiker | null {
@@ -118,7 +132,9 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const freeSeats = new Map(upcoming.data?.map((s) => [s.id, s.freeSeats]));
   const now = new Date();
   const slots = schedule.data ?? [];
-  const bookable = slots.filter((s) => slotNote(s, now, freeSeats.get(s.id)) === '');
+  const notes = new Map(slots.map((s) => [s.id, slotNote(s, now, freeSeats.get(s.id))]));
+  const bookable = slots.filter((s) => notes.get(s.id) === '');
+  const pickable = slots.map((s) => toPickable(s, freeSeats.get(s.id), notes.get(s.id) ?? ''));
   const slot = bookable.find((s) => s.id === chosenSlotId) ?? bookable[0] ?? null;
   const summary = slot ? `${dateLong(fromIsoDate(date))} · ${slot.startTime}` : null;
   const slotFree = slot ? freeSeats.get(slot.id) : undefined;
@@ -200,33 +216,26 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             }}
           />
 
-          <div className="field">
-            <label htmlFor="booking-slot">Time *</label>
-            <select
-              id="booking-slot"
-              value={slot?.id ?? ''}
-              disabled={!schedule.isSuccess || bookable.length === 0}
-              aria-invalid={errors.slotId ? true : undefined}
-              onChange={(e) => setChosenSlotId(Number(e.target.value))}
-            >
-              {bookable.length === 0 && <option value="">No time slots</option>}
-              {slots.map((s) => {
-                const free = freeSeats.get(s.id);
-                const note = slotNote(s, now, free);
-                return (
-                  <option key={s.id} value={s.id} disabled={note !== ''}>
-                    {s.startTime}–{s.endTime}
-                    {note || (free === undefined ? '' : ` · ${seats(free)}`)}
-                  </option>
-                );
-              })}
-            </select>
-            {errors.slotId && (
-              <p role="alert" className="field-error">
-                {errors.slotId}
-              </p>
-            )}
-          </div>
+          {/* The same time buttons as the booking page of the hikers. */}
+          <TimeSlotPicker
+            slots={pickable}
+            guests={guests}
+            value={slot?.id ?? null}
+            onChange={setChosenSlotId}
+            label="Time *"
+            canChoose={(s) => notes.get(s.id) === ''}
+            reason={(s) => {
+              const note = notes.get(s.id) ?? '';
+              if (note !== '') return note;
+              const free = freeSeats.get(s.id);
+              return free === undefined ? null : seats(free);
+            }}
+          />
+          {errors.slotId && (
+            <p role="alert" className="field-error">
+              {errors.slotId}
+            </p>
+          )}
           <GuestStepper
             id="booking-party"
             label="Number of people"

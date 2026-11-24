@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { MAX_REQUIREMENTS_COUNT } from '@mountain-hut/shared';
+import { useToast } from './Toast.tsx';
 
 // A requirement as edited in the form. The key only identifies the row in the list.
 export interface RequirementDraft {
@@ -18,6 +20,36 @@ const nextKey = (rows: RequirementDraft[]): number =>
   rows.reduce((max, r) => Math.max(max, r.key), 0) + 1;
 
 export function RequirementsEditor({ value, onChange, errors }: RequirementsEditorProps) {
+  const toast = useToast();
+  // The latest rows and handler, read by an Undo pressed after later edits.
+  const latest = useRef({ value, onChange });
+  useEffect(() => {
+    latest.current = { value, onChange };
+  });
+  // Undo toasts of this editor: they make no sense once the form is gone.
+  const undoToasts = useRef<number[]>([]);
+  useEffect(() => {
+    const ids = undoToasts.current;
+    return () => ids.forEach((id) => toast.dismiss(id));
+  }, [toast]);
+
+  function remove(row: RequirementDraft, index: number) {
+    onChange(value.filter((r) => r.key !== row.key));
+    const id = toast.show({
+      message: row.allergies ? 'Allergy requirement removed.' : 'Requirement removed.',
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const rows = latest.current.value.filter((r) => r.key !== row.key);
+          const restored = [...rows];
+          restored.splice(Math.min(index, rows.length), 0, row);
+          latest.current.onChange(restored.slice(0, MAX_REQUIREMENTS_COUNT));
+        },
+      },
+    });
+    undoToasts.current.push(id);
+  }
+
   const update = (key: number, patch: Partial<RequirementDraft>) =>
     onChange(value.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -76,7 +108,7 @@ export function RequirementsEditor({ value, onChange, errors }: RequirementsEdit
               <button
                 type="button"
                 className="requirement__remove"
-                onClick={() => onChange(value.filter((r) => r.key !== row.key))}
+                onClick={() => remove(row, index)}
               >
                 Remove
               </button>
