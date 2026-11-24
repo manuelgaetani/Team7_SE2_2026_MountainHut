@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
+import { SLOT } from '../../fixtures/slots.js';
 
 // Spec MH-06: As a hiker, I want to change the date, time, party size, or requirements of my booking.
 // Changes are admitted within 48 hours from the date booked.
@@ -101,7 +102,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     // 1. Create an initial booking for 2 guests
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
@@ -146,7 +147,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     // Initial booking on slot 1
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot1 = await chooseDayOf(page, slots, slotId1);
-    await page.getByRole('radio', { name: chosenSlot1.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot1.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -183,7 +184,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     // Book the slot in ~24 hours (allowed because > 2h cutoff)
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, imminent48SlotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -210,7 +211,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     // Initial booking for 2
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -253,7 +254,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
@@ -283,7 +284,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
@@ -308,7 +309,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
@@ -334,7 +335,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, imminent48SlotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -354,7 +355,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');

@@ -14,9 +14,15 @@ const TEXT = {
   row: (n: number) => `Requirement ${n}`,
 } as const;
 
-function Harness({ initial = [] }: { initial?: RequirementDraft[] }) {
+function Harness({
+  initial = [],
+  errors,
+}: {
+  initial?: RequirementDraft[];
+  errors?: Partial<Record<number, string>>;
+}) {
   const [rows, setRows] = useState<RequirementDraft[]>(initial);
-  return <RequirementsEditor value={rows} onChange={setRows} />;
+  return <RequirementsEditor value={rows} onChange={setRows} errors={errors} />;
 }
 
 const row = (key: number, description = '', allergies = false): RequirementDraft => ({
@@ -81,5 +87,27 @@ describe('RequirementsEditor', () => {
     const rows = Array.from({ length: MAX_REQUIREMENTS_COUNT }, (_, i) => row(i + 1, 'x'));
     render(<Harness initial={rows} />);
     expect(screen.getByRole('button', { name: TEXT.addAnother })).toBeDisabled();
+  });
+
+  it('shows a row error and marks only that input invalid', () => {
+    render(<Harness initial={[row(1), row(2)]} errors={{ 2: 'Describe this requirement.' }} />);
+    expect(group(2).getByRole('alert')).toHaveTextContent('Describe this requirement.');
+    expect(group(2).getByRole('textbox', { name: TEXT.details })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    expect(group(1).queryByRole('alert')).not.toBeInTheDocument();
+    expect(group(1).getByRole('textbox', { name: TEXT.details })).not.toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+  });
+
+  it('shows a single hint', () => {
+    render(<Harness initial={[row(1)]} />);
+    expect(
+      screen.getByText('Add one entry for each person or group with the same needs.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/say how many people/)).not.toBeInTheDocument();
   });
 });

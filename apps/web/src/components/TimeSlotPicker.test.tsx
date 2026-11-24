@@ -50,7 +50,8 @@ describe('TimeSlotPicker', () => {
     const onChange = vi.fn();
     render(<TimeSlotPicker slots={sampleSlots} guests={2} value={1} onChange={onChange} />);
 
-    expect(screen.getByText(/Lunch ·/)).toBeInTheDocument();
+    expect(screen.queryByText(/Lunch/)).not.toBeInTheDocument();
+    expect(screen.getByText('12:00–11:00')).toBeInTheDocument();
     expect(screen.getByText(/A table is waiting for you at 12:00/)).toBeInTheDocument();
 
     const radios = screen.getAllByRole('radio');
@@ -65,9 +66,9 @@ describe('TimeSlotPicker', () => {
     // slot 3 is FULL -> disabled
     expect(radios[2]).toBeDisabled();
 
-    // slot 4 is TOO_LATE -> disabled with title
+    // slot 4 is TOO_LATE -> disabled, no title
     expect(radios[3]).toBeDisabled();
-    expect(radios[3]).toHaveAttribute('title', 'Bookings closed for this time slot');
+    expect(radios[3]).not.toHaveAttribute('title');
 
     // Clicking enabled radio triggers onChange
     fireEvent.click(radios[0]);
@@ -79,5 +80,50 @@ describe('TimeSlotPicker', () => {
     expect(isBookable(sampleSlots[0], 5)).toBe(false);
     expect(isBookable(sampleSlots[2], 0)).toBe(false);
     expect(isBookable(sampleSlots[3], 1)).toBe(false);
+  });
+
+  it('shows the range and the reason on each slot', () => {
+    render(<TimeSlotPicker slots={sampleSlots} guests={3} value={null} onChange={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: /^12:00–14:00/ })).not.toHaveTextContent(
+      /Only|Full|Closed/,
+    );
+    expect(screen.getByRole('radio', { name: /^19:00–21:00/ })).toHaveTextContent('Only 1 seat');
+    expect(screen.getByRole('radio', { name: /^21:00–23:00/ })).toHaveTextContent('Full');
+    expect(screen.getByRole('radio', { name: /^10:00–11:00/ })).toHaveTextContent('Closed');
+  });
+
+  it('shows Only n seats when fewer seats than guests', () => {
+    render(
+      <TimeSlotPicker
+        slots={[{ ...sampleSlots[0], freeSeats: 2 }]}
+        guests={3}
+        value={null}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('radio')).toHaveTextContent('Only 2 seats');
+    expect(screen.getByRole('radio')).toBeDisabled();
+  });
+
+  it('lets canChoose and reason override the defaults', () => {
+    render(
+      <TimeSlotPicker
+        slots={[sampleSlots[2]]}
+        guests={1}
+        value={null}
+        onChange={vi.fn()}
+        canChoose={() => true}
+        reason={() => null}
+        label="Pick one"
+      />,
+    );
+    expect(screen.getByRole('radio')).toBeEnabled();
+    expect(screen.getByRole('radio')).not.toHaveTextContent('Full');
+    expect(screen.getByRole('radiogroup', { name: 'Pick one' })).toBeInTheDocument();
+  });
+
+  it('names the radiogroup What time? by default', () => {
+    render(<TimeSlotPicker slots={sampleSlots} guests={1} value={null} onChange={vi.fn()} />);
+    expect(screen.getByRole('radiogroup', { name: 'What time?' })).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
+import { SLOT } from '../../fixtures/slots.js';
 
 interface ListedSlot {
   id: number;
@@ -68,7 +69,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await page.getByRole('button', { name: 'More guests' }).click();
 
     // Select time slot
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // 1. Add first requirement: 1 vegan, peanut allergy (allergies: yes)
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -119,7 +120,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add requirement with allergy checked
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -148,7 +149,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add requirement without checking allergies
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -174,7 +175,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add two requirements
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -212,7 +213,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Do not add requirements, proceed directly to book
     await page.getByRole('button', { name: 'Book your table' }).click();
@@ -233,7 +234,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add empty requirement row
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -257,7 +258,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add requirement with description > 500 characters
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -293,7 +294,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Focus on "Add requirement" button and activate via keyboard Enter
     const addButton = page.getByRole('button', { name: /Add.*requirement|Add dietary/i });
@@ -335,7 +336,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
     const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
@@ -358,7 +359,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
     const row = page.locator('.party-requirement-item, [data-testid="requirement-row"]').first();
@@ -383,7 +384,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Add requirement details
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();
@@ -411,7 +412,7 @@ test.describe('MH-05 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const chosenSlot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: chosenSlot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(chosenSlot.startTime) }).click();
 
     // Fill in requirement
     await page.getByRole('button', { name: /Add.*requirement|Add dietary/i }).click();

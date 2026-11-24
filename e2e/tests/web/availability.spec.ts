@@ -3,6 +3,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
+import { SLOT } from '../../fixtures/slots.js';
 
 // The overlap rule (MH-02) refuses two overlapping slots on the same day, so MH-04 uses its own
 // range of years (3000-8000): far from createSlot (2031-2131) and MH-09 (2200-2580), and wide
@@ -206,7 +207,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
         await expect(book).toBeDisabled();
 
         const time = slots.find((s) => s.id === slotId)!.startTime;
-        await page.getByRole('radio', { name: time, exact: true }).click();
+        await page.getByRole('radio', { name: SLOT(time) }).click();
         await expect(page.locator('.recap')).toContainText(`A table is waiting for you at ${time}`);
         await expect(book).toBeEnabled();
       });
@@ -274,8 +275,8 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       // Marker on the window: it disappears if the page reloads.
       await page.evaluate(() => ((window as unknown as { marker: boolean }).marker = true));
 
-      const noon = page.getByRole('radio', { name: '12:00', exact: true });
-      const afternoon = page.getByRole('radio', { name: '14:00', exact: true });
+      const noon = page.getByRole('radio', { name: SLOT('12:00') });
+      const afternoon = page.getByRole('radio', { name: SLOT('14:00') });
       const confirm = page.locator('.field__confirm');
       const summaryTime = page
         .getByRole('complementary', { name: 'Booking Summary' })
@@ -319,7 +320,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       await chooseDay(page, slots, dateOf(slots, slotId));
 
       await expect(page.getByRole('radiogroup', { name: 'When are you coming?' })).toBeVisible();
-      await expect(page.getByRole('radiogroup', { name: 'When?' })).toBeVisible();
+      await expect(page.getByRole('radiogroup', { name: 'What time?' })).toBeVisible();
 
       const value = page.locator('output.stepper__value');
       await expect(value).toHaveAttribute('aria-live', 'polite');

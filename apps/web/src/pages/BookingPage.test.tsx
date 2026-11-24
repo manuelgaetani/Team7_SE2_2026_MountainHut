@@ -85,10 +85,10 @@ const clickGuests = (name: typeof TEXT.moreGuests | typeof TEXT.fewerGuests) =>
 
 // The first day is already selected: only guests and time need to be chosen.
 async function fillForm(guests = 3) {
-  await screen.findByRole('radio', { name: '19:00' });
+  await screen.findByRole('radio', { name: /^19:00–/ });
   for (let n = DEFAULT_GUESTS; n < guests; n++) clickGuests(TEXT.moreGuests);
   for (let n = DEFAULT_GUESTS; n > guests; n--) clickGuests(TEXT.fewerGuests);
-  fireEvent.click(screen.getByRole('radio', { name: '19:00' }));
+  fireEvent.click(screen.getByRole('radio', { name: /^19:00–/ }));
 }
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
@@ -149,9 +149,9 @@ describe('BookingPage', () => {
         ]),
     });
     renderPage();
-    expect(await screen.findByRole('radio', { name: '19:00' })).toBeEnabled();
-    expect(screen.getByRole('radio', { name: '12:00' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: '08:00' })).toBeDisabled();
+    expect(await screen.findByRole('radio', { name: /^19:00–/ })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: /^12:00–/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /^08:00–/ })).toBeDisabled();
   });
 
   it('disables the slots with fewer free seats than guests', async () => {
@@ -160,10 +160,10 @@ describe('BookingPage', () => {
         json([slot, { ...slot, id: 2, startTime: '20:00', endTime: '22:00', freeSeats: 2 }]),
     });
     renderPage();
-    expect(await screen.findByRole('radio', { name: '20:00' })).toBeEnabled();
+    expect(await screen.findByRole('radio', { name: /^20:00–/ })).toBeEnabled();
     clickGuests(TEXT.moreGuests);
-    expect(screen.getByRole('radio', { name: '20:00' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: '19:00' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: /^20:00–/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /^19:00–/ })).toBeEnabled();
   });
 
   it('keeps the booking button disabled until a time is chosen', async () => {
@@ -176,7 +176,7 @@ describe('BookingPage', () => {
       (button as unknown as Record<string, { onClick?: () => void }>)[reactPropsKey]?.onClick?.();
     }
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
-    fireEvent.click(screen.getByRole('radio', { name: '19:00' }));
+    fireEvent.click(screen.getByRole('radio', { name: /^19:00–/ }));
     expect(button).toBeEnabled();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
   });
@@ -269,13 +269,13 @@ describe('BookingPage', () => {
     stubApi({ slots: () => json([slot, slotDay2]) });
     renderPage();
 
-    expect(await screen.findByRole('radio', { name: '19:00' })).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /^19:00–/ })).toBeInTheDocument();
 
     const day2Radio = screen.getByRole('radio', { name: /16/ });
     fireEvent.click(day2Radio);
 
-    expect(await screen.findByRole('radio', { name: '12:00' })).toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: '19:00' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /^12:00–/ })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^19:00–/ })).not.toBeInTheDocument();
   });
 
   it.each(['EMPLOYEE', 'WARDEN'])('tells a %s that staff accounts cannot book', async (role) => {
@@ -409,7 +409,7 @@ describe('BookingPage', () => {
     const fetchMock = stubApi({});
     renderPage('/book?date=2030-01-15&time=19:00&partySize=3');
 
-    const slotRadio = await screen.findByRole('radio', { name: '19:00' });
+    const slotRadio = await screen.findByRole('radio', { name: /^19:00–/ });
     expect(slotRadio).toBeChecked();
     expect(screen.getByText(TEXT.summary)).toBeInTheDocument();
 
@@ -428,7 +428,7 @@ describe('BookingPage', () => {
     stubApi({});
     renderPage('/book?date=2030-01-15&time=22:00&partySize=3');
 
-    const slotRadio = await screen.findByRole('radio', { name: '19:00' });
+    const slotRadio = await screen.findByRole('radio', { name: /^19:00–/ });
     expect(slotRadio).not.toBeChecked();
     expect(screen.getByRole('button', { name: TEXT.submit })).toBeDisabled();
   });

@@ -10,12 +10,14 @@ export interface RequirementDraft {
 interface RequirementsEditorProps {
   value: RequirementDraft[];
   onChange: (rows: RequirementDraft[]) => void;
+  /** Error message per row, keyed by RequirementDraft.key. */
+  errors?: Partial<Record<number, string>>;
 }
 
 const nextKey = (rows: RequirementDraft[]): number =>
   rows.reduce((max, r) => Math.max(max, r.key), 0) + 1;
 
-export function RequirementsEditor({ value, onChange }: RequirementsEditorProps) {
+export function RequirementsEditor({ value, onChange, errors }: RequirementsEditorProps) {
   const update = (key: number, patch: Partial<RequirementDraft>) =>
     onChange(value.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -45,6 +47,7 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
 
       {value.map((row, index) => {
         const id = `requirement-${row.key}`;
+        const error = errors?.[row.key];
         return (
           // The legend names the group: the controls inside keep short names
           // ("Details", "Allergies", "Remove") so each one is found without ambiguity.
@@ -57,6 +60,8 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
                 type="text"
                 className="requirement__input"
                 value={row.description}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${id}-error` : undefined}
                 placeholder="e.g. 2 vegetarians"
                 onChange={(e) => update(row.key, { description: e.target.value })}
               />
@@ -76,15 +81,16 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
                 Remove
               </button>
             </div>
+            {error && (
+              <p id={`${id}-error`} role="alert" className="field-error">
+                {error}
+              </p>
+            )}
           </fieldset>
         );
       })}
 
       {value.length > 0 && addButton}
-      <p className="field__hint">
-        For each entry, say how many people it applies to. Tick “Allergies” only when the kitchen
-        needs to take special care.
-      </p>
     </div>
   );
 }
