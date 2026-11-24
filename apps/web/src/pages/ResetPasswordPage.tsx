@@ -4,6 +4,7 @@ import { confirmPasswordResetSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useConfirmPasswordReset } from '../api/useAuth.ts';
 import { FormField } from '../components/FormField.tsx';
+import { PASSWORD_HINT } from '../lib/passwordRules.ts';
 
 const PASSWORD_RULES = 'Use at least 8 characters with a letter and a digit.';
 const INVALID_LINK = 'The link is invalid or has expired.';
@@ -55,7 +56,7 @@ export function ResetPasswordPage() {
           label="New password"
           type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          hint={PASSWORD_HINT}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={fieldError ?? undefined}
@@ -75,7 +76,7 @@ export function ResetPasswordPage() {
 
   return (
     <section className="auth auth--large">
-      <p className="eyebrow">Personal area</p>
+      <p className="eyebrow">Your account</p>
       <h1>Set a new password.</h1>
       {content}
       {!confirmReset.isSuccess && (

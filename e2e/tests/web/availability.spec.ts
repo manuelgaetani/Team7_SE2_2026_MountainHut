@@ -5,6 +5,14 @@ import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
 import { SLOT } from '../../fixtures/slots.js';
 
+// The party size is a stepper that starts at 2.
+async function partyStepper(page: Page, size: number) {
+  const form = page.locator('.availability-form');
+  for (let current = 2; current < size; current += 1) {
+    await form.getByRole('button', { name: 'More guests' }).click();
+  }
+}
+
 // The overlap rule (MH-02) refuses two overlapping slots on the same day, so MH-04 uses its own
 // range of years (3000-8000): far from createSlot (2031-2131) and MH-09 (2200-2580), and wide
 // enough that two parallel tests practically never draw the same day.
@@ -103,7 +111,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('12:00');
-    await page.getByLabel(/Party size|Guests/i).fill('3');
+    await partyStepper(page, 3);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // 4. Verify available status and table layout detail
@@ -137,7 +145,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('13:00');
-    await page.getByLabel(/Party size|Guests/i).fill('6');
+    await partyStepper(page, 6);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // 3. Verify multi-table breakdown detail is visible (e.g. 2 + 2 + 2 seats)
@@ -167,7 +175,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('18:00');
-    await page.getByLabel(/Party size|Guests/i).fill('8');
+    await partyStepper(page, 8);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // Verify unavailable notice

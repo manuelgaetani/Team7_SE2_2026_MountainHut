@@ -1,9 +1,11 @@
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/useAuth.ts';
+import { useToast } from './Toast.tsx';
 
 export function NavBar() {
   const { data: user, isPending } = useCurrentUser();
   const logout = useLogout();
+  const toast = useToast();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   // The auth pages already have their own Sign in / Register tabs.
@@ -26,7 +28,9 @@ export function NavBar() {
               // Go home first, then sign out: the page left behind never sees the user
               // disappear, so it cannot send them somewhere else (e.g. /unauthorized).
               void navigate('/', { replace: true });
-              logout.mutate();
+              logout.mutate(undefined, {
+                onSuccess: () => toast.show({ message: 'Signed out.' }),
+              });
             }}
             disabled={logout.isPending}
           >

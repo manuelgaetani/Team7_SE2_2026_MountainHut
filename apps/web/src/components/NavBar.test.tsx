@@ -87,4 +87,14 @@ describe('NavBar', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(router.state.location.pathname).toBe('/');
   });
+
+  it('confirms the sign out with a toast', async () => {
+    stubApi({
+      '/api/auth/me': () => json(user),
+      '/api/auth/logout': () => json({ message: 'Logged out' }),
+    });
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Signed out.');
+  });
 });

@@ -154,4 +154,22 @@ describe('RegisterPage', () => {
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
   });
+
+  it('shows the password rules before submitting', () => {
+    stubApi();
+    renderAt('/register');
+    expect(screen.getByText('At least 8 characters, with a letter and a digit.')).toBeVisible();
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+      'At least 8 characters, with a letter and a digit.',
+    );
+  });
+
+  it('confirms the registration with a toast on the login page', async () => {
+    stubApi({ '/api/auth/register': () => json(user, 201) });
+    const router = renderAt('/register');
+    fill(required);
+    submit();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(await screen.findByText('Account created. Sign in to continue.')).toBeVisible();
+  });
 });

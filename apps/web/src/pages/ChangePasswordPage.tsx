@@ -5,7 +5,9 @@ import { ApiError } from '../api/client.ts';
 import { useChangePassword, useCurrentUser } from '../api/useAuth.ts';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 import { FormField } from '../components/FormField.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { apiErrorMessage } from '../lib/errors.ts';
+import { PASSWORD_HINT } from '../lib/passwordRules.ts';
 
 type Errors = Partial<Record<'currentPassword' | 'newPassword', string>>;
 
@@ -22,6 +24,7 @@ function changeError(e: unknown): string {
 function ChangePasswordForm({ forced }: { forced: boolean }) {
   const navigate = useNavigate();
   const changePassword = useChangePassword();
+  const toast = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [errors, setErrors] = useState<Errors>({});
@@ -45,7 +48,14 @@ function ChangePasswordForm({ forced }: { forced: boolean }) {
     }
 
     changePassword.mutate(parsed.data, {
-      onSuccess: () => setDone(true),
+      onSuccess: () => {
+        if (forced) {
+          setDone(true);
+          return;
+        }
+        toast.show({ message: 'Your password has been changed.' });
+        void navigate('/');
+      },
       onError: (err) => setFormError(changeError(err)),
     });
   }
@@ -86,7 +96,7 @@ function ChangePasswordForm({ forced }: { forced: boolean }) {
         label="New password"
         type="password"
         autoComplete="new-password"
-        placeholder="At least 8 characters"
+        hint={PASSWORD_HINT}
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
         error={errors.newPassword}
@@ -111,7 +121,7 @@ export function ChangePasswordPage() {
   } else if (!user) {
     content = (
       <p className="notice notice--ok">
-        <Link to="/login">Log in</Link> to change your password.
+        <Link to="/login">Sign in</Link> to change your password.
       </p>
     );
   } else {
@@ -120,7 +130,7 @@ export function ChangePasswordPage() {
 
   return (
     <section className="auth auth--large">
-      <p className="eyebrow">Personal area</p>
+      <p className="eyebrow">Your account</p>
       <h1>Change password.</h1>
       {content}
     </section>

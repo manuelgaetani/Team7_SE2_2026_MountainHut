@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, renderAt, sentBody, stubApi } from '../test/app.tsx';
 
@@ -32,12 +32,15 @@ describe('ChangePasswordPage (MH-07)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('asks anonymous visitors to log in', async () => {
+  it('asks anonymous visitors to sign in', async () => {
     stubApi();
     renderAt('/change-password');
 
     expect(await screen.findByText(/to change your password/)).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login');
+    expect(within(screen.getByRole('main')).getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
   });
 
   it('shows the loading state while the session is checked', () => {
@@ -102,5 +105,32 @@ describe('ChangePasswordPage (MH-07)', () => {
     submit();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  });
+
+  it('shows the password rules before submitting', async () => {
+    stubApi({ '/api/auth/me': () => json(hiker) });
+    renderAt('/change-password');
+    await screen.findByLabelText(TEXT.current);
+    expect(screen.getByText('At least 8 characters, with a letter and a digit.')).toBeVisible();
+    expect(screen.getByLabelText(TEXT.newPassword)).toHaveAccessibleDescription(
+      'At least 8 characters, with a letter and a digit.',
+    );
+    expect(screen.getByText('Your account')).toBeVisible();
+  });
+
+  it('confirms a voluntary change with a toast and goes home', async () => {
+    stubApi({
+      '/api/auth/me': () => json(hiker),
+      [URL]: () => json(hiker),
+    });
+    const router = renderAt('/change-password');
+    await screen.findByLabelText(TEXT.current);
+
+    fill('OldPassword1', 'MyOwnPassword1');
+    submit();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 });

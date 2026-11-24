@@ -107,4 +107,22 @@ describe('LoginPage', () => {
     answer(json({}, 401));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
+
+  it('welcomes the user back with a toast', async () => {
+    const fetchMock = stubApi({ '/api/auth/login': () => json(user) });
+    renderAt('/login');
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/refresh', expect.anything()),
+    );
+    fill(user.email, 'secret');
+    submit();
+    expect(await screen.findByRole('status')).toHaveTextContent('Welcome back.');
+  });
+
+  it('labels the page as the account area', () => {
+    stubApi();
+    renderAt('/login');
+    expect(screen.getByText('Your account')).toBeVisible();
+    expect(screen.queryByText('Personal area')).not.toBeInTheDocument();
+  });
 });
