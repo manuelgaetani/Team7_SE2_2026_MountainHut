@@ -34,10 +34,10 @@ describe('BookingSentDialog', () => {
     );
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      'Allergies (special care needed): 1 vegan, peanut allergy',
+      'Allergies1 vegan, peanut allergy',
       '2 vegetarians',
     ]);
-    expect(screen.getAllByText(/special care/i)).toHaveLength(1);
+    expect(screen.getAllByText('Allergies')).toHaveLength(1);
   });
 
   it('calls onClose when close button or Done button is clicked', () => {

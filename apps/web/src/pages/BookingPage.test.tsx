@@ -371,7 +371,8 @@ describe('BookingPage', () => {
     tickAllergies(1);
     const summary = within(screen.getByRole('complementary', { name: 'Booking Summary' }));
     expect(summary.getByText('Requirements:')).toBeInTheDocument();
-    expect(summary.getByText('1 shellfish allergy (allergies)')).toBeInTheDocument();
+    expect(summary.getByText('1 shellfish allergy', { exact: false })).toBeInTheDocument();
+    expect(summary.getByText('Allergies')).toHaveClass('allergy-badge');
   });
 
   it('does not send the booking when a requirement is empty', async () => {
@@ -416,7 +417,7 @@ describe('BookingPage', () => {
       within(dialog)
         .getAllByRole('listitem')
         .map((li) => li.textContent),
-    ).toEqual(['Allergies (special care needed): 1 shellfish allergy', '2 vegetarians']);
+    ).toEqual(['Allergies1 shellfish allergy', '2 vegetarians']);
   });
 
   it('does not send the booking when a requirement is too long', async () => {

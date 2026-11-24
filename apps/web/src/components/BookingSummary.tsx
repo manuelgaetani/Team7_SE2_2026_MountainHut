@@ -1,4 +1,5 @@
 import type { BookingResult } from '@mountain-hut/shared';
+import { AllergyBadge } from './AllergyBadge.tsx';
 import type { RequirementDraft } from './RequirementsEditor.tsx';
 
 interface BookingSummaryProps {
@@ -61,8 +62,8 @@ export function BookingSummary({
           <ul>
             {requirements.map((r) => (
               <li key={r.key}>
+                {r.allergies && <AllergyBadge />}
                 {r.description}
-                {r.allergies && ' (allergies)'}
               </li>
             ))}
           </ul>

@@ -153,7 +153,6 @@
   width: auto;
   margin: 0;
   padding: 0;
-  accent-color: var(--green-dark);
 }
 .card__requirements {
   display: grid;
@@ -163,16 +162,6 @@
   list-style: none;
   color: var(--muted);
   font-size: 12px;
-}
-.allergy-badge {
-  margin-right: 6px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #f8e6e1;
-  color: #8a2f1d;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 /* Existing hiker / Quick entry / Full profile */

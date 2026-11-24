@@ -209,10 +209,6 @@
   background: #f6e7c8;
   color: #8a5a12;
 }
-.badge--allergies {
-  background: #f4dcd9;
-  color: var(--error);
-}
 .badge--rejected,
 .badge--cancelled {
   background: #f4dcd9;
