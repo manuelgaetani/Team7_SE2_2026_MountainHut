@@ -163,7 +163,7 @@ describe('MyBookingCard', () => {
     const dialog = screen.getByRole('dialog', { name: TEXT.dialogTitle });
     expect(dialog).toBeVisible();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.dialogClose }));
+    fireEvent.click(within(dialog).getAllByRole('button', { name: TEXT.dialogClose }).at(-1)!);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: TEXT.modify }));

@@ -263,7 +263,10 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
               </div>
             </div>
           ) : (
-            <div className="modify-dialog__actions modify-dialog__actions--single">
+            <div className="modify-dialog__actions">
+              <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
+                Close
+              </button>
               <button type="submit" className="modify-dialog__primary" disabled={change.isPending}>
                 {change.isPending ? 'Saving changes…' : 'Confirm changes'}
               </button>

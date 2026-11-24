@@ -34,12 +34,9 @@
 
 .modify-dialog__actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 2fr;
   gap: 12px;
   margin-top: 8px;
-}
-.modify-dialog__actions--single {
-  grid-template-columns: 1fr;
 }
 .modify-dialog__secondary,
 .modify-dialog__danger,

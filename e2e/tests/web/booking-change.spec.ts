@@ -276,14 +276,14 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
 
     const modify = page.getByRole('dialog');
     await modify.getByRole('button', { name: 'More guests' }).click();
-    await modify.getByRole('button', { name: 'Close' }).click();
+    await modify.locator('.modify-dialog__actions').getByRole('button', { name: 'Close' }).click();
     await expect(modify).toContainText('Discard your changes?');
 
     // Keep editing leaves the dialog and the edit in place
     await modify.getByRole('button', { name: 'Keep editing' }).click();
     await expect(modify.getByLabel('Number of people')).toHaveText('3');
 
-    await modify.getByRole('button', { name: 'Close' }).click();
+    await modify.locator('.modify-dialog__actions').getByRole('button', { name: 'Close' }).click();
     await modify.getByRole('button', { name: 'Discard' }).click();
 
     await expect(page.getByRole('dialog')).toHaveCount(0);

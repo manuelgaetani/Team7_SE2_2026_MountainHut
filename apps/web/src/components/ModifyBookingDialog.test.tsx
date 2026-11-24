@@ -102,7 +102,14 @@ const row = (n: number) => within(screen.getAllByTestId('requirement-row')[n - 1
 const details = (n: number) => row(n).getByLabelText('Details');
 const allergies = (n: number) => row(n).getByRole('checkbox', { name: 'Allergies' });
 const remove = (n: number) => row(n).getByRole('button', { name: 'Remove' });
-const clickClose = () => fireEvent.click(screen.getByRole('button', { name: TEXT.close }));
+// The dialog has two Close buttons: the x in the corner and the one in the action row.
+const actionRow = () => {
+  const el = document.querySelector<HTMLElement>('.modify-dialog__actions');
+  if (!el) throw new Error('No action row');
+  return within(el);
+};
+const clickClose = () => fireEvent.click(actionRow().getByRole('button', { name: TEXT.close }));
+const clickCross = () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[0]);
 
 describe('ModifyBookingDialog', () => {
   // The bookings and slots below are days after this moment, beyond the 48-hour rule of MH-06.
@@ -450,7 +457,8 @@ describe('ModifyBookingDialog', () => {
 
   describe('closing', () => {
     it.each([
-      ['the close button', () => clickClose()],
+      ['the Close button', () => clickClose()],
+      ['the x button', () => clickCross()],
       ['the Escape key', () => fireEvent.keyDown(document, { key: 'Escape' })],
       ['a click outside', () => fireEvent.click(screen.getByRole('presentation'))],
     ])('closes with %s when nothing was edited', async (_name, close) => {
@@ -462,7 +470,8 @@ describe('ModifyBookingDialog', () => {
     });
 
     it.each([
-      ['the close button', () => clickClose()],
+      ['the Close button', () => clickClose()],
+      ['the x button', () => clickCross()],
       ['the Escape key', () => fireEvent.keyDown(document, { key: 'Escape' })],
       ['a click outside', () => fireEvent.click(screen.getByRole('presentation'))],
     ])('asks to discard the edits when closing with %s', async (_name, close) => {
