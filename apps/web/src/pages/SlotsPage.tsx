@@ -13,6 +13,7 @@ import { isIsoDate, toIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 function SlotsManager() {
   // The day comes from ?date= when the staff return from a floor plan; otherwise it is today.
@@ -59,11 +60,7 @@ function SlotsManager() {
           </p>
         )}
         {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
-        {schedule.isError && (
-          <p role="alert" className="notice notice--error">
-            {slotErrorMessage(schedule.error)}
-          </p>
-        )}
+        {schedule.isError && <ErrorNotice message={slotErrorMessage(schedule.error)} />}
         {schedule.isSuccess && (
           <SlotSchedule
             slots={schedule.data}

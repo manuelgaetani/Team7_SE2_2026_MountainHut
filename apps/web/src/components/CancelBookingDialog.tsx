@@ -1,23 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { MyBooking } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import { useCancelBooking } from '../api/useBookings.ts';
 import { dateFull, fromIsoDate } from '../lib/dates.ts';
 import './CancelBookingDialog.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface CancelBookingDialogProps {
   booking: MyBooking;
   onClose: () => void;
-}
-
-function cancelError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-  // The API explains these: not a hiker, booking not found, already cancelled or rejected.
-  if (e instanceof ApiError && [403, 404, 409].includes(e.status)) return e.message;
-  return 'The booking could not be cancelled. Please try again.';
 }
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
@@ -106,9 +98,14 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
             </div>
 
             {cancel.isError && (
-              <p role="alert" className="notice notice--error cancel-dialog__error">
-                {cancelError(cancel.error)}
-              </p>
+              <ErrorNotice
+                message={apiErrorMessage(
+                  cancel.error,
+                  'The booking could not be cancelled. Please try again.',
+                  [403, 404, 409],
+                )}
+                className="cancel-dialog__error"
+              />
             )}
 
             <div className="cancel-dialog__actions">

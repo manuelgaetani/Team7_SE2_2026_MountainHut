@@ -7,26 +7,18 @@ import type {
   PartyRequirement,
   SlotSummary,
 } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import { useBookableSlots, useChangeBooking } from '../api/useBookings.ts';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateFull, fromIsoDate } from '../lib/dates.ts';
 import './ModifyBookingDialog.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface ModifyBookingDialogProps {
   booking: MyBooking;
   onClose: () => void;
   // Called once the API has stored the change.
   onChanged: () => void;
-}
-
-function changeError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-  // The API explains these: 48-hour rule, seats, booking or slot not found, not your booking.
-  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
-  return 'The booking could not be changed. Please try again.';
 }
 
 // Errors by field: 'partySize', or 'requirement-<key>' for a row of the requirements.
@@ -150,7 +142,17 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
     setFormError(null);
     change.mutate(
       { id: booking.id, input },
-      { onSuccess: onChanged, onError: (err) => setFormError(changeError(err)) },
+      {
+        onSuccess: onChanged,
+        onError: (err) =>
+          setFormError(
+            apiErrorMessage(
+              err,
+              'The booking could not be changed. Please try again.',
+              [403, 404, 409, 422],
+            ),
+          ),
+      },
     );
   }
 
@@ -317,11 +319,7 @@ export function ModifyBookingDialog({ booking, onClose, onChanged }: ModifyBooki
             </button>
           </fieldset>
 
-          {formError && (
-            <p role="alert" className="notice notice--error">
-              {formError}
-            </p>
-          )}
+          {formError && <ErrorNotice message={formError} />}
 
           <div className="modify-dialog__actions">
             <button type="button" className="modify-dialog__secondary" onClick={onClose}>

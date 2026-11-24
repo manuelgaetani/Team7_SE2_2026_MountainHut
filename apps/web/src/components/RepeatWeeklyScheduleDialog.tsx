@@ -7,6 +7,7 @@ import { useRepeatWeeklySchedule, useSchedules } from '../api/useSlots.ts';
 import { addDays, dateShort, fromIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import { FormField } from './FormField.tsx';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface RepeatWeeklyScheduleDialogProps {
   // First day of the source week: the day chosen on the page.
@@ -171,11 +172,7 @@ export function RepeatWeeklyScheduleDialog({
             </p>
           )}
 
-          {error && (
-            <p role="alert" className="notice notice--error">
-              {error}
-            </p>
-          )}
+          {error && <ErrorNotice message={error} />}
 
           <button type="submit" className="cta cta--center" disabled={repeat.isPending}>
             {repeat.isPending ? 'Repeating…' : 'Confirm and repeat schedule'}

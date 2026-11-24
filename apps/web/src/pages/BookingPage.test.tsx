@@ -17,7 +17,7 @@ const TEXT = {
   signInLink: 'Sign in', // check
   bookingFailed: 'Booking failed', // check
   noSlots: 'At the moment there are no available time slots.',
-  sessionExpired: 'The session has expired',
+  sessionExpired: 'The session has expired. Please sign in again.',
   summary: 'Tue 15 Jan · 19:00 · 3 people',
   tables: 'Table 1 (2 seats), Table 2 (1 seat)', // check
   oneSeat: 'Table 1 (1 seat)', // check

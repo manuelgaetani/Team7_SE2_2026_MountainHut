@@ -7,7 +7,6 @@ import {
   type StaffBookingHiker,
   type StaffBookingResult,
 } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -28,6 +27,8 @@ import {
 } from '../lib/hikerDraft.ts';
 import './BookingPage.css';
 import './StaffBookingPage.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 const FOOTER_TEXT: Record<HikerMode, string> = {
   EXISTING: 'This booking will be linked to the selected hiker.',
@@ -89,13 +90,8 @@ function toHiker(draft: HikerDraft): StaffBookingHiker | null {
 }
 
 // The API explains these cases: slot started or full, email already used, not a staff account.
-function bookingError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
-  return 'The booking could not be created. Please try again.';
-}
+const bookingError = (e: unknown): string =>
+  apiErrorMessage(e, 'The booking could not be created. Please try again.', [403, 404, 409, 422]);
 
 function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const navigate = useNavigate();
@@ -231,11 +227,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
           />
 
           {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
-          {schedule.isError && (
-            <p role="alert" className="notice notice--error">
-              {bookingError(schedule.error)}
-            </p>
-          )}
+          {schedule.isError && <ErrorNotice message={bookingError(schedule.error)} />}
           {schedule.isSuccess && bookable.length === 0 && (
             <p className="notice notice--ok">No time slots can be booked on this day.</p>
           )}

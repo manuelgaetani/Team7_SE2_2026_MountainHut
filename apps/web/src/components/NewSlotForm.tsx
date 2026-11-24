@@ -11,6 +11,7 @@ import {
 import type { TablesChoice } from '../lib/slotTables.ts';
 import { FormField } from './FormField.tsx';
 import { TablesChooser } from './TablesChooser.tsx';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface NewSlotFormProps {
   date: string;
@@ -95,11 +96,7 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
         onChange={edit(setTables)}
         copyDate={date}
       />
-      {error && (
-        <p role="alert" className="notice notice--error">
-          {error}
-        </p>
-      )}
+      {error && <ErrorNotice message={error} />}
       {created && (
         <p role="status" className="notice notice--ok">
           Slot created: {created}.

@@ -26,7 +26,7 @@ const TEXT = {
   unchanged: 'Nothing has changed: the booking is the same as before.',
   saving: 'Saving changes…',
   updated: "Booking updated. We'll email you the new details.",
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
   changeFailed: 'The booking could not be changed. Please try again.',
   chooseTime: 'Choose a time.',
 } as const;

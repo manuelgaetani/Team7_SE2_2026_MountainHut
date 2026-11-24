@@ -26,7 +26,7 @@ const TEXT = {
   selectHiker: 'Select a hiker, or add a new one with Quick entry or Full profile.',
   noSlots: 'No time slots can be booked on this day.',
   staffOnly: 'This page is for the hut staff.',
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
   invalidEmail: 'Enter a valid email address.',
   footerExisting: 'This booking will be linked to the selected hiker.',
   footerQuick: 'A temporary hiker will be saved with this booking.',
@@ -447,6 +447,6 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    expect(await screen.findByText(TEXT.sessionExpired)).toBeVisible();
+    expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.sessionExpired);
   });
 });

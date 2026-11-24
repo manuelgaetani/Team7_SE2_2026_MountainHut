@@ -545,7 +545,7 @@ describe('SlotsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create the slot/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The session has expired. Please log in again.',
+      'The session has expired. Please sign in again.',
     );
   });
 

@@ -19,7 +19,7 @@ const TEXT = {
   done1Replaced: 'Schedule successfully repeated across 1 week: 1 slot created. 3 slots replaced.',
   conflict: 'The week starting 2026-11-11 has reservations: its schedule cannot be replaced',
   emptySource: 'Source week contains no time slots to repeat',
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
 } as const;
 
 const employee = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };

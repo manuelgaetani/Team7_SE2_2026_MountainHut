@@ -13,7 +13,7 @@ const TEXT = {
   rules: 'Use at least 8 characters with a letter and a digit.',
   wrongCurrent: 'The current password is wrong.',
   samePassword: 'Choose a password different from the current one.',
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
 } as const;
 
 const URL = '/api/auth/change-password';

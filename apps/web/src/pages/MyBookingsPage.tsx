@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import type { MyBooking } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useMyBookings } from '../api/useBookings.ts';
 import { useMyProfile } from '../api/useProfile.ts';
 import { CancelBookingDialog } from '../components/CancelBookingDialog.tsx';
 import { MyBookingCard } from '../components/MyBookingCard.tsx';
 import './MyBookingsPage.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 type Tab = 'upcoming' | 'cancelled';
 
@@ -19,14 +20,6 @@ const TABS: { id: Tab; label: string; empty: string }[] = [
 const inTab = (booking: MyBooking, tab: Tab): boolean =>
   (booking.status === 'CANCELLED') === (tab === 'cancelled');
 
-function loadError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-  if (e instanceof ApiError && e.status === 403) return e.message;
-  return 'Your bookings could not be loaded. Please try again.';
-}
-
 function MyBookingsList() {
   const bookingsQuery = useMyBookings();
   const [tab, setTab] = useState<Tab>('upcoming');
@@ -36,9 +29,13 @@ function MyBookingsList() {
   if (bookingsQuery.isPending) return <p role="status">Loading your bookings…</p>;
   if (bookingsQuery.isError) {
     return (
-      <p role="alert" className="notice notice--error">
-        {loadError(bookingsQuery.error)}
-      </p>
+      <ErrorNotice
+        message={apiErrorMessage(
+          bookingsQuery.error,
+          'Your bookings could not be loaded. Please try again.',
+          [403],
+        )}
+      />
     );
   }
 

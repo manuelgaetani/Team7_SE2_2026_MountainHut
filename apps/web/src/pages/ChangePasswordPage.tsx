@@ -3,21 +3,20 @@ import { Link, useNavigate } from 'react-router';
 import { changePasswordSchema } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
 import { useChangePassword, useCurrentUser } from '../api/useAuth.ts';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 import { FormField } from '../components/FormField.tsx';
+import { apiErrorMessage } from '../lib/errors.ts';
 
 type Errors = Partial<Record<'currentPassword' | 'newPassword', string>>;
 
 const PASSWORD_RULES = 'Use at least 8 characters with a letter and a digit.';
 
 function changeError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
   if (e instanceof ApiError && e.status === 403) return 'The current password is wrong.';
   if (e instanceof ApiError && e.status === 422) {
     return 'Choose a password different from the current one.';
   }
-  return 'The password could not be changed. Please try again.';
+  return apiErrorMessage(e, 'The password could not be changed. Please try again.');
 }
 
 function ChangePasswordForm({ forced }: { forced: boolean }) {
@@ -92,11 +91,7 @@ function ChangePasswordForm({ forced }: { forced: boolean }) {
         onChange={(e) => setNewPassword(e.target.value)}
         error={errors.newPassword}
       />
-      {formError && (
-        <p role="alert" className="form-error">
-          {formError}
-        </p>
-      )}
+      {formError && <ErrorNotice message={formError} className="form-error" />}
       <button type="submit" className="button-primary" disabled={changePassword.isPending}>
         <span>{changePassword.isPending ? 'Saving…' : 'Change password'}</span>
         <span aria-hidden="true">→</span>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface StaffBookingErrorDialogProps {
   message: string;
@@ -36,9 +37,9 @@ export function StaffBookingErrorDialog({ message, onClose }: StaffBookingErrorD
         <h2 id="staff-error-title" className="dialog__title">
           Something to fix
         </h2>
-        <p id="staff-error-message" className="dialog__text dialog__text--error">
-          {message}
-        </p>
+        <div id="staff-error-message">
+          <ErrorNotice message={message} className="dialog__text" />
+        </div>
         <button ref={buttonRef} type="button" className="cta cta--center" onClick={onClose}>
           OK
         </button>

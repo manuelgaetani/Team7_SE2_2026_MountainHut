@@ -13,7 +13,7 @@ const TEXT = {
   noUpcoming: /You have no upcoming bookings\./,
   noCancelled: 'You have no cancelled bookings.',
   bookTable: 'Book a table',
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
   loadFailed: 'Your bookings could not be loaded. Please try again.',
   pendingNote: "We'll email you as soon as the request is confirmed.",
   locked:
@@ -201,7 +201,7 @@ describe('MyBookingsPage', () => {
     expect(screen.getByText(TEXT.noCancelled)).toBeVisible();
   });
 
-  it('asks to log in again when the session has expired', async () => {
+  it('asks to sign in again when the session has expired', async () => {
     asHiker(() => json({ message: 'Unauthorized' }, 401));
     renderAt('/bookings');
     expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.sessionExpired);
@@ -402,7 +402,7 @@ describe('MyBookingsPage', () => {
       expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
     });
 
-    it('asks to log in again when the session has expired', async () => {
+    it('asks to sign in again when the session has expired', async () => {
       asHikerWithCancel(() => json({}, 401));
       const dialog = await openDialog();
 

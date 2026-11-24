@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useBookableSlots, useCreateBooking } from '../api/useBookings.ts';
@@ -16,17 +15,14 @@ import { draftFromSearch } from '../lib/bookingRedirect.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
 import './BookingPage.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
+
+// The API explains these cases: slot not found, full or started, not a hiker.
+const bookingError = (e: unknown): string =>
+  apiErrorMessage(e, 'Booking failed. Please try again.', [403, 404, 409, 422]);
 
 const plural = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
-
-function bookingError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-
-  if (e instanceof ApiError && [403, 404, 409, 422].includes(e.status)) return e.message;
-  return 'Booking failed. Please try again.';
-}
 
 // The rows with a description, trimmed as the API stores them. The key of each row is
 // kept: it identifies the requirement in the lists of the summary and of the dialog.
@@ -123,11 +119,7 @@ function BookingFlow() {
 
   if (slotsQuery.isPending) return <p role="status">Loading time slots…</p>;
   if (slotsQuery.isError) {
-    return (
-      <p role="alert" className="notice notice--error">
-        {bookingError(slotsQuery.error)}
-      </p>
-    );
+    return <ErrorNotice message={bookingError(slotsQuery.error)} />;
   }
   if (date === null) {
     return <p className="notice notice--ok">At the moment there are no available time slots.</p>;
@@ -165,11 +157,7 @@ function BookingFlow() {
           <span aria-hidden="true">→</span>
         </button>
 
-        {error && (
-          <p role="alert" className="notice notice--error">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNotice message={error} />}
       </div>
 
       <div className="layout__side">

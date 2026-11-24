@@ -12,6 +12,7 @@ import { tablesLabel } from '../lib/slotTables.ts';
 import './BookingPage.css';
 import './SlotsPage.css';
 import './FloorPlanPage.css';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 function FloorPlanView({ id }: { id: number }) {
   const plan = useFloorPlan(id);
@@ -19,11 +20,7 @@ function FloorPlanView({ id }: { id: number }) {
   let body;
   if (plan.isPending) body = <p role="status">Loading the floor plan…</p>;
   else if (plan.isError) {
-    body = (
-      <p role="alert" className="notice notice--error">
-        {floorErrorMessage(plan.error)}
-      </p>
-    );
+    body = <ErrorNotice message={floorErrorMessage(plan.error)} />;
   } else body = <FloorPlanContent plan={plan.data} />;
 
   return (
