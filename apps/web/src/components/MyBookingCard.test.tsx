@@ -3,21 +3,22 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyBooking, SlotSummary } from '@mountain-hut/shared';
 import { json, stubApi } from '../test/app.tsx';
+import { ToastProvider } from './Toast.tsx';
 import { MyBookingCard } from './MyBookingCard.tsx';
 
 const TEXT = {
   modify: 'Modify booking of Saturday 21 November 2026',
   cancel: 'Cancel booking of Saturday 21 November 2026',
   dialogTitle: 'Modify booking',
-  dialogCancel: 'Cancel',
+  dialogClose: 'Close',
   confirmChanges: 'Confirm changes',
-  people: 'Number of people',
+  more: 'More guests',
   dietaryTitle: 'Dietary requirements',
   allergiesBadge: 'Allergies',
   pendingNote: "We'll email you as soon as the request is confirmed.",
   lockedNotice:
     'This booking can no longer be changed: changes are admitted up to 48 hours before the booked date.',
-  updatedBanner: "Booking updated. We'll email you the new details.",
+  updated: "Booking updated. We'll email you the new details.",
 } as const;
 
 const baseBooking: MyBooking = {
@@ -48,7 +49,9 @@ function renderCard(booking: MyBooking) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MyBookingCard booking={booking} onCancel={vi.fn()} />
+      <ToastProvider>
+        <MyBookingCard booking={booking} onCancel={vi.fn()} />
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }
@@ -149,7 +152,7 @@ describe('MyBookingCard', () => {
     },
   );
 
-  it('opens ModifyBookingDialog, handles close without banner, shows updated banner on save, and clears banner when reopened', async () => {
+  it('opens ModifyBookingDialog, closes it, and confirms a save with a toast instead of a card notice', async () => {
     stubApi({
       '/api/slots': () => json(slots),
       '/api/bookings/1': () => json({ ...baseBooking, partySize: 6 }),
@@ -160,20 +163,15 @@ describe('MyBookingCard', () => {
     const dialog = screen.getByRole('dialog', { name: TEXT.dialogTitle });
     expect(dialog).toBeVisible();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.dialogCancel }));
+    fireEvent.click(within(dialog).getByRole('button', { name: TEXT.dialogClose }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.queryByText(TEXT.updatedBanner)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: TEXT.modify }));
-    fireEvent.change(screen.getByLabelText(TEXT.people), { target: { value: '6' } });
+    fireEvent.click(await screen.findByRole('button', { name: TEXT.more }));
     fireEvent.click(screen.getByRole('button', { name: TEXT.confirmChanges }));
 
-    const banner = await screen.findByText(TEXT.updatedBanner);
-    expect(banner).toHaveAttribute('role', 'status');
+    expect(await screen.findByText(TEXT.updated)).toBeVisible();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: TEXT.modify }));
-    expect(screen.queryByText(TEXT.updatedBanner)).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: TEXT.dialogTitle })).toBeVisible();
+    expect(screen.getByRole('article')).not.toHaveTextContent(TEXT.updated);
   });
 });

@@ -52,7 +52,6 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
   // Within 48 hours of the slot the API refuses every change (MH-06).
   const changeable = active && isChangeOpen(booking.date, booking.startTime);
   const [modifying, setModifying] = useState(false);
-  const [updated, setUpdated] = useState(false);
 
   return (
     <article className="booking-card" aria-labelledby={titleId}>
@@ -83,10 +82,7 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
               className="pill"
               aria-label={`Modify booking of ${title}`}
               disabled={!changeable}
-              onClick={() => {
-                setUpdated(false);
-                setModifying(true);
-              }}
+              onClick={() => setModifying(true)}
             >
               Modify
             </button>
@@ -111,22 +107,7 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
         </p>
       )}
 
-      {updated && (
-        <p role="status" className="notice notice--ok booking-card__updated">
-          Booking updated. We'll email you the new details.
-        </p>
-      )}
-
-      {modifying && (
-        <ModifyBookingDialog
-          booking={booking}
-          onClose={() => setModifying(false)}
-          onChanged={() => {
-            setModifying(false);
-            setUpdated(true);
-          }}
-        />
-      )}
+      {modifying && <ModifyBookingDialog booking={booking} onClose={() => setModifying(false)} />}
     </article>
   );
 }

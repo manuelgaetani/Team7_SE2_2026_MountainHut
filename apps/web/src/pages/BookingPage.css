@@ -187,6 +187,13 @@
   font-size: 12px;
   text-align: center;
 }
+.slot__reason {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  text-decoration: none;
+}
 
 .recap {
   display: grid;
