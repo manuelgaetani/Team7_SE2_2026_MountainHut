@@ -112,7 +112,12 @@ describe('BookingPage', () => {
     stubApi({ me: () => json({}, 401) });
     renderPage();
     expect(await screen.findByText(TEXT.signInPrompt)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: TEXT.signInLink })).toBeInTheDocument();
+    const notice = screen.getByText(/to book a table/);
+    expect(notice).toHaveTextContent('Sign in to book a table.');
+    expect(within(notice).getByRole('link', { name: TEXT.signInLink })).toHaveAttribute(
+      'href',
+      '/login',
+    );
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
   });
 
@@ -258,6 +263,35 @@ describe('BookingPage', () => {
     parseSpy.mockRestore();
   });
 
+  it('shows the confirmation once, with no duplicated recap or promo aside', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    expect(screen.getAllByText(/A table is waiting for you at/)).toHaveLength(1);
+    expect(screen.queryByText('An Alpine Experience')).not.toBeInTheDocument();
+  });
+
+  it('titles the summary "Your booking" and words the policy in terms of the slot', async () => {
+    stubApi({});
+    renderPage();
+    await fillForm();
+    const summary = within(screen.getByRole('complementary', { name: 'Booking Summary' }));
+    expect(summary.getByRole('heading', { name: 'Your booking' })).toBeInTheDocument();
+    expect(
+      summary.getByText('You can book up to 2 hours before the slot starts'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the form error before the booking button', async () => {
+    stubApi({ book: () => json({ message: 'Slot is full' }, 409) });
+    renderPage();
+    await fillForm();
+    submit();
+    const alert = await screen.findByRole('alert');
+    const cta = screen.getByRole('button', { name: TEXT.submit });
+    expect(alert.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('allows switching between available dates', async () => {
     const slotDay2: SlotSummary = {
       ...slot,
@@ -346,9 +380,13 @@ describe('BookingPage', () => {
     await fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Describe each requirement or remove it.',
+    const row = within(screen.getByTestId('requirement-row'));
+    expect(await row.findByRole('alert')).toHaveTextContent(
+      'Describe the requirement or remove it.',
     );
+    expect(row.getByRole('textbox', { name: 'Details' })).toHaveAttribute('aria-invalid', 'true');
+    // Only the row shows the error: no second, form-level alert.
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
   });
 
@@ -388,8 +426,9 @@ describe('BookingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
     typeRequirement(1, 'a'.repeat(MAX_REQUIREMENTS_LENGTH + 1));
     submit();
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      `Each requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters long.`,
+    const row = within(screen.getByTestId('requirement-row'));
+    expect(await row.findByRole('alert')).toHaveTextContent(
+      `A requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters.`,
     );
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
   });
@@ -411,7 +450,8 @@ describe('BookingPage', () => {
 
     const slotRadio = await screen.findByRole('radio', { name: /^19:00–/ });
     expect(slotRadio).toBeChecked();
-    expect(screen.getByText(TEXT.summary)).toBeInTheDocument();
+    expect(screen.getByText('A table is waiting for you at 19:00')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: TEXT.submit })).toBeEnabled();
 
     submit();
     await screen.findByRole('dialog');

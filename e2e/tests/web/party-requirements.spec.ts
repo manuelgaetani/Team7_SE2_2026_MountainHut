@@ -276,7 +276,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
   test('Authentication: Asks a signed-out visitor to sign in before booking', async ({ page }) => {
     await page.goto('/book');
-    await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByText('to book a table')).toBeVisible();
     // Requirements form controls are not accessible when signed out
     await expect(page.getByRole('button', { name: /Add.*requirement/i })).toHaveCount(0);

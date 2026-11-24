@@ -208,7 +208,9 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
 
         const time = slots.find((s) => s.id === slotId)!.startTime;
         await page.getByRole('radio', { name: SLOT(time) }).click();
-        await expect(page.locator('.recap')).toContainText(`A table is waiting for you at ${time}`);
+        await expect(page.locator('.field__confirm')).toContainText(
+          `A table is waiting for you at ${time}`,
+        );
         await expect(book).toBeEnabled();
       });
     } finally {

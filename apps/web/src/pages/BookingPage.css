@@ -195,20 +195,6 @@
   text-decoration: none;
 }
 
-.recap {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--tint);
-  border-radius: 8px;
-  font-size: 11px;
-}
-.recap span {
-  color: var(--muted);
-  font-size: 10px;
-}
-
 .cta {
   display: flex;
   justify-content: space-between;
@@ -285,22 +271,6 @@
   margin: 16px 0;
   border: 0;
   border-top: 1px solid var(--line);
-}
-
-.experience {
-  padding: 16px 20px;
-  background: var(--tint);
-  border-radius: 12px;
-}
-.experience h3 {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.experience p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .dialog-backdrop {

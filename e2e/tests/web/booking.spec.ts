@@ -94,7 +94,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
 
 test('asks a signed-out visitor to sign in before booking', async ({ page }) => {
   await page.goto('/book');
-  await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('to book a table')).toBeVisible();
   await expect(page.getByRole('radiogroup')).toHaveCount(0);
 });
