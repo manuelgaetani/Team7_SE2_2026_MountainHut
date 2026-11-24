@@ -45,7 +45,7 @@ Team assumptions:
 - **Someone else's booking.** It answers `404 Booking not found`, the same as a missing booking, so a hiker cannot find out which ids exist. The booking stays as it was.
 - **Concurrency.** One transaction: the booking row is locked (`SELECT ... FOR UPDATE`), then the owner and the status are checked and the status becomes `CANCELLED`. A second cancellation of the same booking waits for the first one and then answers `409`. Cancellations of different bookings do not wait for each other.
 - **Response.** The cancelled booking: `id`, `slotId`, `partySize` and `status: "CANCELLED"`.
-- **Email.** No email is sent for a cancellation.
+- **Email.** No email is sent for a cancellation. A confirmation or change email that is still waiting (MH-03 retries after 1, 5 and 25 seconds) is not sent once the booking is `CANCELLED`: the email adapter reads the status before each attempt.
 - **Change after cancelling.** A cancelled booking cannot be changed: `PATCH /api/bookings/:id` of MH-06 answers `409 A cancelled booking cannot be changed`.
 - **Language.** All API messages are in English.
 
@@ -102,7 +102,7 @@ Response `200 OK`:
 
 - **Confirmation** (`CancelBookingDialog`). The dialog asks _"Are you sure you want to cancel the following booking?"_ with a recap of the booking (date, time, party). **Go back** closes it without cancelling; so do Escape, the close button and a click outside. **Confirm** sends `POST /api/bookings/:id/cancel`; while it is on its way the button says _"Cancelling…"_ and the dialog cannot be closed.
 - **Success.** The dialog says _"Booking cancelled"_ with the same recap; **OK** closes it. The list and the slots are loaded again, so the booking is now in the **Cancelled** tab and its seats are free on the booking page.
-- **Errors.** Shown inside the dialog: `401` asks to log in again, `403`/`404`/`409` show the message of the API, any other error a generic _"The booking could not be cancelled. Please try again."_.
+- **Errors.** Shown inside the dialog: `401` asks to log in again, `403`/`404`/`409` show the message of the API, any other error a generic _"The booking could not be cancelled. Please try again."_. The list and the slots are loaded again after an error too: a `404` or `409` means the booking changed elsewhere (e.g. cancelled in another tab), so it must not stay under Upcoming.
 - **Where the dialog lives.** The page keeps the dialog, not the card: once cancelled, the booking leaves the Upcoming tab, and the success message must stay open.
 
 ## Data model
@@ -185,4 +185,4 @@ npm run test:e2e
 
 ## Open points
 
-- **Confirmation retries.** If the confirmation email of a new booking failed and is retried (MH-03: after 1, 5 and 25 seconds), a cancellation during the retries does not stop them: the hiker may still receive the confirmation of a cancelled booking. The booking stays `CANCELLED`, because only a `PENDING` booking becomes `CONFIRMED`.
+- **Email already on its way.** The status is read just before each attempt, so a cancellation that commits while an email is being sent cannot stop that one email.

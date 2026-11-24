@@ -1,9 +1,16 @@
 /* Public availability check (MH-04). Builds on the classes of BookingPage.css and styles.css. */
 
+/* The page is a single narrow column, centered in the page; the text stays left-aligned */
+.availability-page .page__title,
+.availability-page .page__subtitle,
+.availability {
+  max-width: 640px;
+  margin-inline: auto;
+}
+
 .availability {
   display: grid;
   gap: 16px;
-  max-width: 640px;
 }
 
 .availability-form {
@@ -46,7 +53,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  font-size: 0.85rem;
+  /* Same size as the .pill next to it, so the two texts look aligned */
+  font-size: 0.8rem;
+}
+/* "Sign in" link: same look as the one on the Register page (.auth-switch a) */
+.availability-result__actions span a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
 }
 .availability-result__tables {
   display: flex;

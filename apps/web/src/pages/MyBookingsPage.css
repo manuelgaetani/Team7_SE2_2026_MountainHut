@@ -22,13 +22,41 @@
 }
 
 .my-bookings__body {
-  max-width: 1120px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 36px clamp(20px, 5vw, 64px) 56px;
 }
 .my-bookings__title {
   margin: 0 0 20px;
   font: 400 34px/1.2 var(--font-serif);
+}
+
+/* Hiker: profile on the left, bookings on the right. */
+.my-bookings__body--split {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.my-profile__card {
+  margin: 0;
+  padding: 28px 30px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.my-profile__field + .my-profile__field {
+  margin-top: 24px;
+}
+.my-profile__field dt {
+  color: var(--muted);
+  font-size: 14px;
+}
+.my-profile__field dd {
+  margin: 6px 0 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
 }
 
 .my-bookings__tabs {
@@ -69,7 +97,7 @@
 }
 
 .booking-card {
-  padding: 22px 26px 18px;
+  padding: 30px 34px 26px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
@@ -83,8 +111,8 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 64px;
-  height: 72px;
+  width: 76px;
+  height: 86px;
   margin: 0;
   border-radius: 8px;
   background: var(--tint);
@@ -96,7 +124,7 @@
   text-transform: uppercase;
 }
 .booking-card__day {
-  font: 400 30px/1 var(--font-serif);
+  font: 400 36px/1 var(--font-serif);
 }
 .booking-card__info {
   flex: 1;
@@ -110,13 +138,13 @@
 }
 .booking-card__title {
   margin: 0;
-  font-size: 19px;
+  font-size: 22px;
   font-weight: 600;
 }
 .booking-card__meta {
   margin: 8px 0 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 17px;
 }
 .booking-card__actions {
   display: flex;
@@ -127,9 +155,6 @@
   border-radius: 8px;
   background: #fff;
   font-size: 15px;
-}
-.my-bookings__body .booking-card__updated {
-  margin-top: 16px;
 }
 .my-bookings__body .booking-card__locked {
   margin-top: 16px;
@@ -192,6 +217,12 @@
 .badge--cancelled {
   background: #f4dcd9;
   color: var(--error);
+}
+
+@media (max-width: 900px) {
+  .my-bookings__body--split {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

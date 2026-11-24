@@ -2,6 +2,7 @@ import type { Page, PlaywrightWorkerArgs } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createImminentSlot, createSlot, deleteSlot } from '../../fixtures/db.js';
+import { SLOT } from '../../fixtures/slots.js';
 
 interface ListedSlot {
   id: number;
@@ -71,11 +72,11 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
     await signIn(page, registeredUser);
 
     const slots = await openBookingPage(page, () =>
-      page.getByRole('link', { name: 'Book a table' }).click(),
+      page.getByRole('navigation').getByRole('link', { name: 'Book a table' }).click(),
     );
     const slot = await chooseDayOf(page, slots, slotId);
     await page.getByRole('button', { name: 'More guests' }).click(); // the stepper starts at 2
-    await page.getByRole('radio', { name: slot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(slot.startTime) }).click();
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     // The booking is PENDING: the dialog says it is only a request.
@@ -84,7 +85,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
     await expect(dialog).toContainText('The booking is not confirmed yet');
     await expect(page.getByText('Table 2 (3 seats)')).toBeVisible();
 
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
     await expect(dialog).toHaveCount(0);
   } finally {
     deleteSlot(slotId);
@@ -93,7 +94,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
 
 test('asks a signed-out visitor to sign in before booking', async ({ page }) => {
   await page.goto('/book');
-  await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('to book a table')).toBeVisible();
   await expect(page.getByRole('radiogroup')).toHaveCount(0);
 });
@@ -109,12 +110,12 @@ test('shows full and closed slots but does not let the hiker choose them', async
     const slots = await openBookingPage(page, () => page.goto('/book'));
 
     const fullSlot = await chooseDayOf(page, slots, full);
-    await expect(page.getByRole('radio', { name: fullSlot.startTime, exact: true })).toBeDisabled();
+    await expect(page.getByRole('radio', { name: SLOT(fullSlot.startTime) })).toBeDisabled();
 
     const closedSlot = await chooseDayOf(page, slots, closed);
-    const closedRadio = page.getByRole('radio', { name: closedSlot.startTime, exact: true });
+    const closedRadio = page.getByRole('radio', { name: SLOT(closedSlot.startTime) });
     await expect(closedRadio).toBeDisabled();
-    await expect(closedRadio).toHaveAttribute('title', 'Bookings closed for this time slot');
+    await expect(closedRadio).toContainText('Closed');
   } finally {
     deleteSlot(full);
     deleteSlot(closed);
@@ -134,7 +135,7 @@ test('explains why a booking fails when the seats were taken meanwhile', async (
     await signIn(page, registeredUser);
     const slots = await openBookingPage(page, () => page.goto('/book'));
     const slot = await chooseDayOf(page, slots, slotId);
-    await page.getByRole('radio', { name: slot.startTime, exact: true }).click();
+    await page.getByRole('radio', { name: SLOT(slot.startTime) }).click();
 
     await bookAsOtherHiker(playwright, baseURL, slotId, 2);
     await page.getByRole('button', { name: 'Book your table' }).click();

@@ -34,6 +34,12 @@ describe('App', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows the home page without the API status', async () => {
+    renderAt('/');
+    expect(await screen.findByRole('heading', { name: 'Essential information' })).toBeVisible();
+    expect(screen.queryByText(/API status/)).not.toBeInTheDocument();
+  });
+
   it('shows the not found page for unknown routes', () => {
     renderAt('/does-not-exist');
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();

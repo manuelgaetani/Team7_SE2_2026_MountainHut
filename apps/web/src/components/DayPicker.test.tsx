@@ -24,4 +24,15 @@ describe('DayPicker', () => {
 
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
+
+  it('names the radiogroup with the default or a custom label', () => {
+    const { rerender } = render(
+      <DayPicker dates={['2030-01-15']} value="2030-01-15" onChange={vi.fn()} />,
+    );
+    expect(screen.getByRole('radiogroup', { name: 'When are you coming?' })).toBeInTheDocument();
+    rerender(
+      <DayPicker dates={['2030-01-15']} value="2030-01-15" onChange={vi.fn()} label="New day" />,
+    );
+    expect(screen.getByRole('radiogroup', { name: 'New day' })).toBeInTheDocument();
+  });
 });

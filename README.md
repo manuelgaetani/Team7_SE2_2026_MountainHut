@@ -24,6 +24,40 @@ docs/
 - Node.js 24 and npm
 - Docker with Docker Compose
 
+## Run a release without the repository
+
+Each release is published as a Docker image on GitHub Container Registry, e.g. `ghcr.io/manuelgaetani/team7_se2_2026_mountainhut:release-1`. To run it you need only Docker with Docker Compose: no repository, no Node.js and no seed command.
+
+1. Put these two files in one empty folder:
+   - [`docker-compose.release.yml`](docker-compose.release.yml), also attached to the GitHub Release;
+   - `.env`, from the team's secrets file (`Team7-secrets.zip`). The minimum is `JWT_SECRET=<a long random string>`; the `SMTP_*` settings send real emails (see [Emails](#emails)).
+2. Start the system:
+
+   ```bash
+   docker compose -f docker-compose.release.yml up -d --wait
+   ```
+
+3. Open the web app at http://localhost:3000 and sign in with one of the [demo accounts](#demo-accounts).
+
+The first start applies the database migrations and creates the demo data: the demo accounts and 14 days of slots, from the day of the first start. Later starts keep the data. To delete all data and start again:
+
+```bash
+docker compose -f docker-compose.release.yml down -v
+```
+
+`docker-compose.release.yml` sets `SEED_DEMO_DATA=true`. The container then runs `node dist/seed.js --on-start`, which creates the demo data only when the database has no users. The development `docker-compose.yml` does not set it, so its database starts empty.
+
+### Demo accounts
+
+| Role       | Email                       | Password       | Full Name        |
+| ---------- | --------------------------- | -------------- | ---------------- |
+| `EMPLOYEE` | `employee@mountainhut.com`  | `Password123!` | Hut Employee     |
+| `EMPLOYEE` | `employee2@mountainhut.com` | `Password123!` | Hut Employee Two |
+| `WARDEN`   | `warden@mountainhut.com`    | `Password123!` | Hut Warden       |
+| `HIKER`    | `hiker@mountainhut.com`     | `Password123!` | Demo Hiker       |
+
+They are for demos only, and their addresses are made up, so they do not receive emails. To try the emails, register a hiker with a real mailbox.
+
 ## Run the whole system with Docker
 
 ```bash
@@ -39,6 +73,8 @@ The system sends emails (e.g. the booking confirmation) through SMTP. By default
 
 To deliver real emails, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` in `.env`. Port 465 uses implicit TLS; the other ports use STARTTLS when the server offers it.
 
+The `.env` of a release, in the team's secrets file, sets these variables, so a release sends real emails: the confirmation of a booking, the change of a booking and the password recovery link. `WEB_URL` (default `http://localhost:3000`) is the address of the web app in the links of the emails. With the `SMTP_*` variables empty, the emails of a release also go to Mailpit at http://localhost:8025.
+
 ## API documentation
 
 The API is documented with Swagger (OpenAPI), available whenever the API is running:
@@ -50,41 +86,35 @@ The session is kept in `httpOnly` cookies. To call protected endpoints, first ca
 
 ### Seeded development accounts
 
-Running the seed script (`npm run prisma:seed -w @mountain-hut/api`) populates the database with 14 days of slots and a staff account to test employee-restricted features:
+In development the database starts empty. The seed script creates the [demo accounts](#demo-accounts) and 14 days of slots, six a day, each with 6 tables and 24 seats:
 
-| Role       | Email                      | Password       | Full Name    |
-| ---------- | -------------------------- | -------------- | ------------ |
-| `EMPLOYEE` | `employee@mountainhut.com` | `Password123!` | Hut Employee |
+```bash
+npm run prisma:seed -w @mountain-hut/api
+```
 
-## Web application routes
-
-The single-page web application runs at `http://localhost:5173` in development (or `http://localhost:3000` when served by the API container) and provides the following routes:
-
-| Route           | Description                                                                              | Access               |
-| --------------- | ---------------------------------------------------------------------------------------- | -------------------- |
-| `/`             | Home landing page with mountain hut presentation, availability notice, and quick actions | Public               |
-| `/book`         | Table reservation interface with date, time slot, and guest party picker (MH-01)         | Authenticated hikers |
-| `/login`        | User sign-in with email and password (MH-00)                                             | Public               |
-| `/register`     | New user registration with profile details (MH-00)                                       | Public               |
-| `/staff/slots`  | Time slot schedule, table capacity definition, and slot creation (MH-02)                 | `EMPLOYEE`, `WARDEN` |
-| `/unauthorized` | Landing page for access restrictions (401/403) with role-aware guidance and actions      | Public               |
-| `/forbidden`    | Alias to `/unauthorized`                                                                 | Public               |
-| `*`             | 404 "Page not found" landing page for unknown routes with navigation back to home        | Public               |
+It deletes the slots and bookings already in the database, so use it only on a development database.
 
 ## Web application routes
 
 The single-page web application runs at `http://localhost:5173` in development (or `http://localhost:3000` when served by the API container) and provides the following routes:
 
-| Route           | Description                                                                              | Access               |
-| --------------- | ---------------------------------------------------------------------------------------- | -------------------- |
-| `/`             | Home landing page with mountain hut presentation, availability notice, and quick actions | Public               |
-| `/book`         | Table reservation interface with date, time slot, and guest party picker (MH-01)         | Authenticated hikers |
-| `/login`        | User sign-in with email and password (MH-00)                                             | Public               |
-| `/register`     | New user registration with profile details (MH-00)                                       | Public               |
-| `/staff/slots`  | Time slot schedule, table capacity definition, and slot creation (MH-02)                 | `EMPLOYEE`, `WARDEN` |
-| `/unauthorized` | Landing page for access restrictions (401/403) with role-aware guidance and actions      | Public               |
-| `/forbidden`    | Alias to `/unauthorized`                                                                 | Public               |
-| `*`             | 404 "Page not found" landing page for unknown routes with navigation back to home        | Public               |
+| Route                    | Description                                                                                      | Access               |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | -------------------- |
+| `/`                      | Home page with the hut presentation and quick actions                                            | Public               |
+| `/availability`          | Check whether a party fits in a slot, with the seat split (MH-04)                                | Public               |
+| `/book`                  | Book a table: day, time slot, party size and party requirements (MH-01, MH-05)                   | Hikers               |
+| `/bookings`              | "My bookings": change (MH-06) or cancel (MH-08) a booking, and the hiker's profile               | Hikers               |
+| `/login`                 | Sign in with email and password (MH-00)                                                          | Public               |
+| `/register`              | Registration of a hiker with profile details (MH-00)                                             | Public               |
+| `/change-password`       | Change the password; required at the first login of an account created by the staff (MH-07)      | Signed-in users      |
+| `/forgot-password`       | Ask for a password recovery link by email (MH-07)                                                | Public               |
+| `/reset-password?token=` | Set a new password from the link in the email (MH-07)                                            | Public               |
+| `/staff/slots`           | Time slots of a day, tables and seats, slot creation and "Repeat weekly schedule" (MH-02, MH-09) | `EMPLOYEE`, `WARDEN` |
+| `/staff/slots/:id/floor` | Floor plan of a slot: tables, occupied seats and the groups seated there                         | `EMPLOYEE`, `WARDEN` |
+| `/staff/bookings/new`    | Reservation for a hiker, also a new or temporary one (MH-07)                                     | `EMPLOYEE`, `WARDEN` |
+| `/unauthorized`          | Landing page for access restrictions (401/403) with role-aware guidance and actions              | Public               |
+| `/forbidden`             | Alias to `/unauthorized`                                                                         | Public               |
+| `*`                      | 404 "Page not found" page for unknown routes, with navigation back to home                       | Public               |
 
 ## Local development
 
@@ -137,6 +167,12 @@ They are not part of `npm test`, which runs without a database.
 - [MH-01 — Book a table](docs/stories/MH-01-book-a-table.md)
 - [MH-02 — Define slot capacity](docs/stories/MH-02-define-slot-capacity.md)
 - [MH-03 — Receive confirmation](docs/stories/MH-03-receive-confirmation.md)
+- [MH-04 — Check availability](docs/stories/MH-04-check-availability.md)
+- [MH-05 — Provide party requirements](docs/stories/MH-05-provide-party-requirements.md)
+- [MH-06 — Change a booking](docs/stories/MH-06-change-a-booking.md)
+- [MH-07 — Reserve for a hiker](docs/stories/MH-07-reserve-for-a-hiker.md)
+- [MH-08 — Cancel a booking](docs/stories/MH-08-cancel-a-booking.md)
+- [MH-09 — Repeat a weekly schedule](docs/stories/MH-09-repeat-a-weekly-schedule.md)
 
 ## Release notes
 

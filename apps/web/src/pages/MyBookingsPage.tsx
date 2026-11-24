@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, Navigate } from 'react-router';
 import type { MyBooking } from '@mountain-hut/shared';
-import { ApiError } from '../api/client.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useMyBookings } from '../api/useBookings.ts';
+import { useMyProfile } from '../api/useProfile.ts';
 import { CancelBookingDialog } from '../components/CancelBookingDialog.tsx';
 import { MyBookingCard } from '../components/MyBookingCard.tsx';
-import { authPath } from '../lib/bookingRedirect.ts';
 import './MyBookingsPage.css';
+import { apiErrorMessage } from '../lib/errors.ts';
+import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 type Tab = 'upcoming' | 'cancelled';
 
@@ -19,14 +20,6 @@ const TABS: { id: Tab; label: string; empty: string }[] = [
 const inTab = (booking: MyBooking, tab: Tab): boolean =>
   (booking.status === 'CANCELLED') === (tab === 'cancelled');
 
-function loadError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
-  if (e instanceof ApiError && e.status === 403) return e.message;
-  return 'Your bookings could not be loaded. Please try again.';
-}
-
 function MyBookingsList() {
   const bookingsQuery = useMyBookings();
   const [tab, setTab] = useState<Tab>('upcoming');
@@ -36,9 +29,13 @@ function MyBookingsList() {
   if (bookingsQuery.isPending) return <p role="status">Loading your bookings…</p>;
   if (bookingsQuery.isError) {
     return (
-      <p role="alert" className="notice notice--error">
-        {loadError(bookingsQuery.error)}
-      </p>
+      <ErrorNotice
+        message={apiErrorMessage(
+          bookingsQuery.error,
+          'Your bookings could not be loaded. Please try again.',
+          [403],
+        )}
+      />
     );
   }
 
@@ -85,20 +82,59 @@ function MyBookingsList() {
   );
 }
 
+// Name, email and phone of the hiker. Optional details left empty at registration show as
+// "Not provided".
+function MyProfile({ userId }: { userId: number }) {
+  const profileQuery = useMyProfile(userId);
+
+  let details;
+  if (profileQuery.isPending) {
+    details = <p role="status">Loading your profile…</p>;
+  } else if (profileQuery.isError) {
+    details = (
+      <p role="alert" className="notice notice--error">
+        Your profile could not be loaded.
+      </p>
+    );
+  } else {
+    const profile = profileQuery.data;
+    const fields = [
+      { label: 'Full name', value: profile.fullName },
+      { label: 'Email', value: profile.email },
+      { label: 'Phone', value: profile.phone },
+    ];
+    details = (
+      <dl className="my-profile__card">
+        {fields.map((f) => (
+          <div key={f.label} className="my-profile__field">
+            <dt>{f.label}</dt>
+            <dd>{f.value || 'Not provided'}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  return (
+    <aside className="my-profile" aria-labelledby="my-profile-title">
+      <h2 id="my-profile-title" className="my-bookings__title">
+        My profile
+      </h2>
+      {details}
+    </aside>
+  );
+}
+
 export function MyBookingsPage() {
   const { data: user, isPending } = useCurrentUser();
   const isStaff = user?.role === 'EMPLOYEE' || user?.role === 'WARDEN';
 
+  // A visitor without a session has no bookings to see: the page for visitors not signed in.
+  if (!isPending && !user) return <Navigate to="/unauthorized" replace />;
+
   let content = null;
   if (!isPending) {
-    if (!user) {
-      content = (
-        <p className="notice notice--ok">
-          {/* After signing in the hiker comes back here, not to the home page. */}
-          <Link to={authPath('/login', '/bookings')}>Log in</Link> to see your bookings.
-        </p>
-      );
-    } else if (isStaff) {
+    if (isStaff) {
       content = <p className="notice notice--ok">Staff accounts have no bookings.</p>;
     } else {
       content = <MyBookingsList />;
@@ -113,9 +149,16 @@ export function MyBookingsPage() {
         <p className="my-bookings__lead">Find your bookings and plan your next visit to the hut.</p>
       </section>
 
-      <div className="my-bookings__body">
-        <h2 className="my-bookings__title">My bookings</h2>
-        {content}
+      <div
+        className={
+          user && !isStaff ? 'my-bookings__body my-bookings__body--split' : 'my-bookings__body'
+        }
+      >
+        {user && !isStaff && <MyProfile userId={user.id} />}
+        <section>
+          <h2 className="my-bookings__title">My bookings</h2>
+          {content}
+        </section>
       </div>
     </div>
   );

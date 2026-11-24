@@ -38,6 +38,8 @@ interface MockApiOptions {
   postSlotHandler?: (body: unknown) => Response;
   putTablesHandler?: (id: string, body: unknown) => Response;
   floorHandler?: (id: string) => Response;
+  // The floor plan never answers.
+  floorPending?: boolean;
 }
 
 function stubSlotsApi({
@@ -47,6 +49,7 @@ function stubSlotsApi({
   putTablesHandler = (id, body) =>
     json({ ...emptySlot, id: Number(id), ...(body as object), totalSeats: 4 }, 200),
   floorHandler = () => json({}, 500),
+  floorPending = false,
 }: MockApiOptions = {}) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (url === '/api/auth/me') {
@@ -71,6 +74,7 @@ function stubSlotsApi({
       return Promise.resolve(putTablesHandler(putMatch[1], parsed));
     }
     const floorMatch = url.match(/^\/api\/slots\/(\d+)\/floor$/);
+    if (floorMatch && floorPending) return new Promise<Response>(() => {});
     if (floorMatch) return Promise.resolve(floorHandler(floorMatch[1]!));
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
@@ -104,10 +108,14 @@ describe('SlotsPage', () => {
     stubSlotsApi({ user: null });
     renderSlotsPage();
 
-    const loginLink = await screen.findByRole('link', { name: 'Log in' }, { timeout: 4000 });
-    expect(loginLink).toBeInTheDocument();
-    expect(loginLink).toHaveAttribute('href', '/login');
-    expect(screen.getByText(/with a staff account to manage the time slots/)).toBeInTheDocument();
+    const notice = await screen.findByText(
+      /with a staff account to manage the time slots/,
+      undefined,
+      {
+        timeout: 4000,
+      },
+    );
+    expect(within(notice).getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
     expect(screen.queryByLabelText('Day')).not.toBeInTheDocument();
   });
 
@@ -139,7 +147,7 @@ describe('SlotsPage', () => {
     renderSlotsPage();
 
     expect(await screen.findByText('12:00–13:00')).toBeInTheDocument();
-    expect(screen.getByText('2 tables · 6 seats')).toBeInTheDocument();
+    expect(await screen.findByText('2 tables · 6 seats')).toBeInTheDocument();
     expect(screen.getByText('Table 1 · 4 seats')).toBeInTheDocument();
     expect(screen.getByText('Table 2 · 2 seats')).toBeInTheDocument();
 
@@ -545,7 +553,7 @@ describe('SlotsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create the slot/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The session has expired. Please log in again.',
+      'The session has expired. Please sign in again.',
     );
   });
 
@@ -619,6 +627,14 @@ describe('SlotsPage', () => {
     expect(await tableItem(', full')).toHaveTextContent('Table 3 · 2 seats, full');
     expect(await tableItem(', partly taken')).toHaveTextContent('Table 2 · 4 seats, partly taken');
     expect(screen.getByText('3 tables · 5/10 seats taken')).toBeInTheDocument();
+  });
+
+  it('says the seats are loading while the floor plan is pending', async () => {
+    stubSlotsApi({ floorPending: true });
+    renderSlotsPage();
+
+    expect(await screen.findByText('Loading seats…')).toBeInTheDocument();
+    expect(screen.queryByText(/6 seats/)).not.toBeInTheDocument();
   });
 
   it('explains the colours of the tables in a legend above the slots', async () => {

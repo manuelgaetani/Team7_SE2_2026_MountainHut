@@ -18,7 +18,7 @@ const TEXT = {
   search: 'Search by name, phone or email',
   submit: 'Create booking',
   time: 'Time *',
-  people: 'Number of people *',
+  people: 'Number of people',
   addRequirement: 'Add a requirement',
   addAnotherRequirement: 'Add another requirement',
   emptyRequirement: 'Describe each requirement or remove it.',
@@ -26,12 +26,12 @@ const TEXT = {
   selectHiker: 'Select a hiker, or add a new one with Quick entry or Full profile.',
   noSlots: 'No time slots can be booked on this day.',
   staffOnly: 'This page is for the hut staff.',
-  sessionExpired: 'The session has expired. Please log in again.',
+  sessionExpired: 'The session has expired. Please sign in again.',
   invalidEmail: 'Enter a valid email address.',
   footerExisting: 'This booking will be linked to the selected hiker.',
   footerQuick: 'A temporary hiker will be saved with this booking.',
   footerFull: 'A regular hiker profile will be created with this booking.',
-  fewSeats: 'Only 3 free seats left in this slot.',
+  discard: 'Discard this booking?',
 } as const;
 
 const DAY = '2026-11-21';
@@ -176,8 +176,9 @@ describe('StaffBookingPage (MH-07)', () => {
     stubApi({ user: null });
     renderPage();
 
-    expect(await screen.findByText(/with a staff account to enter a booking/)).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login');
+    const notice = await screen.findByText(/with a staff account to enter a booking/);
+    expect(notice).toBeVisible();
+    expect(within(notice).getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   });
 
   it('shows a notice to hikers', async () => {
@@ -224,18 +225,79 @@ describe('StaffBookingPage (MH-07)', () => {
     expect(screen.getByLabelText(TEXT.time)).toHaveValue('2');
   });
 
-  it('does not send a party larger than the free seats of the slot', async () => {
-    const fetchMock = stubApi({ free: { 1: 3, 2: 8 } });
+  it('stops the stepper at the free seats of the chosen slot', async () => {
+    stubApi({ free: { 1: 3, 2: 8 } });
     renderPage();
     await screen.findByRole('option', { name: '12:30–14:00 · 3 free seats' });
+    fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: '1' } });
+
+    const more = screen.getByRole('button', { name: 'More guests' });
+    fireEvent.click(more);
+    expect(screen.getByLabelText(TEXT.people)).toHaveTextContent('3');
+    expect(more).toBeDisabled();
+  });
+
+  it('leaves the stepper unbounded while the free seats are unknown', async () => {
+    stubApi();
+    renderPage();
+    await waitForSlots();
+
+    for (let i = 0; i < 5; i++)
+      fireEvent.click(screen.getByRole('button', { name: 'More guests' }));
+    expect(screen.getByLabelText(TEXT.people)).toHaveTextContent('7');
+  });
+
+  it('goes home on Cancel when nothing was changed', async () => {
+    stubApi();
+    const router = renderPage();
+    await waitForSlots();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText(TEXT.discard)).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/'));
+  });
+
+  it('asks before discarding a booking that was edited, and keeps it on Keep editing', async () => {
+    stubApi();
+    const router = renderPage();
+    await waitForSlots();
     await selectLuca();
 
-    type(TEXT.people, '4');
-    expect(screen.getByText(TEXT.fewSeats)).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(TEXT.fewSeats);
-    expect(bookCalls(fetchMock)).toHaveLength(0);
+    expect(screen.getByText(TEXT.discard)).toBeVisible();
+    expect(screen.queryByRole('button', { name: TEXT.submit })).not.toBeInTheDocument();
+    const keep = screen.getByRole('button', { name: 'Keep editing' });
+    expect(keep).toHaveFocus();
+    fireEvent.click(keep);
+    expect(screen.queryByText(TEXT.discard)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: TEXT.submit })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/staff/bookings/new');
+  });
+
+  it('leaves the page when the discard is confirmed', async () => {
+    stubApi();
+    const router = renderPage();
+    await waitForSlots();
+    fireEvent.click(screen.getByRole('button', { name: 'More guests' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/'));
+  });
+
+  it('does not count a party size changed back as an edit', async () => {
+    stubApi();
+    renderPage();
+    await waitForSlots();
+    fireEvent.click(screen.getByRole('button', { name: 'More guests' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer guests' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText(TEXT.discard)).not.toBeInTheDocument();
   });
 
   it('lists the hikers matching the search and shows the selected profile', async () => {
@@ -290,7 +352,8 @@ describe('StaffBookingPage (MH-07)', () => {
     await waitForSlots();
 
     await selectLuca();
-    type(TEXT.people, '4');
+    for (let i = 0; i < 2; i++)
+      fireEvent.click(screen.getByRole('button', { name: 'More guests' }));
     addRequirement(1, '1 vegan, peanut allergy', true);
     addRequirement(2, '1 shellfish allergy', true);
     addRequirement(3, '2 vegetarians', false);
@@ -416,11 +479,14 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    const dialog = await screen.findByRole('alertdialog', { name: 'Something to fix' });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Booking not created' });
     expect(dialog).toHaveTextContent('Insufficient seats available for this slot');
+    expect(dialog).toHaveAccessibleDescription('Insufficient seats available for this slot');
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Something to fix')).not.toBeInTheDocument();
 
     // Closing the dialog keeps the form as it was, to fix it and send it again.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'OK' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Back to the form' }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByLabelText(TEXT.search)).toHaveValue('Rossi');
   });
@@ -447,6 +513,12 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    expect(await screen.findByText(TEXT.sessionExpired)).toBeVisible();
+    const dialog = await screen.findByRole('alertdialog', { name: 'Booking not created' });
+    expect(dialog).toHaveTextContent(TEXT.sessionExpired);
+    expect(within(dialog).getByRole('link', { name: 'sign in' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/login?next='),
+    );
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
   });
 });

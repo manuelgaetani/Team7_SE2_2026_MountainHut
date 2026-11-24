@@ -28,6 +28,7 @@
     "hygiene": "node scripts/check-hygiene.mjs",
     "knip": "knip",
     "depcruise": "depcruise apps packages e2e --config .dependency-cruiser.cjs",
+    "pretypecheck": "npm run prisma:generate -w @mountain-hut/api && npm run build -w @mountain-hut/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:cov": "npm run test:cov --workspaces --if-present",

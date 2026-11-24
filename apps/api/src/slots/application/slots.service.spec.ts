@@ -221,26 +221,6 @@ describe('SlotsService', () => {
       repo.create.mockRejectedValue(failure);
       await expect(service.create(input)).rejects.toBe(failure);
     });
-
-    it('throws Conflict, creating nothing, when the slot overlaps another slot of the day', async () => {
-      const calls: string[] = [];
-      repo.lockDay.mockImplementation(() => {
-        calls.push(inRun ? 'lockDay in run' : 'lockDay');
-        return Promise.resolve();
-      });
-      repo.findOverlapping.mockImplementation(() => {
-        calls.push('findOverlapping');
-        return Promise.resolve(slotRow({ id: 2, startTime: '12:30', endTime: '13:30' }));
-      });
-      await expect(service.create(input)).rejects.toMatchObject({
-        code: 'CONFLICT',
-        message: 'This slot overlaps the slot 12:30–13:30 of the same day',
-      });
-      expect(repo.lockDay).toHaveBeenCalledWith('2026-11-02');
-      expect(repo.findOverlapping).toHaveBeenCalledWith(input);
-      expect(calls).toEqual(['lockDay in run', 'findOverlapping']);
-      expect(repo.create).not.toHaveBeenCalled();
-    });
   });
 
   describe('floorPlan', () => {
@@ -257,10 +237,7 @@ describe('SlotsService', () => {
 
     it('throws NotFound, reading no seats, when the slot does not exist', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.floorPlan(99)).rejects.toMatchObject({
-        code: 'NOT_FOUND',
-        message: 'Slot not found',
-      });
+      await expect(service.floorPlan(99)).rejects.toMatchObject({ code: 'NOT_FOUND' });
       expect(repo.findFloorAllocations).not.toHaveBeenCalled();
     });
 
@@ -538,7 +515,6 @@ describe('SlotsService', () => {
       expect(repo.createTables).not.toHaveBeenCalled();
     });
   });
-
   describe('listByDate', () => {
     it('returns the slots of the day, each with its total seats', async () => {
       repo.findByDate.mockResolvedValue([

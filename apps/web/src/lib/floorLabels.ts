@@ -1,5 +1,6 @@
 import type { FloorGroup, FloorTable } from '@mountain-hut/shared';
 import { ApiError } from '../api/client.ts';
+import { apiErrorMessage } from './errors.ts';
 import { seatsLabel } from './slotTables.ts';
 
 export const peopleLabel = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
@@ -25,10 +26,6 @@ export const seatAriaLabel = (label: string, tableNumber: number, seats: number)
 
 // What the staff read when the plan cannot be loaded.
 export function floorErrorMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status === 401) {
-    return 'The session has expired. Please log in again.';
-  }
   if (e instanceof ApiError && e.status === 404) return 'Slot not found';
-  if (e instanceof ApiError && e.status === 403) return e.message;
-  return 'The floor plan could not be loaded. Please try again.';
+  return apiErrorMessage(e, 'The floor plan could not be loaded. Please try again.', [403]);
 }

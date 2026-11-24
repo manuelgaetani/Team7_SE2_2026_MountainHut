@@ -9,57 +9,54 @@ export function HomePage() {
   const hubImage = `${import.meta.env.BASE_URL}rifugio-ana-giovanni.jpg`;
 
   return (
-    <main>
+    <div>
       <section className="home-hero">
         <img className="home-hero__image" src={mountainImage} alt="Monte Vettore" />
 
         <div className="home-hero__overlay" />
 
         <div className="home-hero__content">
-          <div className="home-hero__content">
-            {staff ? (
-              <>
-                <p className="eyebrow">Hut staff · Monte Vettore</p>
-                <h1>Ready for service.</h1>
-                <p className="lead">
-                  Define the time slots and the tables of each day, so the hut never takes more
-                  guests than it can serve.
-                </p>
+          {staff ? (
+            <>
+              <p className="eyebrow">Hut staff · Monte Vettore</p>
+              <h1>Ready for service.</h1>
+              <p className="lead">
+                Define the time slots and the tables of each day, so the hut never takes more guests
+                than it can serve.
+              </p>
+              <div className="home-hero__actions">
+                <Link to="/staff/slots" className="button-primary button-primary--inline">
+                  <span>Manage time slots</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+                <Link to="/staff/bookings/new" className="pill pill--hero">
+                  Reserve for a hiker
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">Mountain hut · Monte Vettore</p>
+              <h1>Closer to the sky.</h1>
+              <p className="lead">
+                A simple place to rest, eat and set off again. Plan your stop with confidence.
+              </p>
+              {!isPending && (
                 <div className="home-hero__actions">
-                  <Link to="/staff/slots" className="button-primary button-primary--inline">
-                    <span>Manage time slots</span>
+                  <Link
+                    to={user ? '/book' : '/register'}
+                    className="button-primary button-primary--inline"
+                  >
+                    <span>{user ? 'Book a table' : 'Register to book a table'}</span>
                     <span aria-hidden="true">→</span>
                   </Link>
-                  <Link to="/staff/bookings/new" className="button-primary button-primary--inline">
-                    <span>Reserve for a hiker</span>
-                    <span aria-hidden="true">→</span>
+                  <Link to="/availability" className="pill pill--hero">
+                    Check availability
                   </Link>
                 </div>
-              </>
-            ) : (
-              <>
-                <p className="eyebrow">Mountain hut · Monte Vettore</p>
-                <h1>Closer to the sky.</h1>
-                <p className="lead">
-                  A simple place to rest, eat and set off again. Plan your stop with confidence.
-                </p>
-                {!isPending && (
-                  <div className="home-hero__actions">
-                    <Link
-                      to={user ? '/book' : '/register'}
-                      className="button-primary button-primary--inline"
-                    >
-                      <span>{user ? 'Book a table' : 'Register to book a table'}</span>
-                      <span aria-hidden="true">→</span>
-                    </Link>
-                    <Link to="/availability" className="home-hero__link">
-                      Check availability
-                    </Link>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 
@@ -107,6 +104,6 @@ export function HomePage() {
           </p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

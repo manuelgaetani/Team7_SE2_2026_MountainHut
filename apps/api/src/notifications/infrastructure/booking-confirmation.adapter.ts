@@ -29,13 +29,16 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
     return this.notifications.sendBookingChange(data.recipient, data.booking);
   }
 
-  // The recipient and what the email shows. null if the booking does not exist.
+  // The recipient and what the email shows. null if the booking does not exist or takes no seats
+  // any more: a hiker who cancelled (MH-08), even during the retries, gets no confirmation or change.
+  // A staff booking is CONFIRMED at once (MH-07) and still gets its confirmation.
   private async load(
     bookingId: number,
   ): Promise<{ recipient: Recipient; booking: BookingConfirmationData } | null> {
     const row = await this.context.client().booking.findUnique({
       where: { id: bookingId },
       select: {
+        status: true,
         partySize: true,
         // In the order the hiker entered them (ids follow the insert order), only what the email shows.
         requirements: {
@@ -48,7 +51,7 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
         slot: { select: { date: true, startTime: true, endTime: true } },
       },
     });
-    if (!row) return null;
+    if (!row || row.status === 'CANCELLED' || row.status === 'REJECTED') return null;
 
     return {
       recipient: { userId: row.hiker.userId, email: row.hiker.user?.email ?? null },

@@ -31,7 +31,9 @@ describe('RegisterPage', () => {
       screen.getByText('Enter your full name (it must contain a letter).'),
     ).toBeInTheDocument();
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument();
-    expect(screen.getByText('Phone number is too short.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Enter 7 to 15 digits. Spaces, dashes and a leading + are allowed.'),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Use at least 8 characters with a letter and a digit.'),
     ).toBeInTheDocument();
@@ -151,5 +153,23 @@ describe('RegisterPage', () => {
       screen.getByText('The phone number can only contain digits, spaces, dashes and a leading +.'),
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/register', expect.anything());
+  });
+
+  it('shows the password rules before submitting', () => {
+    stubApi();
+    renderAt('/register');
+    expect(screen.getByText('At least 8 characters, with a letter and a digit.')).toBeVisible();
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+      'At least 8 characters, with a letter and a digit.',
+    );
+  });
+
+  it('confirms the registration with a toast on the login page', async () => {
+    stubApi({ '/api/auth/register': () => json(user, 201) });
+    const router = renderAt('/register');
+    fill(required);
+    submit();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(await screen.findByText('Account created. Sign in to continue.')).toBeVisible();
   });
 });

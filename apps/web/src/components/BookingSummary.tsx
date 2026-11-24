@@ -9,7 +9,7 @@ interface BookingSummaryProps {
   requirements?: RequirementDraft[];
 }
 
-const POLICY = 'You can book up to 2 hours before the shift starts';
+const POLICY = 'You can book up to 2 hours before the slot starts';
 
 export function BookingSummary({
   dateLabel,
@@ -20,7 +20,7 @@ export function BookingSummary({
 }: BookingSummaryProps) {
   return (
     <aside className="summary" aria-label="Booking Summary">
-      <h3 className="summary__title">Quick Booking</h3>
+      <h3 className="summary__title">Your booking</h3>
       <dl className="summary__list">
         <div>
           <dt>Date</dt>

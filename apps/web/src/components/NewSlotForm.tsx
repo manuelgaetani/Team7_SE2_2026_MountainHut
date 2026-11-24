@@ -11,6 +11,8 @@ import {
 import type { TablesChoice } from '../lib/slotTables.ts';
 import { FormField } from './FormField.tsx';
 import { TablesChooser } from './TablesChooser.tsx';
+import { ErrorNotice } from './ErrorNotice.tsx';
+import { useToast } from './Toast.tsx';
 
 interface NewSlotFormProps {
   date: string;
@@ -18,11 +20,11 @@ interface NewSlotFormProps {
 
 export function NewSlotForm({ date }: NewSlotFormProps) {
   const create = useCreateSlot();
+  const toast = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [tables, setTables] = useState<TablesChoice>(emptyTablesChoice);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<string | null>(null);
 
   // A message about the previous attempt is out of date as soon as the form changes.
   const edit =
@@ -30,13 +32,11 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
     (v: T) => {
       set(v);
       setError(null);
-      setCreated(null);
     };
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setCreated(null);
 
     if (!startTime || !endTime) {
       setError('Enter the start and the end time.');
@@ -57,7 +57,9 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
       { date, startTime, endTime, ...result.source },
       {
         onSuccess: (slot) => {
-          setCreated(`${slot.startTime}–${slot.endTime}, ${seatsLabel(slot.totalSeats)}`);
+          toast.show({
+            message: `Slot created: ${slot.startTime}–${slot.endTime}, ${seatsLabel(slot.totalSeats)}.`,
+          });
           setStartTime('');
           setEndTime('');
           setTables(emptyTablesChoice());
@@ -95,16 +97,7 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
         onChange={edit(setTables)}
         copyDate={date}
       />
-      {error && (
-        <p role="alert" className="notice notice--error">
-          {error}
-        </p>
-      )}
-      {created && (
-        <p role="status" className="notice notice--ok">
-          Slot created: {created}.
-        </p>
-      )}
+      {error && <ErrorNotice message={error} />}
       <button type="submit" className="cta" disabled={create.isPending}>
         {create.isPending ? 'Saving…' : 'Create the slot'}
         <span aria-hidden="true">→</span>

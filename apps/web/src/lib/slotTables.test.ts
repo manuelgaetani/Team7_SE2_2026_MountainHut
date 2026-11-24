@@ -83,9 +83,9 @@ describe('nextTableNumber', () => {
 });
 
 describe('slotErrorMessage', () => {
-  it('asks to log in again when the session has expired', () => {
+  it('asks to sign in again when the session has expired', () => {
     expect(slotErrorMessage(new ApiError(401, 'Unauthorized'))).toBe(
-      'The session has expired. Please log in again.',
+      'The session has expired. Please sign in again.',
     );
   });
 

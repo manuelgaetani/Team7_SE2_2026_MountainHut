@@ -1,0 +1,294 @@
+import { fireEvent, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RepeatWeeklyScheduleResult, SlotDetails } from '@mountain-hut/shared';
+import { json, renderAt, sentBody, stubApi } from '../test/app.tsx';
+
+// MH-09 R9: the "Repeat weekly schedule" dialog of /staff/slots.
+const TEXT = {
+  open: 'Repeat weekly schedule',
+  dialog: 'Repeat weekly schedule',
+  weeks: 'Number of weeks to repeat',
+  confirm: 'Repeat schedule',
+  // The label while the slots of the target weeks are unknown (the stub does not serve them).
+  confirmUnknown: 'Confirm and repeat schedule',
+  replaceThree: 'Replace 3 slots and repeat',
+  close: 'Close',
+  atLeastOne: 'Must be at least 1 week.',
+  atMost: 'At most 12 weeks.',
+  replaced: 'The slots already in those weeks are replaced.',
+  sourceWeek: 'Wed 4 Nov – Tue 10 Nov',
+  target2: 'Target: Wed 11 Nov – Tue 24 Nov',
+  done2: 'Schedule successfully repeated across 2 weeks: 2 slots created.',
+  done1Replaced: 'Schedule successfully repeated across 1 week: 1 slot created. 3 slots replaced.',
+  conflict: 'The week starting 2026-11-11 has reservations: its schedule cannot be replaced',
+  emptySource: 'Source week contains no time slots to repeat',
+  sessionExpired: 'The session has expired. Please sign in again.',
+} as const;
+
+const employee = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
+const warden = { id: 3, email: 'warden@hut.test', role: 'WARDEN' };
+const hiker = { id: 1, email: 'hiker@example.test', role: 'HIKER' };
+
+const SCHEDULE_URL = '/api/slots/schedule?date=2026-11-04';
+const REPEAT_URL = '/api/slots/repeat-weekly';
+
+const lunch: SlotDetails = {
+  id: 1,
+  date: '2026-11-04',
+  startTime: '12:00',
+  endTime: '13:30',
+  tables: [
+    { tableNumber: 1, seats: 4 },
+    { tableNumber: 2, seats: 6 },
+  ],
+  totalSeats: 10,
+};
+
+const result = (over: Partial<RepeatWeeklyScheduleResult> = {}): RepeatWeeklyScheduleResult => ({
+  targetWeeks: 2,
+  createdSlotsCount: 2,
+  replacedSlotsCount: 0,
+  createdSlots: [
+    { ...lunch, id: 10, date: '2026-11-11' },
+    { ...lunch, id: 11, date: '2026-11-18' },
+  ],
+  ...over,
+});
+
+function stub(user: unknown = employee, repeat: () => Response = () => json(result(), 201)) {
+  return stubApi({
+    '/api/auth/me': () => json(user),
+    [SCHEDULE_URL]: () => json([lunch]),
+    [REPEAT_URL]: repeat,
+  });
+}
+
+async function openDialog() {
+  renderAt('/staff/slots');
+  fireEvent.click(await screen.findByRole('button', { name: TEXT.open }));
+  return screen.getByRole('dialog', { name: TEXT.dialog });
+}
+
+// The confirm button is disabled until the slots of the target weeks are counted (or fail to load).
+async function confirmButton(dialog: HTMLElement, name: string = TEXT.confirmUnknown) {
+  const button = await within(dialog).findByRole('button', { name });
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
+const repeatCalls = (fetchMock: ReturnType<typeof stub>) =>
+  fetchMock.mock.calls.filter(([url]) => url === REPEAT_URL);
+
+describe('MH-09 Repeat weekly schedule dialog', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date(2026, 10, 4, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not offer the repeat to hikers', async () => {
+    stub(hiker);
+    renderAt('/staff/slots');
+
+    expect(await screen.findByText('This page is for the hut staff.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: TEXT.open })).not.toBeInTheDocument();
+  });
+
+  it('offers the repeat to wardens too', async () => {
+    stub(warden);
+    renderAt('/staff/slots');
+
+    expect(await screen.findByRole('button', { name: TEXT.open })).toBeInTheDocument();
+  });
+
+  it('shows the source week, the replacement warning and focuses the number of weeks', async () => {
+    stub();
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByText(TEXT.sourceWeek)).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(TEXT.replaced);
+    expect(within(dialog).getByLabelText(TEXT.weeks)).toHaveFocus();
+    expect(within(dialog).getByLabelText(TEXT.weeks)).toHaveValue(1);
+  });
+
+  it('shows the target weeks for the number typed', async () => {
+    stub();
+    const dialog = await openDialog();
+
+    fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '2' } });
+    expect(within(dialog).getByText(TEXT.target2)).toBeInTheDocument();
+  });
+
+  // The 7 days of the first target week (default of 1 week): 11 to 17 Nov 2026.
+  const firstTargetWeek = Array.from(
+    { length: 7 },
+    (_, i) => `/api/slots/schedule?date=2026-11-${String(11 + i)}`,
+  );
+
+  it('says how many slots already in the target weeks will be replaced', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    days[firstTargetWeek[0]!] = () => json([lunch, lunch]);
+    days[firstTargetWeek[3]!] = () => json([lunch]);
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByText('3 slots already in the target weeks will be replaced.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: TEXT.replaceThree })).toBeInTheDocument();
+  });
+
+  it('names the single slot to replace in the singular', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    days[firstTargetWeek[0]!] = () => json([lunch]);
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByRole('button', { name: 'Replace 1 slot and repeat' }),
+    ).toBeInTheDocument();
+  });
+
+  it('says when the target weeks have no slots to replace', async () => {
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, () => json([])]));
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByText('The target weeks have no slots: nothing will be replaced.'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps only the general warning when the target weeks cannot be loaded', async () => {
+    stub();
+    const dialog = await openDialog();
+
+    await vi.waitFor(() =>
+      expect(dialog).not.toHaveTextContent('Checking the slots already in the target weeks'),
+    );
+    expect(dialog).toHaveTextContent(TEXT.replaced);
+    expect(dialog).not.toHaveTextContent('will be replaced.');
+    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeEnabled();
+  });
+
+  it('keeps the confirm button neutral and disabled while the target weeks are counted', async () => {
+    // The days never answer: fetch resolves with a promise that stays pending.
+    const never = () => new Promise<Response>(() => {}) as unknown as Response;
+    const days = Object.fromEntries(firstTargetWeek.map((url) => [url, never]));
+    stubApi({ '/api/auth/me': () => json(employee), [SCHEDULE_URL]: () => json([lunch]), ...days });
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByRole('button', { name: TEXT.confirmUnknown })).toBeDisabled();
+    expect(within(dialog).queryByRole('button', { name: TEXT.confirm })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['0', TEXT.atLeastOne],
+    ['-1', TEXT.atLeastOne],
+    ['', TEXT.atLeastOne],
+    ['13', TEXT.atMost],
+    ['1.5', 'Enter a whole number of weeks.'],
+  ])('rejects %j weeks without calling the API', async (weeks, message) => {
+    const fetchMock = stub();
+    const dialog = await openDialog();
+
+    const input = within(dialog).getByLabelText(TEXT.weeks);
+    fireEvent.change(input, { target: { value: weeks } });
+    fireEvent.click(await confirmButton(dialog, TEXT.confirm));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(repeatCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it('accepts the maximum of 12 weeks', async () => {
+    const fetchMock = stub(employee, () => json(result({ targetWeeks: 12 }), 201));
+    const dialog = await openDialog();
+
+    fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '12' } });
+    fireEvent.click(await confirmButton(dialog));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('across 12 weeks');
+    expect(sentBody(fetchMock, REPEAT_URL)).toEqual({
+      sourceStartDate: '2026-11-04',
+      repeatWeeks: 12,
+    });
+  });
+
+  it('repeats the week of the chosen day, closes and confirms', async () => {
+    const fetchMock = stub();
+    const dialog = await openDialog();
+
+    fireEvent.change(within(dialog).getByLabelText(TEXT.weeks), { target: { value: '2' } });
+    fireEvent.click(await confirmButton(dialog));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done2);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sentBody(fetchMock, REPEAT_URL)).toEqual({
+      sourceStartDate: '2026-11-04',
+      repeatWeeks: 2,
+    });
+    const init = repeatCalls(fetchMock)[0]?.[1];
+    expect(init?.method).toBe('POST');
+  });
+
+  it('says how many slots were replaced', async () => {
+    stub(employee, () =>
+      json(result({ targetWeeks: 1, createdSlotsCount: 1, replacedSlotsCount: 3 }), 201),
+    );
+    const dialog = await openDialog();
+
+    fireEvent.click(await confirmButton(dialog));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(TEXT.done1Replaced);
+  });
+
+  it('refreshes the schedule after the repeat', async () => {
+    const fetchMock = stub();
+    const dialog = await openDialog();
+    const scheduleCalls = () => fetchMock.mock.calls.filter(([u]) => u === SCHEDULE_URL).length;
+    const before = scheduleCalls();
+
+    fireEvent.click(await confirmButton(dialog));
+
+    await screen.findByRole('status');
+    await vi.waitFor(() => expect(scheduleCalls()).toBeGreaterThan(before));
+  });
+
+  it.each([
+    [409, TEXT.conflict, TEXT.conflict],
+    [422, TEXT.emptySource, TEXT.emptySource],
+    [401, 'Not authenticated', TEXT.sessionExpired],
+  ])('keeps the dialog open and explains a %i', async (status, message, shown) => {
+    stub(employee, () => json({ message }, status));
+    const dialog = await openDialog();
+
+    fireEvent.click(await confirmButton(dialog));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(shown);
+    expect(screen.getByRole('dialog', { name: TEXT.dialog })).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'the Close button',
+      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[1]!),
+    ],
+    [
+      'the X button',
+      () => fireEvent.click(screen.getAllByRole('button', { name: TEXT.close })[0]!),
+    ],
+    ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })],
+  ])('closes with %s without calling the API', async (_how, close) => {
+    const fetchMock = stub();
+    await openDialog();
+
+    close();
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(repeatCalls(fetchMock)).toHaveLength(0);
+  });
+});
