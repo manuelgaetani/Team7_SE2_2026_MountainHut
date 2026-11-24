@@ -40,20 +40,21 @@ function ToastView({ toast, onClose }: { toast: ToastItem; onClose: (id: number)
   return (
     <div
       className={`toast toast--${toast.kind}`}
-      role={toast.kind === 'error' ? 'alert' : 'status'}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <span className="toast__message">{toast.message}</span>
+      <span className="toast__message" role={toast.kind === 'error' ? 'alert' : 'status'}>
+        {toast.message}
+      </span>
       <button
         type="button"
         className="toast__close"
         aria-label="Dismiss notification"
         onClick={() => onClose(id)}
       >
-        ×
+        <span aria-hidden="true">×</span>
       </button>
     </div>
   );

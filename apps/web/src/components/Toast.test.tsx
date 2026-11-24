@@ -72,6 +72,14 @@ describe('Toast', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(TEXT.error);
   });
 
+  it('keeps the close button out of the status text', () => {
+    renderToasts();
+    fireEvent.click(screen.getByRole('button', { name: TEXT.showOk }));
+    expect(screen.getByRole('status')).toHaveTextContent(/^Slot created\.$/);
+    fireEvent.click(screen.getByRole('button', { name: TEXT.showError }));
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Something went wrong\.$/);
+  });
+
   it('hides the toast after 5 seconds', () => {
     renderToasts();
     fireEvent.click(screen.getByRole('button', { name: TEXT.showOk }));
