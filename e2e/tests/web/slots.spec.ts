@@ -35,7 +35,9 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await signIn(page, registeredUser);
 
     // NavBar should not have the "Time slots" link for hikers
-    await expect(page.getByRole('link', { name: 'Time slots' })).toHaveCount(0);
+    await expect(
+      page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
+    ).toHaveCount(0);
 
     // Directly navigating shows the staff-only notice
     await page.goto('/staff/slots');
@@ -51,7 +53,7 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await signIn(page, employeeUser);
 
     // NavBar shows the staff link
-    const slotsLink = page.getByRole('link', { name: 'Time slots' });
+    const slotsLink = page.getByRole('navigation').getByRole('link', { name: 'Time slots' });
     await expect(slotsLink).toBeVisible();
     await slotsLink.click();
     await expect(page).toHaveURL('/staff/slots');
@@ -118,7 +120,9 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
   test('warden also has staff access to time slots management', async ({ page, wardenUser }) => {
     await signIn(page, wardenUser);
 
-    await expect(page.getByRole('link', { name: 'Time slots' })).toBeVisible();
+    await expect(
+      page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
+    ).toBeVisible();
     await page.goto('/staff/slots');
     await expect(page.getByText('Time slots and tables')).toBeVisible();
     await expect(page.getByLabel('Day')).toBeVisible();

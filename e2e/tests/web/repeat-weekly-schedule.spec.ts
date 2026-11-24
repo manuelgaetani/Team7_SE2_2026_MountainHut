@@ -54,7 +54,9 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, registeredUser);
 
       // NavBar must not show staff links
-      await expect(page.getByRole('link', { name: 'Time slots' })).toHaveCount(0);
+      await expect(
+        page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
+      ).toHaveCount(0);
 
       // Direct URL navigation displays staff-only warning
       await page.goto('/staff/slots');
@@ -75,7 +77,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, employeeUser);
 
       // 1. Navigate to staff time slots management
-      await page.getByRole('link', { name: 'Time slots' }).click();
+      await page.getByRole('navigation').getByRole('link', { name: 'Time slots' }).click();
       await expect(page).toHaveURL('/staff/slots');
 
       // 2. Select source Monday and create a base slot with 2 tables
@@ -143,7 +145,7 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     }) => {
       await signIn(page, wardenUser);
 
-      await page.getByRole('link', { name: 'Time slots' }).click();
+      await page.getByRole('navigation').getByRole('link', { name: 'Time slots' }).click();
       await expect(page).toHaveURL('/staff/slots');
       await expect(page.getByRole('button', { name: /Repeat weekly schedule/i })).toBeVisible();
     });
