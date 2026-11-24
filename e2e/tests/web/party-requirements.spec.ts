@@ -106,7 +106,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
     await expect(dialog).toContainText('2 vegetarians');
 
     // Dismiss dialog
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
     await expect(dialog).toHaveCount(0);
   });
 
@@ -220,7 +220,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Booking request sent');
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
     await expect(dialog).toHaveCount(0);
   });
 

@@ -134,6 +134,7 @@ describe('MyBookingCard', () => {
     renderCard({ ...baseBooking, status: 'PENDING' });
     expect(screen.getByRole('button', { name: TEXT.modify })).toBeDisabled();
     expect(screen.getByRole('button', { name: TEXT.cancel })).toBeEnabled();
+    expect(screen.getByRole('button', { name: TEXT.cancel })).toHaveTextContent('Cancel booking');
     expect(screen.getByText(TEXT.lockedNotice)).toBeVisible();
   });
 

@@ -90,7 +90,7 @@ export function BookingSentDialog({ summary, requirements = [], onClose }: Booki
         )}
 
         <button ref={buttonRef} type="button" className="cta cta--center" onClick={onClose}>
-          Got it
+          Done
         </button>
       </div>
     </div>,

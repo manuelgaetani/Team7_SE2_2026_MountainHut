@@ -85,7 +85,7 @@ test('a hiker signs in and books a table', async ({ page, registeredUser }) => {
     await expect(dialog).toContainText('The booking is not confirmed yet');
     await expect(page.getByText('Table 2 (3 seats)')).toBeVisible();
 
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
     await expect(dialog).toHaveCount(0);
   } finally {
     deleteSlot(slotId);

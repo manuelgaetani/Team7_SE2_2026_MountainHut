@@ -326,7 +326,6 @@
 .dialog--staff .dialog__text {
   font-size: 17px;
 }
-.dialog__status--error,
 .dialog__text--error {
   color: var(--error);
 }

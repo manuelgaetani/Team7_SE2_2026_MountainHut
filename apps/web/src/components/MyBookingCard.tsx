@@ -92,7 +92,7 @@ export function MyBookingCard({ booking, onCancel }: MyBookingCardProps) {
               aria-label={`Cancel booking of ${title}`}
               onClick={onCancel}
             >
-              Cancel
+              Cancel booking
             </button>
           </div>
         )}

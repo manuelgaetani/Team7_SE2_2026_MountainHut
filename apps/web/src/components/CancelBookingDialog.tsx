@@ -6,6 +6,7 @@ import { dateFull, fromIsoDate } from '../lib/dates.ts';
 import './CancelBookingDialog.css';
 import { apiErrorMessage } from '../lib/errors.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
+import { useToast } from './Toast.tsx';
 
 interface CancelBookingDialogProps {
   booking: MyBooking;
@@ -14,21 +15,21 @@ interface CancelBookingDialogProps {
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
-// First asks to confirm the cancellation, then says that the booking has been cancelled.
+// Asks to confirm the cancellation; on success a toast says it is done and the dialog closes.
 export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogProps) {
   const cancel = useCancelBooking();
+  const toast = useToast();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const done = cancel.isSuccess;
   const pending = cancel.isPending;
   // While the request is on its way the dialog stays open.
   const close = () => {
     if (!pending) onClose();
   };
 
-  // The focus goes to the safe button: "Go back" first, then "OK".
+  // The focus goes to the safe button.
   useEffect(() => {
     buttonRef.current?.focus();
-  }, [done]);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -60,75 +61,55 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
           </svg>
         </button>
 
-        {done ? (
-          <>
-            <p className="dialog__status">
-              <span className="dialog__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="m5 12 5 5 9-10" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-              </span>
-              Cancelled
-            </p>
-            <h2 id="cancel-dialog-title" className="dialog__title">
-              Booking cancelled
-            </h2>
-            <p role="status" className="dialog__text">
-              Your booking has been cancelled and its seats are free again. You can find it among
-              the cancelled bookings.
-            </p>
-            <div className="dialog__request">
-              <span>Cancelled booking</span>
-              <strong>{recap}</strong>
-            </div>
-            <button ref={buttonRef} type="button" className="cta cta--center" onClick={onClose}>
-              OK
+        <>
+          <p className="cancel-dialog__eyebrow">Your reservation</p>
+          <h2 id="cancel-dialog-title" className="dialog__title">
+            Cancel booking
+          </h2>
+          <p className="dialog__text">Are you sure you want to cancel the following booking?</p>
+          <div className="dialog__request">
+            <span>Your booking</span>
+            <strong>{recap}</strong>
+          </div>
+
+          {cancel.isError && (
+            <ErrorNotice
+              message={apiErrorMessage(
+                cancel.error,
+                'The booking could not be cancelled. Please try again.',
+                [403, 404, 409],
+              )}
+              className="cancel-dialog__error"
+            />
+          )}
+
+          <div className="cancel-dialog__actions">
+            <button
+              ref={buttonRef}
+              type="button"
+              className="cancel-dialog__secondary"
+              disabled={pending}
+              onClick={onClose}
+            >
+              Keep booking
             </button>
-          </>
-        ) : (
-          <>
-            <p className="cancel-dialog__eyebrow">Your reservation</p>
-            <h2 id="cancel-dialog-title" className="dialog__title">
-              Cancel booking
-            </h2>
-            <p className="dialog__text">Are you sure you want to cancel the following booking?</p>
-            <div className="dialog__request">
-              <span>Your booking</span>
-              <strong>{recap}</strong>
-            </div>
-
-            {cancel.isError && (
-              <ErrorNotice
-                message={apiErrorMessage(
-                  cancel.error,
-                  'The booking could not be cancelled. Please try again.',
-                  [403, 404, 409],
-                )}
-                className="cancel-dialog__error"
-              />
-            )}
-
-            <div className="cancel-dialog__actions">
-              <button
-                ref={buttonRef}
-                type="button"
-                className="cancel-dialog__secondary"
-                disabled={pending}
-                onClick={onClose}
-              >
-                Go back
-              </button>
-              <button
-                type="button"
-                className="cancel-dialog__primary"
-                disabled={pending}
-                onClick={() => cancel.mutate(booking.id)}
-              >
-                {pending ? 'Cancelling…' : 'Confirm'}
-              </button>
-            </div>
-          </>
-        )}
+            <button
+              type="button"
+              className="cancel-dialog__primary"
+              disabled={pending}
+              onClick={() =>
+                cancel.mutate(booking.id, {
+                  onSuccess: () => {
+                    toast.show({ message: 'Booking cancelled. Seats are free again.' });
+                    onClose();
+                  },
+                })
+              }
+            >
+              {pending ? 'Cancelling…' : 'Cancel booking'}
+            </button>
+          </div>
+        </>
       </div>
     </div>,
     document.body,

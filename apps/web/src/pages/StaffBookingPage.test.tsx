@@ -416,11 +416,14 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    const dialog = await screen.findByRole('alertdialog', { name: 'Something to fix' });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Booking not created' });
     expect(dialog).toHaveTextContent('Insufficient seats available for this slot');
+    expect(dialog).toHaveAccessibleDescription('Insufficient seats available for this slot');
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Something to fix')).not.toBeInTheDocument();
 
     // Closing the dialog keeps the form as it was, to fix it and send it again.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'OK' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Back to the form' }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByLabelText(TEXT.search)).toHaveValue('Rossi');
   });
@@ -447,6 +450,12 @@ describe('StaffBookingPage (MH-07)', () => {
     await selectLuca();
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.sessionExpired);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Booking not created' });
+    expect(dialog).toHaveTextContent(TEXT.sessionExpired);
+    expect(within(dialog).getByRole('link', { name: 'sign in' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/login?next='),
+    );
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
   });
 });

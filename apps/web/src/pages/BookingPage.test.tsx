@@ -197,7 +197,7 @@ describe('BookingPage', () => {
     ];
     expect(JSON.parse(call[1].body)).toEqual({ slotId: 1, partySize: 3 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: TEXT.submit })).toBeDisabled();
   });
@@ -360,7 +360,7 @@ describe('BookingPage', () => {
     typeRequirement(1, 'vegan');
     submit();
     await screen.findByRole('dialog');
-    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
   it('lists the requirements in the confirmation dialog, marking the allergies', async () => {

@@ -117,7 +117,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
     const bookingDialog = page.getByRole('dialog');
     await expect(bookingDialog).toContainText(/Booking request sent/i);
-    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+    await bookingDialog.getByRole('button', { name: 'Done' }).click();
 
     // 2. Open booking change / management interface
     await page.goto('/bookings');
@@ -162,7 +162,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
 
     // Navigate to change booking
     await page.goto('/bookings');
@@ -200,7 +200,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
 
     // View bookings page
     await page.goto('/bookings');
@@ -227,7 +227,7 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
 
     // The stepper allows the 2 seats of the booking plus the 2 free ones, and no more
     await page.goto('/bookings');
@@ -269,7 +269,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
-    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+    await bookingDialog.getByRole('button', { name: 'Done' }).click();
 
     await page.goto('/bookings');
     await page.getByRole('button', { name: /Modify/i }).click();
@@ -308,7 +308,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
-    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+    await bookingDialog.getByRole('button', { name: 'Done' }).click();
 
     await page.goto('/bookings');
     await page.getByRole('button', { name: /Modify/i }).click();
@@ -333,7 +333,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
-    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+    await bookingDialog.getByRole('button', { name: 'Done' }).click();
 
     await page.goto('/bookings');
     await page.getByRole('button', { name: /Modify/i }).click();
@@ -359,7 +359,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Got it' }).click();
+    await dialog.getByRole('button', { name: 'Done' }).click();
 
     await page.goto('/bookings');
     const notice = page.locator('.booking-card__locked');
@@ -382,7 +382,7 @@ test.describe('MH-06 Black-Box Web UI: Planned Future Scenarios (TODOs)', () => 
     await page.getByRole('button', { name: 'Book your table' }).click();
 
     const bookingDialog = page.getByRole('dialog');
-    await bookingDialog.getByRole('button', { name: 'Got it' }).click();
+    await bookingDialog.getByRole('button', { name: 'Done' }).click();
 
     await page.goto('/bookings');
     await page.getByRole('button', { name: /Modify/i }).click();

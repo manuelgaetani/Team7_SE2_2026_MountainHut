@@ -301,10 +301,9 @@ describe('MyBookingsPage', () => {
       title: 'Cancel booking',
       question: 'Are you sure you want to cancel the following booking?',
       recap: 'Saturday 21 November 2026 · 12:30–14:00 · 4 people',
-      goBack: 'Go back',
-      confirm: 'Confirm',
-      doneTitle: 'Booking cancelled',
-      ok: 'OK',
+      goBack: 'Keep booking',
+      confirm: 'Cancel booking',
+      toast: 'Booking cancelled. Seats are free again.',
       failed: 'The booking could not be cancelled. Please try again.',
       alreadyCancelled: 'This booking is already cancelled',
     } as const;
@@ -340,7 +339,7 @@ describe('MyBookingsPage', () => {
       expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
     });
 
-    it('closes without cancelling on Go back', async () => {
+    it('closes without cancelling on Keep booking', async () => {
       const fetchMock = asHikerWithCancel(() => json({}));
       const dialog = await openDialog();
 
@@ -351,7 +350,7 @@ describe('MyBookingsPage', () => {
       expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings/1/cancel', expect.anything());
     });
 
-    it('cancels on Confirm and moves the booking among the cancelled ones', async () => {
+    it('cancels on Cancel booking and moves the booking among the cancelled ones', async () => {
       const fetchMock = asHikerWithCancel(() =>
         json({ id: 1, slotId: 10, partySize: 4, status: 'CANCELLED' }),
       );
@@ -359,15 +358,12 @@ describe('MyBookingsPage', () => {
 
       fireEvent.click(within(dialog).getByRole('button', { name: CANCEL.confirm }));
 
-      const done = await screen.findByRole('dialog', { name: CANCEL.doneTitle });
-      expect(done).toHaveTextContent(CANCEL.recap);
+      expect(await screen.findByRole('status')).toHaveTextContent(CANCEL.toast);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/bookings/1/cancel',
         expect.objectContaining({ method: 'POST' }),
       );
-
-      fireEvent.click(within(done).getByRole('button', { name: CANCEL.ok }));
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(await screen.findByText(TEXT.noUpcoming)).toBeVisible();
 
       fireEvent.click(screen.getByRole('tab', { name: TEXT.cancelled }));
