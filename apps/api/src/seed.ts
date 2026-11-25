@@ -60,6 +60,42 @@ const TABLES = [
   { tableNumber: 6, seats: 6 },
 ];
 
+// MH-20: the hut's list of hikes the hikers can start from (issue #49). Upserted by destination
+// and route, so running the seed again adds nothing twice.
+const PREDEFINED_HIKES = [
+  {
+    destination: 'Monte Vettore',
+    route: 'From Forca di Presta via Rifugio Zilioli',
+    passagePoints: ['Forca di Presta', 'Rifugio Tito Zilioli'],
+  },
+  {
+    destination: 'Lago di Pilato',
+    route: 'From Foce along the Valle del Lago',
+    passagePoints: ['Foce', 'Le Svolte'],
+  },
+  {
+    destination: 'Cima del Redentore',
+    route: 'From Forca di Presta along the ridge past Pizzo del Diavolo',
+    passagePoints: ['Forca di Presta', 'Rifugio Tito Zilioli', 'Pizzo del Diavolo'],
+  },
+  {
+    destination: 'Monte Vettoretto',
+    route: 'From Forca di Presta along the grassy south ridge',
+    passagePoints: ['Forca di Presta'],
+  },
+];
+
+async function seedPredefinedHikes() {
+  for (const hike of PREDEFINED_HIKES) {
+    await prisma.predefinedHike.upsert({
+      where: { destination_route: { destination: hike.destination, route: hike.route } },
+      update: { passagePoints: hike.passagePoints },
+      create: hike,
+    });
+  }
+  console.log(`Seeded ${PREDEFINED_HIKES.length} predefined hikes`);
+}
+
 // Prisma reads the @db.Date and @db.Time columns as Dates in UTC.
 const dayAt = (offset: number): Date => {
   const now = new Date();
@@ -116,6 +152,8 @@ async function main() {
   for (const user of SEED_USERS) {
     await seedUser(user);
   }
+
+  await seedPredefinedHikes();
 
   await clearSlots();
   for (let day = 0; day < DAYS; day++) {

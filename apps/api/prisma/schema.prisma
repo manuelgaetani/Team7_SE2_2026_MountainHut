@@ -49,6 +49,7 @@ model Hiker {
 
   user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings Booking[]
+  hikes    Hike[]
 
   @@map("hikers")
 }
@@ -204,4 +205,40 @@ model Notification {
   @@index([userId])
   @@index([bookingId])
   @@map("notifications")
+}
+
+// MH-20: a hike of the hut's list, picked by the hiker to fill the registration (issue #49).
+model PredefinedHike {
+  id            Int      @id @default(autoincrement())
+  destination   String
+  route         String
+  passagePoints String[] @default([]) @map("passage_points")
+
+  hikes Hike[]
+
+  @@unique([destination, route])
+  @@map("predefined_hikes")
+}
+
+// MH-20: a hike registered by a hiker before departure. Departure and return are the hut's local
+// date and time, stored without time zone like the slots; a CHECK keeps the return after the
+// departure.
+model Hike {
+  id               Int      @id @default(autoincrement())
+  hikerId          Int      @map("hiker_id")
+  // Copy of the hike of the list the hiker started from; the fields below are the registered ones.
+  predefinedHikeId Int?     @map("predefined_hike_id")
+  destination      String
+  route            String
+  passagePoints    String[] @default([]) @map("passage_points")
+  departureAt      DateTime @map("departure_at") @db.Timestamp(0)
+  returnAt         DateTime @map("return_at") @db.Timestamp(0)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  hiker          Hiker           @relation(fields: [hikerId], references: [id], onDelete: Cascade)
+  predefinedHike PredefinedHike? @relation(fields: [predefinedHikeId], references: [id], onDelete: SetNull)
+
+  @@index([hikerId, departureAt])
+  @@index([predefinedHikeId])
+  @@map("hikes")
 }
