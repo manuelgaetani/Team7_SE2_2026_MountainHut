@@ -19,6 +19,7 @@ import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
 import { MenuMarkIcon } from './MenuIcons.tsx';
 import { MenuTextField } from './MenuTextField.tsx';
+import { useToast } from './Toast.tsx';
 import './Menu.css';
 import './RequirementsEditor.css';
 
@@ -151,6 +152,60 @@ function MenuForm({
 
   const others = (past.data ?? []).filter((m) => m.slotId !== slot.id);
 
+  const toast = useToast();
+  // Undo toasts of this editor: they make no sense once the editor is closed.
+  const undoToasts = useRef<number[]>([]);
+  useEffect(() => {
+    const ids = undoToasts.current;
+    return () => ids.forEach((id) => toast.dismiss(id));
+  }, [toast]);
+
+  // Puts back what was removed, at the same place, on the latest version of the menu.
+  function showUndo(message: string, restore: (latest: CourseDraft[]) => CourseDraft[]) {
+    const id = toast.show({
+      message,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setCourses(restore);
+          setErrors({});
+          setSaveError(null);
+        },
+      },
+    });
+    undoToasts.current.push(id);
+  }
+
+  function removeCourse(course: CourseDraft, index: number) {
+    edit(courses.filter((c) => c.key !== course.key));
+    showUndo(
+      course.name.trim() ? `Course removed: ${course.name.trim()}.` : 'Course removed.',
+      (latest) => {
+        if (latest.some((c) => c.key === course.key) || latest.length >= MAX_COURSES) return latest;
+        const next = [...latest];
+        next.splice(Math.min(index, latest.length), 0, course);
+        return next;
+      },
+    );
+  }
+
+  function removeDish(courseKeyValue: number, dish: DishDraft, index: number) {
+    edit(
+      courses.map((c) =>
+        c.key === courseKeyValue ? { ...c, dishes: c.dishes.filter((d) => d.key !== dish.key) } : c,
+      ),
+    );
+    showUndo(dish.name.trim() ? `Dish removed: ${dish.name.trim()}.` : 'Dish removed.', (latest) =>
+      latest.map((c) => {
+        if (c.key !== courseKeyValue) return c;
+        if (c.dishes.some((d) => d.key === dish.key) || c.dishes.length >= MAX_DISHES) return c;
+        const dishes = [...c.dishes];
+        dishes.splice(Math.min(index, dishes.length), 0, dish);
+        return { ...c, dishes };
+      }),
+    );
+  }
+
   function edit(next: CourseDraft[]) {
     setCourses(next);
     setErrors({});
@@ -264,7 +319,7 @@ function MenuForm({
               type="button"
               className="requirement__remove"
               aria-label={`Remove the course ${course.name || c + 1}`}
-              onClick={() => edit(courses.filter((x) => x.key !== course.key))}
+              onClick={() => removeCourse(course, c)}
             >
               Remove
             </button>
@@ -343,11 +398,7 @@ function MenuForm({
                   type="button"
                   className="requirement__remove"
                   aria-label={`Remove ${dish.name || `dish ${d + 1}`}`}
-                  onClick={() =>
-                    updateCourse(course.key, {
-                      dishes: course.dishes.filter((x) => x.key !== dish.key),
-                    })
-                  }
+                  onClick={() => removeDish(course.key, dish, d)}
                 >
                   Remove dish
                 </button>
