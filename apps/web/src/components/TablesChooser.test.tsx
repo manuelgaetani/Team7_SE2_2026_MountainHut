@@ -6,6 +6,7 @@ import type { SlotDetails } from '@mountain-hut/shared';
 import type { TablesChoice, TablesMode } from '../lib/slotTables.ts';
 import { json } from '../test/app.tsx';
 import { TablesChooser } from './TablesChooser.tsx';
+import { chooseDate } from '../test/dates.ts';
 
 const TEXT = {
   modeList: 'Enter the tables',
@@ -182,7 +183,7 @@ describe('TablesChooser', () => {
     fireEvent.change(select, { target: { value: '' } });
     expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ copyFromSlotId: null }));
 
-    fireEvent.change(screen.getByLabelText(TEXT.copyDate), { target: { value: '2026-11-11' } });
+    chooseDate(TEXT.copyDate, '2026-11-11');
     expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ copyFromSlotId: null }));
     expect(await screen.findByText(TEXT.noSources)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(

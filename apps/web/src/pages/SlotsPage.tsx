@@ -5,7 +5,7 @@ import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
-import { FormField } from '../components/FormField.tsx';
+import { DateField } from '../components/DateField.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
 import { RepeatWeeklyScheduleDialog } from '../components/RepeatWeeklyScheduleDialog.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
@@ -31,14 +31,12 @@ function SlotsManager() {
   return (
     <div className="layout layout--staff">
       <div className="layout__form">
-        <FormField
+        <DateField
           id="schedule-date"
           label="Day"
-          type="date"
           value={date}
-          onChange={(e) => {
-            if (!e.target.value) return;
-            setDate(e.target.value);
+          onChange={(iso) => {
+            setDate(iso);
             setDefining(null);
           }}
         />

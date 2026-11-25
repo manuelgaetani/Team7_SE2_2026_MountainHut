@@ -91,7 +91,8 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     // 1. Staff creates a slot with Table 1 (4 seats) via UI
     await signIn(page, employeeUser);
     await page.goto('/staff/slots');
-    await page.getByLabel('Day', { exact: true }).fill(testDate);
+    // The day is opened by its address: the test dates are decades ahead.
+    await page.goto(`/staff/slots?date=${testDate}`);
     await page.getByLabel('Start').fill('12:00');
     await page.getByLabel('End').fill('13:30');
     await page.getByLabel('Seats, row 1').fill('4');

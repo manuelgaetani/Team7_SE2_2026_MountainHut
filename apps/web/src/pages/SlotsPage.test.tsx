@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FloorPlan, SlotDetails } from '@mountain-hut/shared';
+import { chooseDate, shownDate } from '../test/dates.ts';
 import { routes } from '../router.tsx';
 
 const employeeUser = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
@@ -159,13 +160,18 @@ describe('SlotsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('ignores clearing the day input value', async () => {
+  it('shows the day in the date field, which opens the calendar of the site', async () => {
     stubSlotsApi();
     renderSlotsPage();
 
-    const dayInput = await screen.findByLabelText('Day');
-    fireEvent.change(dayInput, { target: { value: '' } });
-    expect(dayInput).toHaveValue('2026-11-04');
+    const day = await screen.findByLabelText('Day');
+    expect(day).toHaveTextContent(shownDate('2026-11-04'));
+    fireEvent.click(day);
+    expect(screen.getByRole('group', { name: 'Calendar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wed 4 Nov' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('shows an error notice when schedule loading fails', async () => {
@@ -201,8 +207,7 @@ describe('SlotsPage', () => {
 
     expect(await screen.findByText('12:00–13:00')).toBeInTheDocument();
 
-    const dayInput = screen.getByLabelText('Day');
-    fireEvent.change(dayInput, { target: { value: '2026-11-05' } });
+    chooseDate('Day', '2026-11-05');
 
     expect(await screen.findByText('11:00–12:00')).toBeInTheDocument();
     expect(screen.queryByText('12:00–13:00')).not.toBeInTheDocument();
@@ -499,8 +504,7 @@ describe('SlotsPage', () => {
     fireEvent.click(copyRadio);
 
     // Change copy date
-    const copyDateInput = screen.getByLabelText('Day of the slot to copy');
-    fireEvent.change(copyDateInput, { target: { value: '2026-11-04' } });
+    chooseDate('Day of the slot to copy', '2026-11-04');
 
     // Select slot 1
     const select = await screen.findByLabelText('Copy the tables of');
@@ -688,7 +692,7 @@ describe('SlotsPage', () => {
     renderSlotsPage();
     await screen.findByText('12:00–13:00');
 
-    fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-11-05' } });
+    chooseDate('Day', '2026-11-05');
     fireEvent.click(await screen.findByRole('link', { name: 'Floor plan of 11:00–12:00' }));
 
     expect(await screen.findByLabelText('Tables of the slot')).toBeInTheDocument();
@@ -696,7 +700,7 @@ describe('SlotsPage', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Back to the time slots' }));
 
-    expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-05');
+    expect(await screen.findByLabelText('Day')).toHaveTextContent(shownDate('2026-11-05'));
     expect(await screen.findByText('11:00–12:00')).toBeInTheDocument();
   });
 
@@ -704,7 +708,7 @@ describe('SlotsPage', () => {
     const fetchMock = stubSlotsApi({ schedule: { '2026-11-05': [] } });
     renderSlotsPage('/staff/slots?date=2026-11-05');
 
-    expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-05');
+    expect(await screen.findByLabelText('Day')).toHaveTextContent(shownDate('2026-11-05'));
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/slots/schedule?date=2026-11-05',
       expect.anything(),
@@ -717,7 +721,7 @@ describe('SlotsPage', () => {
       stubSlotsApi();
       renderSlotsPage(`/staff/slots?date=${date}`);
 
-      expect(await screen.findByLabelText('Day')).toHaveValue('2026-11-04');
+      expect(await screen.findByLabelText('Day')).toHaveTextContent(shownDate('2026-11-04'));
     },
   );
 
@@ -734,17 +738,13 @@ describe('SlotsPage', () => {
     expect(select).toHaveValue('1');
 
     // A day with only slots without tables: nothing to copy, and the choice is cleared.
-    fireEvent.change(screen.getByLabelText('Day of the slot to copy'), {
-      target: { value: '2026-11-05' },
-    });
+    chooseDate('Day of the slot to copy', '2026-11-05');
     expect(screen.getByText('Loading the slots of the day…')).toBeInTheDocument();
     expect(await screen.findByText('No slot with tables on this day.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Copy the tables of')).not.toBeInTheDocument();
 
     // Back to the first day: the previous choice is gone.
-    fireEvent.change(screen.getByLabelText('Day of the slot to copy'), {
-      target: { value: '2026-11-04' },
-    });
+    chooseDate('Day of the slot to copy', '2026-11-04');
     expect(await screen.findByLabelText('Copy the tables of')).toHaveValue('');
   });
 

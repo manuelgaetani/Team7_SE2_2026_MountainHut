@@ -1,0 +1,93 @@
+/* The one month view of the site (Book a table, Modify booking, Availability, staff pages).
+   It floats over the content: the page that holds it sets where (see .day-picker, .date-field). */
+.calendar {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+}
+.calendar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.calendar__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.calendar__nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--green-dark);
+  font-size: 18px;
+  line-height: 0;
+  cursor: pointer;
+}
+.calendar__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.calendar__weekday {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.calendar__day {
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.calendar__day:hover:not(:disabled) {
+  border-color: var(--green);
+}
+.calendar__day[aria-pressed='true'] {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+/* Days that cannot be chosen: visible for orientation, but disabled. */
+.calendar__day:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.calendar__day:focus-visible,
+.calendar__nav:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
+}
+.calendar__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
