@@ -447,39 +447,42 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
         )}
         {saveError && <ErrorNotice message={saveError} />}
 
-        {confirming ? (
-          <div className="modify-dialog__discard">
-            <p className="modify-dialog__discard-title">Discard your changes?</p>
+        {/* Always in sight at the bottom of the dialog, also while scrolling the dishes. */}
+        <div className="menu-editor__footer">
+          {confirming ? (
+            <div className="modify-dialog__discard">
+              <p className="modify-dialog__discard-title">Discard your changes?</p>
+              <div className="modify-dialog__actions">
+                <button
+                  ref={keepRef}
+                  type="button"
+                  className="modify-dialog__secondary"
+                  onClick={() => setConfirming(null)}
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  className="modify-dialog__danger"
+                  onClick={() =>
+                    confirming.kind === 'close' ? onClose() : startWith(confirming.value)
+                  }
+                >
+                  Discard
+                </button>
+              </div>
+            </div>
+          ) : (
             <div className="modify-dialog__actions">
-              <button
-                ref={keepRef}
-                type="button"
-                className="modify-dialog__secondary"
-                onClick={() => setConfirming(null)}
-              >
-                Keep editing
+              <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
+                Close
               </button>
-              <button
-                type="button"
-                className="modify-dialog__danger"
-                onClick={() =>
-                  confirming.kind === 'close' ? onClose() : startWith(confirming.value)
-                }
-              >
-                Discard
+              <button type="submit" className="modify-dialog__primary" disabled={save.isPending}>
+                {save.isPending ? 'Saving menu…' : 'Save menu'}
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="modify-dialog__actions">
-            <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
-              Close
-            </button>
-            <button type="submit" className="modify-dialog__primary" disabled={save.isPending}>
-              {save.isPending ? 'Saving menu…' : 'Save menu'}
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </form>
     </FormDialog>
   );
