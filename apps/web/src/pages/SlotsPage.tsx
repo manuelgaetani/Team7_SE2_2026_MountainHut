@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
@@ -11,6 +11,8 @@ import { MenuPreviewDialog } from '../components/MenuPreviewDialog.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
 import { RepeatWeeklyScheduleDialog } from '../components/RepeatWeeklyScheduleDialog.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
+import { SlotSheet } from '../components/SlotSheet.tsx';
+import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { isIsoDate, toIsoDate } from '../lib/dates.ts';
 import { slotErrorMessage } from '../lib/slotTables.ts';
 import './BookingPage.css';
@@ -33,6 +35,31 @@ function SlotsManager() {
   const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
   const toast = useToast();
+  // Where the side panel stacks under the slots (see .layout), it becomes a dialog instead.
+  const narrow = useMediaQuery('(max-width: 820px)');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    setDefining(null);
+  }, []);
+
+  const side = defining ? (
+    <DefineTablesForm
+      key={defining.id}
+      slot={defining}
+      onDone={(message) => {
+        setDefining(null);
+        setSheetOpen(false);
+        toast.show({ message });
+      }}
+      onCancel={() => {
+        setDefining(null);
+        setSheetOpen(false);
+      }}
+    />
+  ) : (
+    <NewSlotForm key={date} date={date} onCreated={() => setSheetOpen(false)} />
+  );
 
   return (
     <div className="layout layout--staff">
@@ -56,28 +83,28 @@ function SlotsManager() {
         {schedule.isSuccess && (
           <SlotSchedule
             slots={schedule.data}
-            onDefineTables={setDefining}
+            onDefineTables={(slot) => {
+              setDefining(slot);
+              setSheetOpen(true);
+            }}
             onDefineMenu={setMenuSlot}
             onShowMenu={setPreviewSlot}
           />
         )}
       </div>
 
-      <div className="layout__side">
-        {defining ? (
-          <DefineTablesForm
-            key={defining.id}
-            slot={defining}
-            onDone={(message) => {
-              setDefining(null);
-              toast.show({ message });
-            }}
-            onCancel={() => setDefining(null)}
-          />
-        ) : (
-          <NewSlotForm key={date} date={date} />
-        )}
-      </div>
+      {narrow ? (
+        <SlotSheet
+          open={sheetOpen}
+          onOpen={() => setSheetOpen(true)}
+          onClose={closeSheet}
+          labelledBy={defining ? 'define-tables' : 'new-slot'}
+        >
+          {side}
+        </SlotSheet>
+      ) : (
+        <div className="layout__side">{side}</div>
+      )}
       {menuSlot && (
         <MenuEditor
           key={menuSlot.id}

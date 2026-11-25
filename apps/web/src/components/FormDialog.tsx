@@ -1,9 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './ModifyBookingDialog.css';
-import './Menu.css';
 
-interface MenuDialogProps {
+interface FormDialogProps {
   onClose: () => void;
   // The id of the heading that names the dialog.
   labelledBy: string;
@@ -14,7 +13,7 @@ interface MenuDialogProps {
 // A dialog in the style of "Modify booking": the backdrop and the × ask to close, the focus goes
 // into the dialog and back to the button that opened it. Escape is left to the content, which
 // may have a question to answer first.
-export function MenuDialog({ onClose, labelledBy, className = '', children }: MenuDialogProps) {
+export function FormDialog({ onClose, labelledBy, className = '', children }: FormDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -32,7 +31,7 @@ export function MenuDialog({ onClose, labelledBy, className = '', children }: Me
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className={`dialog modify-dialog menu-dialog ${className}`}
+        className={`dialog modify-dialog ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

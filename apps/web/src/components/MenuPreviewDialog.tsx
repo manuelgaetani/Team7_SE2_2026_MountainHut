@@ -1,7 +1,7 @@
 import { useEffect, useId } from 'react';
 import type { SlotDetails } from '../api/slots.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
-import { MenuDialog } from './MenuDialog.tsx';
+import { FormDialog } from './FormDialog.tsx';
 import { SlotMenuCard } from './SlotMenuCard.tsx';
 
 interface MenuPreviewDialogProps {
@@ -21,7 +21,7 @@ export function MenuPreviewDialog({ slot, onClose }: MenuPreviewDialogProps) {
   }, [onClose]);
 
   return (
-    <MenuDialog onClose={onClose} labelledBy={titleId} className="menu-preview">
+    <FormDialog onClose={onClose} labelledBy={titleId} className="menu-dialog menu-preview">
       <p className="modify-dialog__eyebrow">As hikers see it</p>
       <h2 id={titleId} className="dialog__title">
         {slot.startTime}–{slot.endTime}, {dateShort(fromIsoDate(slot.date))}
@@ -32,6 +32,6 @@ export function MenuPreviewDialog({ slot, onClose }: MenuPreviewDialogProps) {
           Close
         </button>
       </div>
-    </MenuDialog>
+    </FormDialog>
   );
 }

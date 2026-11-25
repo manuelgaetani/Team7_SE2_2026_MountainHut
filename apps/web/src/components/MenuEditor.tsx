@@ -17,7 +17,7 @@ import {
 } from '../lib/menu.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
-import { MenuDialog } from './MenuDialog.tsx';
+import { FormDialog } from './FormDialog.tsx';
 import { MenuMarkIcon } from './MenuIcons.tsx';
 import { MenuTextField } from './MenuTextField.tsx';
 import { useToast } from './Toast.tsx';
@@ -116,7 +116,7 @@ export function MenuEditor(props: MenuEditorProps) {
 
   if (saved.isSuccess) return <MenuForm {...props} saved={saved.data} />;
   return (
-    <MenuDialog onClose={props.onClose} labelledBy="menu-editor-title">
+    <FormDialog onClose={props.onClose} labelledBy="menu-editor-title" className="menu-dialog">
       <MenuHeading slot={props.slot} />
       {saved.isPending ? (
         <p role="status">Loading the menu…</p>
@@ -128,7 +128,7 @@ export function MenuEditor(props: MenuEditorProps) {
           Close
         </button>
       </div>
-    </MenuDialog>
+    </FormDialog>
   );
 }
 
@@ -273,7 +273,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   }
 
   return (
-    <MenuDialog onClose={requestClose} labelledBy="menu-editor-title">
+    <FormDialog onClose={requestClose} labelledBy="menu-editor-title" className="menu-dialog">
       <MenuHeading slot={slot} />
       <form
         className="menu-editor"
@@ -481,6 +481,6 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
           </div>
         )}
       </form>
-    </MenuDialog>
+    </FormDialog>
   );
 }

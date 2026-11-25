@@ -204,16 +204,16 @@
   }
 }
 
-/* Time slots: the menu button of a slot card, with how many courses are written. */
-.schedule__menu {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+/* Time slots: under the seats of a slot card, how many courses its menu has. */
+.schedule__meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
 }
 .schedule__menu-meta {
-  font-size: 12px;
   white-space: nowrap;
 }
+
 /* The staff editor, in a dialog in the style of Modify booking (.dialog, .modify-dialog). */
 .menu-dialog {
   width: min(100%, 760px);

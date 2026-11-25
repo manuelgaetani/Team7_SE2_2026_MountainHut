@@ -17,9 +17,11 @@ import { useToast } from './Toast.tsx';
 
 interface NewSlotFormProps {
   date: string;
+  // Called once the slot is created, after the toast (e.g. to close the dialog on a phone).
+  onCreated?: () => void;
 }
 
-export function NewSlotForm({ date }: NewSlotFormProps) {
+export function NewSlotForm({ date, onCreated }: NewSlotFormProps) {
   const create = useCreateSlot();
   const toast = useToast();
   const [startTime, setStartTime] = useState('');
@@ -72,6 +74,7 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
           setStartTime('');
           setEndTime('');
           setTables(emptyTablesChoice());
+          onCreated?.();
         },
         onError: (e) => setError(slotErrorMessage(e)),
       },
