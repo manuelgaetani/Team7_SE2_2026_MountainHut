@@ -189,6 +189,7 @@ test.describe('MH-05 Black-Box Web UI: Party Requirements and Allergies', () => 
       'Nut-free',
       'Soy-free',
       'Vegan',
+      'Vegetarian',
     ]) {
       await expect(row.getByRole('checkbox', { name })).toBeVisible();
     }
