@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSchedule } from '../api/useSlots.ts';
-import { nextTableNumber, seatsLabel, tablesLabel } from '../lib/slotTables.ts';
+import { MAX_TABLE_NUMBER, nextTableNumber, seatsLabel, tablesLabel } from '../lib/slotTables.ts';
 import type { TableDraft, TablesChoice, TablesMode } from '../lib/slotTables.ts';
 import { DateField } from './DateField.tsx';
 
@@ -96,6 +96,7 @@ function TableRows({
           <input
             type="number"
             min={1}
+            max={MAX_TABLE_NUMBER}
             inputMode="numeric"
             aria-label={`Table number, row ${i + 1}`}
             value={row.tableNumber}
@@ -125,9 +126,10 @@ function TableRows({
         <button
           type="button"
           className="pill"
+          disabled={rows.length >= MAX_TABLE_NUMBER}
           onClick={() => onChange([...rows, { tableNumber: nextTableNumber(rows), seats: '' }])}
         >
-          Add a table
+          {rows.length >= MAX_TABLE_NUMBER ? `At most ${MAX_TABLE_NUMBER} tables` : 'Add a table'}
         </button>
         <span className="field__meta">
           {tablesLabel(rows.length)} · {seatsLabel(total)}
