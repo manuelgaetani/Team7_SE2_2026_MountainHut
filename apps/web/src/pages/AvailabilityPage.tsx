@@ -5,9 +5,11 @@ import { checkAvailabilityQuerySchema } from '@mountain-hut/shared';
 import type { AvailabilityResult, CheckAvailabilityQuery } from '@mountain-hut/shared';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useAvailability } from '../api/useAvailability.ts';
-import { FormField } from '../components/FormField.tsx';
+import { DateField } from '../components/DateField.tsx';
 import { GuestStepper } from '../components/GuestStepper.tsx';
+import { TimeField } from '../components/TimeField.tsx';
 import { toIsoDate } from '../lib/dates.ts';
+import { normalizeTime } from '../lib/time.ts';
 import { askedLabel, availabilityError, unavailableReason } from '../lib/availability.ts';
 import { authPath, bookingPath } from '../lib/bookingRedirect.ts';
 import './BookingPage.css';
@@ -93,7 +95,7 @@ export function AvailabilityPage() {
     e.preventDefault();
     const parsed = checkAvailabilityQuerySchema.safeParse({
       date,
-      time,
+      time: normalizeTime(time),
       partySize: String(partySize),
     });
     if (!parsed.success) {
@@ -110,33 +112,39 @@ export function AvailabilityPage() {
     setAsked(parsed.data);
   }
 
+  const image = `${import.meta.env.BASE_URL}Monte-Vettore2.webp`;
+
   return (
-    <div className="page">
-      <div className="page__body availability-page">
-        <h2 className="page__title">Check availability</h2>
-        <p className="page__subtitle">
-          See if the hut has a table for your party. No account needed.
-        </p>
+    <section className="availability-hero">
+      <img className="availability-hero__image" src={image} alt="" />
+      <div className="availability-hero__overlay" />
+
+      <div className="availability-hero__content availability-page">
+        <div className="availability-hero__text">
+          <p className="eyebrow">Mountain hut · Monte Vettore</p>
+          <h1 className="page__title">Check availability</h1>
+          <p className="page__subtitle">
+            See if the hut has a table for your party. No account needed.
+          </p>
+        </div>
 
         <div className="availability">
           <form className="summary availability-form" onSubmit={onSubmit} noValidate>
             <div className="availability-form__fields">
-              <FormField
+              <DateField
                 id="availability-date"
                 label="Date"
-                type="date"
                 min={toIsoDate(new Date())}
                 value={date}
                 error={errors.date}
-                onChange={(e) => edit(setDate)(e.target.value)}
+                onChange={edit(setDate)}
               />
-              <FormField
+              <TimeField
                 id="availability-time"
                 label="Time"
-                type="time"
                 value={time}
                 error={errors.time}
-                onChange={(e) => edit(setTime)(e.target.value)}
+                onChange={edit(setTime)}
               />
             </div>
             <GuestStepper
@@ -161,6 +169,6 @@ export function AvailabilityPage() {
           {check.isSuccess && <Result result={check.data} />}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

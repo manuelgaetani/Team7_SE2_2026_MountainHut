@@ -74,13 +74,13 @@ export function bookingStatus(bookingId: number): string {
 // The party requirements stored for a booking, in the order the hiker entered them (MH-05).
 export function partyRequirements(
   bookingId: number,
-): { allergies: boolean; description: string }[] {
+): { restrictions: string[]; allergies: boolean; description: string }[] {
   const json = sql(
-    `SELECT COALESCE(json_agg(json_build_object('allergies', allergies, 'description', description)
-       ORDER BY id), '[]')
+    `SELECT COALESCE(json_agg(json_build_object('restrictions', restrictions,
+       'allergies', allergies, 'description', description) ORDER BY id), '[]')
      FROM party_requirements WHERE booking_id = ${Number(bookingId)};`,
   );
-  return JSON.parse(json) as { allergies: boolean; description: string }[];
+  return JSON.parse(json) as { restrictions: string[]; allergies: boolean; description: string }[];
 }
 
 // How many stored party requirements have exactly this description, in any booking (MH-05).

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import type {
   ChangeBookingInput,
   MyBooking,
@@ -10,11 +9,18 @@ import type {
 import { useBookableSlots, useChangeBooking, useSendBookingChange } from '../api/useBookings.ts';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
+import {
+  draftErrors,
+  sameRequirements,
+  toDraft,
+  toRequirement,
+  type RequirementDraft,
+} from '../lib/requirements.ts';
 import './ModifyBookingDialog.css';
 import { DayPicker } from './DayPicker.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { GuestStepper } from './GuestStepper.tsx';
-import { RequirementsEditor, type RequirementDraft } from './RequirementsEditor.tsx';
+import { RequirementsEditor } from './RequirementsEditor.tsx';
 import { TimeSlotPicker } from './TimeSlotPicker.tsx';
 import { useToast } from './Toast.tsx';
 
@@ -24,18 +30,13 @@ interface ModifyBookingDialogProps {
 }
 
 const toRows = (list: PartyRequirement[]): RequirementDraft[] =>
-  list.map((r, i) => ({ ...r, key: i + 1 }));
+  list.map((r, i) => toDraft(r, i + 1));
 
-// What the rows will be once saved: trimmed descriptions, without the keys.
-const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] =>
-  rows.map((r) => ({ allergies: r.allergies, description: r.description.trim() }));
+// What the rows will be once saved, without the keys.
+const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] => rows.map(toRequirement);
 
 const seatsLeft = (n: number): string =>
   `${n} ${n === 1 ? 'seat' : 'seats'} available at this time`;
-
-const sameRequirements = (a: PartyRequirement[], b: PartyRequirement[]): boolean =>
-  a.length === b.length &&
-  a.every((r, i) => r.allergies === b[i].allergies && r.description === b[i].description);
 
 export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogProps) {
   const slotsQuery = useBookableSlots();
@@ -127,14 +128,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const found: Partial<Record<number, string>> = {};
-    for (const row of rows) {
-      const length = row.description.trim().length;
-      if (length === 0) found[row.key] = 'Describe the requirement or remove it.';
-      if (length > MAX_REQUIREMENTS_LENGTH) {
-        found[row.key] = `A requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters.`;
-      }
-    }
+    const found = draftErrors(rows);
     setErrors(found);
     if (Object.keys(found).length > 0) {
       setFormError(null);

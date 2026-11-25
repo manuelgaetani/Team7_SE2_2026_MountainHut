@@ -146,3 +146,27 @@ test('explains why a booking fails when the seats were taken meanwhile', async (
     deleteSlot(slotId);
   }
 });
+
+test('the time is also chosen from the list under the time range, as the day from the calendar', async ({
+  page,
+  registeredUser,
+}) => {
+  const slotId = createSlot([4]);
+  try {
+    await signIn(page, registeredUser);
+    const slots = await openBookingPage(page, () => page.goto('/book'));
+    const slot = await chooseDayOf(page, slots, slotId);
+
+    await page.getByRole('button', { name: /choose a time from the list/ }).click();
+    const list = page.getByRole('group', { name: 'Times' });
+    await list.getByRole('button', { name: SLOT(slot.startTime) }).click();
+
+    await expect(list).toHaveCount(0);
+    await expect(page.getByRole('radio', { name: SLOT(slot.startTime) })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  } finally {
+    deleteSlot(slotId);
+  }
+});

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSchedule } from '../api/useSlots.ts';
 import { nextTableNumber, seatsLabel, tablesLabel } from '../lib/slotTables.ts';
 import type { TableDraft, TablesChoice, TablesMode } from '../lib/slotTables.ts';
-import { FormField } from './FormField.tsx';
+import { DateField } from './DateField.tsx';
 
 const MODE_LABELS: Record<TablesMode, string> = {
   list: 'Enter the tables',
@@ -158,13 +158,12 @@ function CopySource({
 
   return (
     <div className="copy-source">
-      <FormField
+      <DateField
         id={`${idPrefix}-copy-date`}
         label="Day of the slot to copy"
-        type="date"
         value={date}
-        onChange={(e) => {
-          setDate(e.target.value);
+        onChange={(iso) => {
+          setDate(iso);
           onChange(null);
         }}
       />

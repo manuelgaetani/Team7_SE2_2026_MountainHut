@@ -1,0 +1,71 @@
+/* The floating panels of the pickers (the calendar of the days, the list of the times):
+   the same button opens them, and they lie over the content without moving it. */
+
+/* The label above a strip (month and calendar icon, time range and clock icon). */
+.picker-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.picker-toggle:hover,
+.picker-toggle[aria-expanded='true'] {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--green-dark);
+}
+.picker-toggle:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
+}
+
+/* The panel is positioned against this wrapper of the button, aligned to its right edge. */
+.picker-anchor {
+  position: relative;
+}
+.picker-anchor > .popover {
+  right: 0;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+}
+.popover__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* On phones the panel takes the width of the field, so it never leaves the screen. */
+.picker {
+  position: relative;
+}
+@media (max-width: 600px) {
+  .picker-anchor {
+    position: static;
+  }
+  .picker-anchor > .popover {
+    top: 40px;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+  }
+}

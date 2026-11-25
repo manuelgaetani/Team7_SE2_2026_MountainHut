@@ -25,10 +25,15 @@ interface BookingResponse {
 
 // One entry of the requirements list (MH-05).
 interface Need {
+  restrictions: string[];
   allergies: boolean;
   description: string;
 }
-const need = (description: string, allergies = false): Need => ({ allergies, description });
+const need = (description: string, allergies = false): Need => ({
+  restrictions: [],
+  allergies,
+  description,
+});
 
 interface SlotSummary {
   id: number;

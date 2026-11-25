@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SlotSummary } from '@mountain-hut/shared';
 import { isBookable, TimeSlotPicker } from './TimeSlotPicker.tsx';
@@ -125,5 +125,72 @@ describe('TimeSlotPicker', () => {
   it('names the radiogroup What time? by default', () => {
     render(<TimeSlotPicker slots={sampleSlots} guests={1} value={null} onChange={vi.fn()} />);
     expect(screen.getByRole('radiogroup', { name: 'What time?' })).toBeInTheDocument();
+  });
+
+  describe('list of the times', () => {
+    const openList = () =>
+      fireEvent.click(
+        screen.getByRole('button', { name: '12:00–11:00, choose a time from the list' }),
+      );
+    const list = () => within(screen.getByRole('group', { name: 'Times' }));
+
+    it('opens from the range button, in order of time, focused on the chosen time', () => {
+      render(<TimeSlotPicker slots={sampleSlots} guests={1} value={2} onChange={vi.fn()} />);
+      expect(screen.queryByRole('group', { name: 'Times' })).not.toBeInTheDocument();
+      openList();
+      const toggle = screen.getByRole('button', { name: /choose a time from the list/ });
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      const times = list().getAllByRole('button');
+      expect(times.map((b) => b.getAttribute('aria-label'))).toEqual([
+        '10:00–11:00, Closed',
+        '12:00–14:00',
+        '19:00–21:00',
+        '21:00–23:00, Full',
+      ]);
+      expect(list().getByRole('button', { name: '19:00–21:00' })).toHaveFocus();
+      expect(list().getByRole('button', { name: '19:00–21:00' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      expect(list().getByRole('button', { name: '21:00–23:00, Full' })).toBeDisabled();
+    });
+
+    it('picks a time, closes and gives the focus back to the button', () => {
+      const onChange = vi.fn();
+      render(<TimeSlotPicker slots={sampleSlots} guests={1} value={null} onChange={onChange} />);
+      openList();
+      fireEvent.click(list().getByRole('button', { name: '19:00–21:00' }));
+      expect(onChange).toHaveBeenCalledWith(2);
+      expect(screen.queryByRole('group', { name: 'Times' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /choose a time from the list/ })).toHaveFocus();
+    });
+
+    it('moves with the arrows between the times that can be chosen, and closes on Escape', () => {
+      render(<TimeSlotPicker slots={sampleSlots} guests={1} value={null} onChange={vi.fn()} />);
+      openList();
+      const first = list().getByRole('button', { name: '12:00–14:00' });
+      expect(first).toHaveFocus();
+      fireEvent.keyDown(first, { key: 'ArrowRight' });
+      expect(list().getByRole('button', { name: '19:00–21:00' })).toHaveFocus();
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
+      expect(list().getByRole('button', { name: '19:00–21:00' })).toHaveFocus();
+      fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+      expect(first).toHaveFocus();
+      fireEvent.keyDown(first, { key: 'Escape' });
+      expect(screen.queryByRole('group', { name: 'Times' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /choose a time from the list/ })).toHaveFocus();
+    });
+
+    it('closes on a click outside', () => {
+      render(<TimeSlotPicker slots={sampleSlots} guests={1} value={null} onChange={vi.fn()} />);
+      openList();
+      fireEvent.mouseDown(document.body);
+      expect(screen.queryByRole('group', { name: 'Times' })).not.toBeInTheDocument();
+    });
+
+    it('has no button when there are no times', () => {
+      render(<TimeSlotPicker slots={[]} guests={1} value={null} onChange={vi.fn()} />);
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
   });
 });

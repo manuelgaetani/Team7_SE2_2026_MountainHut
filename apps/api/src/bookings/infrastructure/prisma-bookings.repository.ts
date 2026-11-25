@@ -106,7 +106,8 @@ export class PrismaBookingsRepository extends BookingsRepository {
              b.party_size,
              -- The MH-05 requirements as a JSON list, in the order the hiker entered them.
              COALESCE(
-               (SELECT json_agg(json_build_object('allergies', pr.allergies,
+               (SELECT json_agg(json_build_object('restrictions', pr.restrictions,
+                                                  'allergies', pr.allergies,
                                                   'description', pr.description) ORDER BY pr.id)
                 FROM party_requirements pr
                 WHERE pr.booking_id = b.id),
@@ -309,11 +310,13 @@ export class PrismaBookingsRepository extends BookingsRepository {
   }
 
   async findRequirements(bookingId: number): Promise<PartyRequirement[]> {
-    return this.db().partyRequirement.findMany({
+    const rows = await this.db().partyRequirement.findMany({
       where: { bookingId },
-      select: { allergies: true, description: true },
+      select: { restrictions: true, allergies: true, description: true },
       orderBy: { id: 'asc' },
     });
+    // Only codes of DIETARY_OPTIONS are stored: the schema checks them before the insert.
+    return rows as PartyRequirement[];
   }
 
   async replaceRequirements(bookingId: number, requirements: PartyRequirement[]): Promise<void> {

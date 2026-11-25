@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   checkAvailabilityQuerySchema,
   createBookingSchema,
+  DIETARY_OPTIONS,
+  hasAllergy,
   MAX_REQUIREMENTS_COUNT,
+  partyRequirementSchema,
+  requirementText,
 } from './bookings.js';
 
 const MAX_DB_INT = 2_147_483_647;
@@ -43,20 +47,22 @@ describe('createBookingSchema', () => {
   it('trims the description of a requirement', () => {
     const parsed = createBookingSchema.parse({
       ...validBooking,
-      requirements: [{ allergies: true, description: '  no nuts ' }],
+      requirements: [{ restrictions: [], allergies: true, description: '  no nuts ' }],
     });
-    expect(parsed.requirements).toEqual([{ allergies: true, description: 'no nuts' }]);
+    expect(parsed.requirements).toEqual([
+      { restrictions: [], allergies: true, description: 'no nuts' },
+    ]);
   });
 
   it('accepts a description up to the maximum length', () => {
-    const requirements = [{ allergies: false, description: 'a'.repeat(500) }];
+    const requirements = [{ restrictions: [], allergies: false, description: 'a'.repeat(500) }];
     expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(true);
   });
 
   it.each(['a'.repeat(501), 'no\u0000nuts', '', '   ', 5, null])(
     'rejects the description %j',
     (description) => {
-      const requirements = [{ allergies: false, description }];
+      const requirements = [{ restrictions: [], allergies: false, description }];
       expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(false);
     },
   );
@@ -84,7 +90,11 @@ describe('createBookingSchema', () => {
   });
 
   it.each(['description', 'allergies'])('rejects a requirement without %s', (field) => {
-    const requirement: Record<string, unknown> = { allergies: true, description: 'no nuts' };
+    const requirement: Record<string, unknown> = {
+      restrictions: [],
+      allergies: true,
+      description: 'no nuts',
+    };
     delete requirement[field];
     const parsed = createBookingSchema.safeParse({ ...validBooking, requirements: [requirement] });
     expect(parsed.success).toBe(false);
@@ -92,8 +102,8 @@ describe('createBookingSchema', () => {
 
   it('rejects the whole list when one requirement is not valid', () => {
     const requirements = [
-      { allergies: true, description: 'no nuts' },
-      { allergies: false, description: '' },
+      { restrictions: [], allergies: true, description: 'no nuts' },
+      { restrictions: [], allergies: false, description: '' },
     ];
     expect(createBookingSchema.safeParse({ ...validBooking, requirements }).success).toBe(false);
   });
@@ -105,14 +115,16 @@ describe('createBookingSchema', () => {
       ...validBooking,
       requirements: [{ id: 7, bookingId: 99, allergies: true, description: 'no nuts' }],
     });
-    expect(parsed.requirements).toEqual([{ allergies: true, description: 'no nuts' }]);
+    expect(parsed.requirements).toEqual([
+      { restrictions: [], allergies: true, description: 'no nuts' },
+    ]);
   });
 
   it('keeps the requirements in the order the hiker entered them', () => {
     const requirements = [
-      { allergies: true, description: '1 vegan, peanut allergy' },
-      { allergies: true, description: '1 shellfish allergy' },
-      { allergies: false, description: '2 vegetarians' },
+      { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+      { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+      { restrictions: [], allergies: false, description: '2 vegetarians' },
     ];
     expect(createBookingSchema.parse({ ...validBooking, requirements }).requirements).toEqual(
       requirements,
@@ -212,5 +224,100 @@ describe('checkAvailabilityQuerySchema', () => {
         partySize: 7,
       });
     });
+  });
+});
+
+// Issue from Team 16: the needs are picked from the list of the hut, with free text for the rest.
+describe('partyRequirementSchema with the needs of the hut', () => {
+  const parse = (value: unknown) => partyRequirementSchema.safeParse(value);
+
+  it('lists each need once, with a code and a label', () => {
+    const codes = DIETARY_OPTIONS.map((o) => o.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(DIETARY_OPTIONS.map((o) => o.label)).toEqual([
+      'Gluten-free',
+      'Lactose-free',
+      'Egg-free',
+      'Nut-free',
+      'Soy-free',
+      'Vegan',
+      'Vegetarian',
+    ]);
+  });
+
+  it('accepts listed needs without a description', () => {
+    const parsed = parse({
+      restrictions: ['GLUTEN_FREE', 'VEGAN'],
+      allergies: false,
+      description: '',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('accepts a description without listed needs, as older clients send it', () => {
+    expect(parse({ allergies: true, description: 'shellfish' }).data).toEqual({
+      restrictions: [],
+      allergies: true,
+      description: 'shellfish',
+    });
+  });
+
+  it.each(['', '   '])('rejects an entry with no need and description %j', (description) => {
+    expect(parse({ restrictions: [], allergies: false, description }).success).toBe(false);
+  });
+
+  it.each([['MEAT_FREE'], ['gluten_free'], [1]])('rejects the unknown need %j', (...codes) => {
+    expect(parse({ restrictions: codes, allergies: false, description: '' }).success).toBe(false);
+  });
+
+  it('rejects the same need twice', () => {
+    const restrictions = ['VEGAN', 'VEGAN'];
+    expect(parse({ restrictions, allergies: false, description: '' }).success).toBe(false);
+  });
+});
+
+describe('hasAllergy', () => {
+  const need = (restrictions: string[], allergies: boolean, description: string) =>
+    partyRequirementSchema.parse({ restrictions, allergies, description });
+
+  it('is true for a listed allergen', () => {
+    expect(hasAllergy(need(['LACTOSE_FREE'], false, ''))).toBe(true);
+  });
+
+  it('is false for vegan only, which is a choice and not an allergy', () => {
+    expect(hasAllergy(need(['VEGAN'], false, ''))).toBe(false);
+  });
+
+  it('is false for vegetarian only', () => {
+    expect(hasAllergy(need(['VEGETARIAN'], false, ''))).toBe(false);
+  });
+
+  it('follows the flag of the free text', () => {
+    expect(hasAllergy(need([], true, 'shellfish'))).toBe(true);
+    expect(hasAllergy(need([], false, 'vegetarian'))).toBe(false);
+  });
+
+  it('ignores the flag when there is no free text', () => {
+    expect(hasAllergy(need(['VEGAN'], true, ''))).toBe(false);
+  });
+});
+
+describe('requirementText', () => {
+  it('names the listed needs first, then the free text', () => {
+    const r = partyRequirementSchema.parse({
+      restrictions: ['GLUTEN_FREE', 'VEGAN'],
+      allergies: true,
+      description: 'shellfish',
+    });
+    expect(requirementText(r)).toBe('Gluten-free, Vegan, shellfish');
+  });
+
+  it('leaves out an empty description', () => {
+    const r = partyRequirementSchema.parse({
+      restrictions: ['EGG_FREE'],
+      allergies: false,
+      description: '',
+    });
+    expect(requirementText(r)).toBe('Egg-free');
   });
 });

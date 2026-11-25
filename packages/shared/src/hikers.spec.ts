@@ -218,7 +218,11 @@ describe('createStaffBookingSchema', () => {
 
   // MH-05: the requirements are a list, one entry per part of the party.
   describe('requirements', () => {
-    const entry = (description: string, allergies = false) => ({ allergies, description });
+    const entry = (description: string, allergies = false) => ({
+      restrictions: [],
+      allergies,
+      description,
+    });
     const parse = (requirements: unknown) =>
       createStaffBookingSchema.safeParse({ ...forExisting, requirements });
 
