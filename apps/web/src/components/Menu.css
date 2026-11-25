@@ -105,3 +105,101 @@
   color: var(--ink);
   font-weight: 600;
 }
+
+/* The hiker card on Book a table: a printed menu, two columns on wide screens. */
+.menu-card {
+  margin-top: 32px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.menu-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 28px 32px 8px;
+}
+.menu-card__title {
+  margin: 0;
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  font-weight: 500;
+}
+.menu-card__time {
+  color: var(--green);
+  font-size: 1.05rem;
+}
+.menu-card__state {
+  margin: 8px 32px 28px;
+}
+.menu-card__courses {
+  columns: 2 320px;
+  column-gap: 48px;
+  padding: 8px 32px 24px;
+}
+.menu-card__course {
+  break-inside: avoid;
+  padding-top: 16px;
+}
+.menu-card__course-name {
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: #9a9471;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.menu-card__dishes {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.menu-dish {
+  break-inside: avoid;
+}
+.menu-dish__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.menu-dish__name {
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.menu-dish__name .menu-marks {
+  margin-left: 4px;
+}
+.menu-dish__price {
+  flex-shrink: 0;
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.menu-dish__translation {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .menu-card__head,
+  .menu-card__courses {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .menu-card__title {
+    font-size: 1.8rem;
+  }
+}
