@@ -5,10 +5,11 @@ import { checkAvailabilityQuerySchema } from '@mountain-hut/shared';
 import type { AvailabilityResult, CheckAvailabilityQuery } from '@mountain-hut/shared';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useAvailability } from '../api/useAvailability.ts';
-import { FormField } from '../components/FormField.tsx';
 import { DateField } from '../components/DateField.tsx';
 import { GuestStepper } from '../components/GuestStepper.tsx';
+import { TimeField } from '../components/TimeField.tsx';
 import { toIsoDate } from '../lib/dates.ts';
+import { normalizeTime } from '../lib/time.ts';
 import { askedLabel, availabilityError, unavailableReason } from '../lib/availability.ts';
 import { authPath, bookingPath } from '../lib/bookingRedirect.ts';
 import './BookingPage.css';
@@ -94,7 +95,7 @@ export function AvailabilityPage() {
     e.preventDefault();
     const parsed = checkAvailabilityQuerySchema.safeParse({
       date,
-      time,
+      time: normalizeTime(time),
       partySize: String(partySize),
     });
     if (!parsed.success) {
@@ -138,13 +139,12 @@ export function AvailabilityPage() {
                 error={errors.date}
                 onChange={edit(setDate)}
               />
-              <FormField
+              <TimeField
                 id="availability-time"
                 label="Time"
-                type="time"
                 value={time}
                 error={errors.time}
-                onChange={(e) => edit(setTime)(e.target.value)}
+                onChange={edit(setTime)}
               />
             </div>
             <GuestStepper

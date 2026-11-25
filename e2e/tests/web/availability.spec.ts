@@ -344,3 +344,20 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
     }
   });
 });
+
+test('the time is typed freely or chosen hour and minutes from the clock', async ({ page }) => {
+  await page.goto('/availability');
+  const time = page.getByLabel('Time', { exact: true });
+
+  await time.fill('1940');
+  await time.blur();
+  await expect(time).toHaveValue('19:40');
+
+  await page.getByRole('button', { name: 'Choose hour and minutes' }).click();
+  const clock = page.getByRole('group', { name: 'Hour and minutes' });
+  await clock.getByRole('button', { name: '12 hours' }).click();
+  await clock.getByRole('button', { name: '25 minutes' }).click();
+
+  await expect(clock).toHaveCount(0);
+  await expect(time).toHaveValue('12:25');
+});
