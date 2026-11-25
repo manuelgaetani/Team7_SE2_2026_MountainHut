@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
+import { useIsSavingMenu } from '../api/useMenus.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
 import { DateField } from '../components/DateField.tsx';
@@ -30,7 +31,25 @@ function SlotsManager() {
   const [menuDirty, setMenuDirty] = useState(false);
   const [pending, setPending] = useState<{ run: () => void } | null>(null);
   const onMenuDirty = useCallback((dirty: boolean) => setMenuDirty(dirty), []);
-  const guard = (run: () => void) => (menuDirty ? setPending({ run }) : run());
+  const saving = useIsSavingMenu();
+  const keepRef = useRef<HTMLButtonElement>(null);
+  // While a menu is being saved nothing switches: its confirmation must still be shown.
+  const guard = (run: () => void) => {
+    if (saving) return;
+    if (menuDirty) setPending({ run });
+    else run();
+  };
+
+  // The safe answer takes the focus every time the question is asked, and Escape keeps editing.
+  useEffect(() => {
+    if (!pending) return;
+    keepRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPending(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [pending]);
   const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
   const toast = useToast();
@@ -80,7 +99,7 @@ function SlotsManager() {
               Discard your changes to the menu?
             </p>
             <div className="menu-editor__actions">
-              <button type="button" className="pill" autoFocus onClick={() => setPending(null)}>
+              <button ref={keepRef} type="button" className="pill" onClick={() => setPending(null)}>
                 Keep editing
               </button>
               <button
@@ -109,16 +128,19 @@ function SlotsManager() {
           />
         )}
         {side?.kind === 'menu' && (
-          <MenuEditor
-            key={side.slot.id}
-            slot={side.slot}
-            onDirtyChange={onMenuDirty}
-            onDone={(message) => {
-              setSide(null);
-              toast.show({ message });
-            }}
-            onClose={() => setSide(null)}
-          />
+          // Under the question the editor cannot be used, so only one question is open at a time.
+          <div inert={pending !== null}>
+            <MenuEditor
+              key={side.slot.id}
+              slot={side.slot}
+              onDirtyChange={onMenuDirty}
+              onDone={(message) => {
+                setSide(null);
+                toast.show({ message });
+              }}
+              onClose={() => setSide(null)}
+            />
+          </div>
         )}
         {side === null && <NewSlotForm key={date} date={date} />}
       </div>

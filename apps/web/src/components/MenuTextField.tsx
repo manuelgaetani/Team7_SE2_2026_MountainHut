@@ -19,23 +19,32 @@ function wrap(text: string, start: number, end: number, marker: string, placehol
   return { value, start: start + marker.length, end: start + marker.length + inner.length };
 }
 
-// "- " (item) or "  - " (sub-item) at the start of every selected line. A line that already is
-// an item becomes the other kind, so the same button also changes the level.
+// "- " (item) or "  - " (sub-item) at the start of every selected line; any other prefix is
+// replaced, so the buttons also change the level. Pressed again on lines that all are already
+// of that kind, it removes the prefix.
 function prefixLines(text: string, start: number, end: number, sub: boolean): Edit {
-  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
-  const nextBreak = text.indexOf('\n', end);
+  // A selection of whole lines ends after their last newline: that next line is not selected.
+  const last = end > start && text[end - 1] === '\n' ? end - 1 : end;
+  const lineStart = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+  const nextBreak = text.indexOf('\n', last);
   const lineEnd = nextBreak === -1 ? text.length : nextBreak;
-  const lines = text
-    .slice(lineStart, lineEnd)
-    .split('\n')
+  const lines = text.slice(lineStart, lineEnd).split('\n');
+  const kind = sub ? SUB_PREFIX : ITEM_PREFIX;
+  const remove = lines.every((line) => kind.test(line));
+  const marker = sub ? '  - ' : '- ';
+  const block = lines
     .map((line) => {
       const bare = line.replace(/^\s*- /, '');
-      return (sub ? '  - ' : '- ') + bare;
-    });
-  const block = lines.join('\n');
+      return remove ? bare : marker + bare;
+    })
+    .join('\n');
   const value = text.slice(0, lineStart) + block + text.slice(lineEnd);
   return { value, start: lineStart + block.length, end: lineStart + block.length };
 }
+
+// The same patterns as the parser (lib/menuText.ts).
+const ITEM_PREFIX = /^- /;
+const SUB_PREFIX = /^(?: {2,}|\t)- /;
 
 const TOOLS = [
   { name: 'Bold', glyph: 'B', className: 'menu-tool--bold' },

@@ -62,9 +62,12 @@ export const DEFAULT_COURSES = ['Antipasti', 'Primi', 'Secondi', 'Dolci'] as con
 export const formatPrice = (price: number): string =>
   `€ ${Number.isInteger(price) ? price : price.toFixed(2)}`;
 
-// A price as typed: "9", "9.5", "9,50". NaN when it is not a number.
-export const parsePrice = (text: string): number =>
-  text.trim() === '' ? Number.NaN : Number(text.trim().replace(',', '.'));
+// A price as typed: "9", "9.5", "9,50". NaN for anything else ("", "1e2", "0x10", "9.505").
+const PRICE = /^\d+(?:[.,]\d{1,2})?$/;
+export const parsePrice = (text: string): number => {
+  const value = text.trim();
+  return PRICE.test(value) ? Number(value.replace(',', '.')) : Number.NaN;
+};
 
 // The marks in the order of the legend.
 export const sortMarks = (marks: MenuMark[]): MenuMark[] =>
@@ -91,7 +94,7 @@ export function menuErrors(courses: MenuCourse[]): Partial<Record<string, string
         found[dishKey(c, d, 'translation')] = 'Enter the English name.';
       }
       if (!Number.isFinite(dish.price) || dish.price <= 0) {
-        found[dishKey(c, d, 'price')] = 'Enter a price above 0.';
+        found[dishKey(c, d, 'price')] = 'Enter a price above 0, such as 12 or 9.50.';
       } else if (dish.price > MAX_PRICE) {
         found[dishKey(c, d, 'price')] = `A price can be at most € ${MAX_PRICE}.`;
       }
