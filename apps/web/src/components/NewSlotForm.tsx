@@ -9,7 +9,8 @@ import {
   toTablesSource,
 } from '../lib/slotTables.ts';
 import type { TablesChoice } from '../lib/slotTables.ts';
-import { FormField } from './FormField.tsx';
+import { normalizeTime } from '../lib/time.ts';
+import { TimeField } from './TimeField.tsx';
 import { TablesChooser } from './TablesChooser.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { useToast } from './Toast.tsx';
@@ -38,12 +39,20 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
     event.preventDefault();
     setError(null);
 
-    if (!startTime || !endTime) {
+    if (!startTime.trim() || !endTime.trim()) {
       setError('Enter the start and the end time.');
       return;
     }
+    // Typed times ("930", "19.30") become HH:MM, as on the availability page.
+    const start = normalizeTime(startTime);
+    const end = normalizeTime(endTime);
+    const isTime = (t: string) => /^\d{2}:\d{2}$/.test(t);
+    if (!isTime(start) || !isTime(end)) {
+      setError('Enter the times as HH:MM, for example 12:00.');
+      return;
+    }
     // HH:MM strings compare like times.
-    if (endTime <= startTime) {
+    if (end <= start) {
       setError('The end time must be after the start time.');
       return;
     }
@@ -54,7 +63,7 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
     }
 
     create.mutate(
-      { date, startTime, endTime, ...result.source },
+      { date, startTime: start, endTime: end, ...result.source },
       {
         onSuccess: (slot) => {
           toast.show({
@@ -75,20 +84,13 @@ export function NewSlotForm({ date }: NewSlotFormProps) {
         New slot on {dateShort(fromIsoDate(date))}
       </h3>
       <div className="slot-form__times">
-        <FormField
+        <TimeField
           id="new-slot-start"
           label="Start"
-          type="time"
           value={startTime}
-          onChange={(e) => edit(setStartTime)(e.target.value)}
+          onChange={edit(setStartTime)}
         />
-        <FormField
-          id="new-slot-end"
-          label="End"
-          type="time"
-          value={endTime}
-          onChange={(e) => edit(setEndTime)(e.target.value)}
-        />
+        <TimeField id="new-slot-end" label="End" value={endTime} onChange={edit(setEndTime)} />
       </div>
       <TablesChooser
         idPrefix="new-slot"
