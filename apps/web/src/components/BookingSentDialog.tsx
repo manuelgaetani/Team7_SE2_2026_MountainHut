@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AllergyBadge } from './AllergyBadge.tsx';
-import type { RequirementDraft } from './RequirementsEditor.tsx';
+import { RequirementLine } from './RequirementLine.tsx';
+import { toRequirement, type RequirementDraft } from '../lib/requirements.ts';
 
 interface BookingSentDialogProps {
   summary: string;
@@ -76,8 +76,7 @@ export function BookingSentDialog({ summary, requirements = [], onClose }: Booki
             <ul>
               {requirements.map((r) => (
                 <li key={r.key}>
-                  {r.allergies && <AllergyBadge />}
-                  {r.description}
+                  <RequirementLine requirement={toRequirement(r)} />
                 </li>
               ))}
             </ul>

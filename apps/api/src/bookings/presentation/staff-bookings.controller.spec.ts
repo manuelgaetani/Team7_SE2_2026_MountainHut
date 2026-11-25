@@ -133,7 +133,7 @@ describe('StaffBookingsController', () => {
 
     it('accepts the MH-05 requirements', async () => {
       createStaffBooking.execute.mockResolvedValue(result);
-      const requirements = [{ allergies: true, description: '1 nut allergy' }];
+      const requirements = [{ restrictions: [], allergies: true, description: '1 nut allergy' }];
       await post({ ...quickEntry, requirements }).expect(201);
       expect(createStaffBooking.execute).toHaveBeenCalledWith(
         expect.objectContaining({ requirements }),

@@ -119,7 +119,7 @@ test('emails the hiker a confirmation with the details of the booking', async ({
     data: {
       slotId,
       partySize: 3,
-      requirements: [{ allergies: false, description: 'One nut allergy' }],
+      requirements: [{ restrictions: [], allergies: false, description: 'One nut allergy' }],
     },
   });
   expect(response.status()).toBe(201);

@@ -126,7 +126,7 @@ test('the requirements cannot inject HTML in the email', async ({
   request,
 }) => {
   const requirements: PartyRequirement[] = [
-    { allergies: false, description: '<script>alert(1)</script> & "salt"' },
+    { restrictions: [], allergies: false, description: '<script>alert(1)</script> & "salt"' },
   ];
   await book(loggedInRequest, slot([4]), 2, requirements);
 

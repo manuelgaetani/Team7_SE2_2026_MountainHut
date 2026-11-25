@@ -96,7 +96,7 @@ describe('BookingsController', () => {
   });
 
   describe('party requirements (MH-05)', () => {
-    const requirement = { allergies: true, description: 'no nuts' };
+    const requirement = { restrictions: [], allergies: true, description: 'no nuts' };
 
     it('passes the requirements to the service trimmed and without unknown fields', async () => {
       bookings.create.mockResolvedValue(result);
@@ -105,15 +105,15 @@ describe('BookingsController', () => {
         partySize: 3,
         requirements: [
           { ...requirement, description: '  1 vegan, peanut allergy ', bookingId: 99 },
-          { allergies: false, description: '2 vegetarians' },
+          { restrictions: [], allergies: false, description: '2 vegetarians' },
         ],
       }).expect(201);
       expect(bookings.create).toHaveBeenCalledWith(1, {
         slotId: 3,
         partySize: 3,
         requirements: [
-          { allergies: true, description: '1 vegan, peanut allergy' },
-          { allergies: false, description: '2 vegetarians' },
+          { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+          { restrictions: [], allergies: false, description: '2 vegetarians' },
         ],
       });
     });
@@ -183,7 +183,7 @@ describe('BookingsController', () => {
     const changed = {
       ...result,
       partySize: 4,
-      requirements: [{ allergies: false, description: '2 vegans' }],
+      requirements: [{ restrictions: [], allergies: false, description: '2 vegans' }],
     };
     const patch = (id: string, body: object) =>
       request(app.getHttpServer()).patch(`/bookings/${id}`).send(body);
@@ -205,12 +205,12 @@ describe('BookingsController', () => {
       await patch('9', {
         slotId: 5,
         partySize: 4,
-        requirements: [{ allergies: false, description: '  2 vegans  ' }],
+        requirements: [{ restrictions: [], allergies: false, description: '  2 vegans  ' }],
       });
       expect(bookings.change).toHaveBeenCalledWith(1, 9, {
         slotId: 5,
         partySize: 4,
-        requirements: [{ allergies: false, description: '2 vegans' }],
+        requirements: [{ restrictions: [], allergies: false, description: '2 vegans' }],
       });
     });
 
@@ -235,15 +235,15 @@ describe('BookingsController', () => {
       ['requirements that are not a list', { requirements: 'no nuts' }],
       [
         'a requirement description longer than 500 characters',
-        { requirements: [{ allergies: false, description: 'A'.repeat(501) }] },
+        { requirements: [{ restrictions: [], allergies: false, description: 'A'.repeat(501) }] },
       ],
       [
         'an empty requirement description',
-        { requirements: [{ allergies: false, description: '   ' }] },
+        { requirements: [{ restrictions: [], allergies: false, description: '   ' }] },
       ],
       [
         'a requirement with a non-boolean allergies flag',
-        { requirements: [{ allergies: 'yes', description: 'no nuts' }] },
+        { requirements: [{ restrictions: [], allergies: 'yes', description: 'no nuts' }] },
       ],
       ['a requirement without an allergies flag', { requirements: [{ description: 'no nuts' }] }],
       [
@@ -257,7 +257,7 @@ describe('BookingsController', () => {
       ],
       [
         'a requirement containing a NUL byte',
-        { requirements: [{ allergies: true, description: 'no\u0000nuts' }] },
+        { requirements: [{ restrictions: [], allergies: true, description: 'no\u0000nuts' }] },
       ],
     ])('answers 400 without calling the service for %s', async (_name, body) => {
       await patch('9', body).expect(400);

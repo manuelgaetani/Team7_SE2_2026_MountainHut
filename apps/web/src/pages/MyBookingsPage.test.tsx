@@ -28,8 +28,8 @@ const confirmed: MyBooking = {
   endTime: '14:00',
   partySize: 4,
   requirements: [
-    { allergies: true, description: '1 vegan, peanut allergy' },
-    { allergies: false, description: '2 vegetarians' },
+    { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+    { restrictions: [], allergies: false, description: '2 vegetarians' },
   ],
   status: 'CONFIRMED',
 };

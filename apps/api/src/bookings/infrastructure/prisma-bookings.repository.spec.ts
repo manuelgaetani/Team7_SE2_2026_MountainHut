@@ -157,8 +157,8 @@ describe('PrismaBookingsRepository', () => {
 
     it('maps the rows, with the requirements of MH-05 as they come', async () => {
       const requirements = [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ];
       client.$queryRaw.mockResolvedValue([{ ...row, requirements }]);
       await expect(repository.findUpcomingBookingsOfHiker(7, 'Europe/Rome', now)).resolves.toEqual([
@@ -248,8 +248,8 @@ describe('PrismaBookingsRepository', () => {
 
     it('stores the requirements of the party with the booking', async () => {
       const requirements = [
-        { allergies: true, description: 'no nuts' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: 'no nuts' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ];
       client.booking.create.mockResolvedValue({ id: 9, ...fields, status: 'PENDING' });
       await repository.createBooking({ ...fields, requirements });
@@ -471,12 +471,12 @@ describe('PrismaBookingsRepository', () => {
 
   describe('findRequirements', () => {
     it('reads the requirements of the booking in the order they were entered', async () => {
-      const needs = [{ allergies: true, description: '1 shellfish allergy' }];
+      const needs = [{ restrictions: [], allergies: true, description: '1 shellfish allergy' }];
       client.partyRequirement.findMany.mockResolvedValue(needs);
       await expect(repository.findRequirements(9)).resolves.toBe(needs);
       expect(client.partyRequirement.findMany).toHaveBeenCalledWith({
         where: { bookingId: 9 },
-        select: { allergies: true, description: true },
+        select: { restrictions: true, allergies: true, description: true },
         orderBy: { id: 'asc' },
       });
     });
@@ -485,8 +485,8 @@ describe('PrismaBookingsRepository', () => {
   describe('replaceRequirements', () => {
     it('deletes the old requirements, then stores the new list in one insert', async () => {
       const needs = [
-        { allergies: false, description: '2 vegetarians' },
-        { allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 shellfish allergy' },
       ];
       await repository.replaceRequirements(9, needs);
       expect(client.partyRequirement.deleteMany).toHaveBeenCalledWith({ where: { bookingId: 9 } });

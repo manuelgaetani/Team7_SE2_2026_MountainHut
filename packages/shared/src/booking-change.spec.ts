@@ -3,11 +3,16 @@ import {
   MAX_REQUIREMENTS_COUNT,
   MAX_REQUIREMENTS_LENGTH,
   changeBookingSchema,
+  type DietaryCode,
 } from './bookings.js';
 import { MAX_DB_INT } from './primitives.js';
 
 // One entry of the MH-05 requirements list.
-const need = (description: string, allergies = false) => ({ allergies, description });
+const need = (description: string, allergies = false) => ({
+  restrictions: [] as DietaryCode[],
+  allergies,
+  description,
+});
 
 describe('changeBookingSchema (Black-box)', () => {
   describe('Equivalence Partitioning: Valid Change Payloads', () => {
@@ -149,7 +154,7 @@ describe('changeBookingSchema (White-box Zod pipeline and issue formatting)', ()
     const res = changeBookingSchema.safeParse({
       slotId: 0,
       partySize: -1,
-      requirements: [need('   '), { allergies: 'yes', description: 'vegan' }],
+      requirements: [need('   '), { restrictions: [], allergies: 'yes', description: 'vegan' }],
     });
     expect(res.success).toBe(false);
     expect(res.error?.issues.map((i) => i.path)).toEqual(
@@ -198,9 +203,13 @@ describe('changeBookingSchema (White-box Zod pipeline and issue formatting)', ()
     }
 
     const stripped = changeBookingSchema.parse({
-      requirements: [{ allergies: true, description: 'celiac', bookingId: 99, id: 1 }],
+      requirements: [
+        { restrictions: [], allergies: true, description: 'celiac', bookingId: 99, id: 1 },
+      ],
     });
-    expect(stripped.requirements).toEqual([{ allergies: true, description: 'celiac' }]);
+    expect(stripped.requirements).toEqual([
+      { restrictions: [], allergies: true, description: 'celiac' },
+    ]);
   });
 
   it('rejects non-finite and oversized partySize values', () => {
@@ -229,7 +238,7 @@ describe('changeBookingSchema (Gray-box PostgreSQL schema alignment)', () => {
       requirements: [need('2 celiaci — menu senza glutine')],
     });
     expect(utf8.requirements).toEqual([
-      { allergies: false, description: '2 celiaci — menu senza glutine' },
+      { restrictions: [], allergies: false, description: '2 celiaci — menu senza glutine' },
     ]);
   });
 
@@ -237,6 +246,10 @@ describe('changeBookingSchema (Gray-box PostgreSQL schema alignment)', () => {
     const parsed = changeBookingSchema.parse({
       requirements: [need('lactose free', true)],
     });
-    expect(Object.keys(parsed.requirements![0]!).sort()).toEqual(['allergies', 'description']);
+    expect(Object.keys(parsed.requirements![0]!).sort()).toEqual([
+      'allergies',
+      'description',
+      'restrictions',
+    ]);
   });
 });
