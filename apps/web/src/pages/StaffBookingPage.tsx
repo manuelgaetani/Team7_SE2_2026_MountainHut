@@ -29,6 +29,7 @@ import {
   type HikerMode,
 } from '../lib/hikerDraft.ts';
 import './BookingPage.css';
+import '../components/ModifyBookingDialog.css';
 import './StaffBookingPage.css';
 import { apiErrorMessage } from '../lib/errors.ts';
 import { RequirementLine } from '../components/RequirementLine.tsx';
@@ -298,14 +299,14 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
                 <button
                   ref={keepRef}
                   type="button"
-                  className="pill"
+                  className="modify-dialog__secondary"
                   onClick={() => setConfirmingDiscard(false)}
                 >
                   Keep editing
                 </button>
                 <button
                   type="button"
-                  className="pill pill--danger"
+                  className="modify-dialog__danger"
                   onClick={() => void navigate('/')}
                 >
                   Discard
@@ -318,14 +319,14 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
               <div className="action-bar__buttons">
                 <button
                   type="button"
-                  className="pill"
+                  className="modify-dialog__secondary"
                   onClick={() => (dirty ? setConfirmingDiscard(true) : void navigate('/'))}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="pill pill--primary"
+                  className="modify-dialog__primary"
                   disabled={createBooking.isPending}
                 >
                   {createBooking.isPending ? 'Creating…' : 'Create booking'}
