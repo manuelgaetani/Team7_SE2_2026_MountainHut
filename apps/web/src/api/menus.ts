@@ -11,15 +11,32 @@ const DELAY_MS = 250;
 
 const wait = () => new Promise((resolve) => setTimeout(resolve, DELAY_MS));
 
-const isMenuList = (value: unknown): value is SlotMenu[] =>
-  Array.isArray(value) &&
-  value.every(
-    (m) =>
-      typeof m === 'object' &&
-      m !== null &&
-      typeof (m as SlotMenu).slotId === 'number' &&
-      Array.isArray((m as SlotMenu).courses),
-  );
+const isString = (v: unknown): v is string => typeof v === 'string';
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+
+const isDish = (d: unknown): boolean =>
+  isRecord(d) &&
+  isString(d.name) &&
+  isString(d.translation) &&
+  isString(d.description) &&
+  typeof d.price === 'number' &&
+  Number.isFinite(d.price) &&
+  Array.isArray(d.marks) &&
+  d.marks.every(isString);
+
+const isCourse = (c: unknown): boolean =>
+  isRecord(c) && isString(c.name) && Array.isArray(c.dishes) && c.dishes.every(isDish);
+
+// Every field the pages read, so a damaged entry is dropped instead of breaking a page.
+const isSlotMenu = (m: unknown): m is SlotMenu =>
+  isRecord(m) &&
+  typeof m.slotId === 'number' &&
+  isString(m.date) &&
+  isString(m.startTime) &&
+  isString(m.endTime) &&
+  isString(m.updatedAt) &&
+  Array.isArray(m.courses) &&
+  m.courses.every(isCourse);
 
 // The stored menus; the seed when nothing is stored, or what is stored cannot be read.
 function readAll(): SlotMenu[] {
@@ -27,7 +44,7 @@ function readAll(): SlotMenu[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw !== null) {
       const parsed: unknown = JSON.parse(raw);
-      if (isMenuList(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.filter(isSlotMenu);
     }
   } catch {
     // Storage blocked or broken JSON: start again from the seed.

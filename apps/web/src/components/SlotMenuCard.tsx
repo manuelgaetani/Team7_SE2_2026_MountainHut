@@ -42,12 +42,12 @@ export function SlotMenuCard({ slotId, time }: SlotMenuCardProps) {
       {menu.isSuccess && menu.data !== null && (
         <>
           <div className="menu-card__courses">
-            {menu.data.courses.map((course) => (
-              <section key={course.name} className="menu-card__course">
+            {menu.data.courses.map((course, c) => (
+              <section key={c} className="menu-card__course">
                 <h3 className="menu-card__course-name">{course.name}</h3>
                 <ul className="menu-card__dishes">
-                  {course.dishes.map((dish) => (
-                    <li key={dish.name} className="menu-dish">
+                  {course.dishes.map((dish, d) => (
+                    <li key={d} className="menu-dish">
                       <div className="menu-dish__head">
                         <span className="menu-dish__name" lang="it">
                           {dish.name} <MenuMarks marks={dish.marks} />

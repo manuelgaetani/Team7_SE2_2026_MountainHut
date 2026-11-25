@@ -60,7 +60,11 @@ function SlotsManager() {
           <SlotSchedule
             slots={schedule.data}
             onDefineTables={(slot) => guard(() => setSide({ kind: 'tables', slot }))}
-            onDefineMenu={(slot) => guard(() => setSide({ kind: 'menu', slot }))}
+            onDefineMenu={(slot) => {
+              // The menu of this slot is already open: nothing to switch, nothing to discard.
+              if (side?.kind === 'menu' && side.slot.id === slot.id) return;
+              guard(() => setSide({ kind: 'menu', slot }));
+            }}
           />
         )}
       </div>
@@ -83,8 +87,8 @@ function SlotsManager() {
                 type="button"
                 className="pill menu-editor__danger"
                 onClick={() => {
+                  // The editor unmounts and clears the dirty flag itself.
                   setPending(null);
-                  setMenuDirty(false);
                   pending.run();
                 }}
               >
