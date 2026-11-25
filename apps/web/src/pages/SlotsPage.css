@@ -128,14 +128,6 @@
   justify-content: flex-start;
   margin: -4px 0 14px;
 }
-/* Repeat weekly schedule: a thicker border, so the button is easy to see. */
-.schedule-toolbar .pill {
-  border: 2px solid var(--green);
-}
-.schedule-toolbar .pill:hover {
-  background: var(--green);
-  color: #fff;
-}
 
 .slot-form {
   display: grid;

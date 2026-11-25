@@ -47,7 +47,7 @@ function SlotsManager() {
           }}
         />
         <div className="schedule-toolbar">
-          <button type="button" className="pill" onClick={() => setRepeating(true)}>
+          <button type="button" className="pill pill--outline" onClick={() => setRepeating(true)}>
             Repeat weekly schedule
           </button>
         </div>

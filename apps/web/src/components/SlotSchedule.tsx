@@ -67,7 +67,7 @@ export function SlotSchedule({
                   <FloorPlanLink slot={slot} />
                   <button
                     type="button"
-                    className="pill"
+                    className="pill pill--outline"
                     aria-label={`Define the tables of ${slot.startTime}–${slot.endTime}`}
                     onClick={() => onDefineTables(slot)}
                   >
@@ -184,7 +184,7 @@ function MenuAction({
       )}
       <button
         type="button"
-        className="pill schedule__menu-button"
+        className="cta schedule__floor"
         disabled={menu.isPending}
         aria-label={`${written ? 'Edit' : 'Define'} the menu of ${time}`}
         onClick={() => onDefineMenu(slot)}

@@ -322,7 +322,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
               />
               <button
                 type="button"
-                className="requirement__remove"
+                className="pill pill--remove"
                 aria-label={`Remove the course ${course.name || c + 1}`}
                 onClick={() => removeCourse(course, c)}
               >
@@ -401,7 +401,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
 
                   <button
                     type="button"
-                    className="requirement__remove"
+                    className="pill pill--remove"
                     aria-label={`Remove ${dish.name || `dish ${d + 1}`}`}
                     onClick={() => removeDish(course.key, dish, d)}
                   >
@@ -413,7 +413,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
 
             <button
               type="button"
-              className="pill menu-course__add"
+              className="pill pill--outline menu-course__add"
               disabled={course.dishes.length >= MAX_DISHES}
               onClick={() =>
                 updateCourse(course.key, { dishes: [...course.dishes, emptyDishDraft()] })
@@ -428,7 +428,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
 
         <button
           type="button"
-          className="pill"
+          className="pill pill--outline menu-editor__add-course"
           disabled={courses.length >= MAX_COURSES}
           onClick={() => edit([...courses, { key: nextKey(), name: '', dishes: [] }])}
         >

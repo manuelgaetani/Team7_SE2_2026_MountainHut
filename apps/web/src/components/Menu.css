@@ -214,15 +214,6 @@
   font-size: 12px;
   white-space: nowrap;
 }
-.schedule__menu-button {
-  border: 2px solid var(--green);
-  white-space: nowrap;
-}
-.schedule__menu-button:hover:not(:disabled) {
-  background: var(--green);
-  color: #fff;
-}
-
 /* The staff editor, in a dialog in the style of Modify booking (.dialog, .modify-dialog). */
 .menu-dialog {
   width: min(100%, 760px);
@@ -265,8 +256,8 @@
 .menu-course__head .field {
   margin: 0;
 }
-.menu-course__head .requirement__remove {
-  margin-bottom: 12px;
+.menu-course__head .pill--remove {
+  margin-bottom: 4px;
 }
 .menu-course__add {
   justify-self: start;
@@ -307,7 +298,7 @@
   padding: 8px 4px;
   font-size: 12px;
 }
-.menu-dish-form .requirement__remove {
+.menu-dish-form .pill--remove {
   justify-self: end;
 }
 
@@ -386,4 +377,7 @@
 }
 .menu-preview .menu-card {
   margin: 8px 0 20px;
+}
+.menu-editor__add-course {
+  justify-self: start;
 }

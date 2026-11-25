@@ -113,7 +113,7 @@ function TableRows({
           {rows.length > 1 && (
             <button
               type="button"
-              className="pill"
+              className="pill pill--remove"
               aria-label={`Remove row ${i + 1}`}
               onClick={() => onChange(rows.filter((_, j) => j !== i))}
             >
@@ -125,7 +125,7 @@ function TableRows({
       <div className="tables-editor__foot">
         <button
           type="button"
-          className="pill"
+          className="pill pill--outline"
           disabled={rows.length >= MAX_TABLE_NUMBER}
           onClick={() => onChange([...rows, { tableNumber: nextTableNumber(rows), seats: '' }])}
         >
