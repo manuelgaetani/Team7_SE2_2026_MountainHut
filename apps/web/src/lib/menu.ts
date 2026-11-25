@@ -58,14 +58,6 @@ export const MAX_PRICE = 999;
 
 export const DEFAULT_COURSES = ['Antipasti', 'Primi', 'Secondi', 'Dolci'] as const;
 
-export const emptyDish = (): MenuDish => ({
-  name: '',
-  translation: '',
-  price: 0,
-  description: '',
-  marks: [],
-});
-
 // "€ 9" or "€ 9.50".
 export const formatPrice = (price: number): string =>
   `€ ${Number.isInteger(price) ? price : price.toFixed(2)}`;
@@ -89,7 +81,10 @@ export const dishKey = (
 export function menuErrors(courses: MenuCourse[]): Partial<Record<string, string>> {
   const found: Partial<Record<string, string>> = {};
   courses.forEach((course, c) => {
-    if (course.name.trim() === '') found[courseKey(c)] = 'Name the course, or remove it.';
+    // A course with no dishes is left out on save, so its name does not matter.
+    if (course.dishes.length > 0 && course.name.trim() === '') {
+      found[courseKey(c)] = 'Name the course, or remove it.';
+    }
     course.dishes.forEach((dish, d) => {
       if (dish.name.trim() === '') found[dishKey(c, d, 'name')] = 'Enter the name of the dish.';
       if (dish.translation.trim() === '') {

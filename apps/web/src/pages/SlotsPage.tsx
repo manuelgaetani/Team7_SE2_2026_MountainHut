@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
 import { isStaff } from '../api/roles.ts';
@@ -6,6 +6,7 @@ import { useCurrentUser } from '../api/useAuth.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
 import { DateField } from '../components/DateField.tsx';
+import { MenuEditor } from '../components/MenuEditor.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
 import { RepeatWeeklyScheduleDialog } from '../components/RepeatWeeklyScheduleDialog.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
@@ -23,7 +24,13 @@ function SlotsManager() {
     const fromUrl = searchParams.get('date');
     return isIsoDate(fromUrl) ? fromUrl : toIsoDate(new Date());
   });
-  const [defining, setDefining] = useState<SlotDetails | null>(null);
+  // What the side panel shows instead of the new slot form.
+  const [side, setSide] = useState<{ kind: 'tables' | 'menu'; slot: SlotDetails } | null>(null);
+  // Unsaved edits of the menu: leaving them asks first (guides/08, unsaved changes).
+  const [menuDirty, setMenuDirty] = useState(false);
+  const [pending, setPending] = useState<{ run: () => void } | null>(null);
+  const onMenuDirty = useCallback((dirty: boolean) => setMenuDirty(dirty), []);
+  const guard = (run: () => void) => (menuDirty ? setPending({ run }) : run());
   const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
   const toast = useToast();
@@ -35,10 +42,12 @@ function SlotsManager() {
           id="schedule-date"
           label="Day"
           value={date}
-          onChange={(iso) => {
-            setDate(iso);
-            setDefining(null);
-          }}
+          onChange={(iso) =>
+            guard(() => {
+              setDate(iso);
+              setSide(null);
+            })
+          }
         />
         <div className="schedule-toolbar">
           <button type="button" className="pill" onClick={() => setRepeating(true)}>
@@ -47,23 +56,67 @@ function SlotsManager() {
         </div>
         {schedule.isPending && <p role="status">Loading the slots of the day…</p>}
         {schedule.isError && <ErrorNotice message={slotErrorMessage(schedule.error)} />}
-        {schedule.isSuccess && <SlotSchedule slots={schedule.data} onDefineTables={setDefining} />}
+        {schedule.isSuccess && (
+          <SlotSchedule
+            slots={schedule.data}
+            onDefineTables={(slot) => guard(() => setSide({ kind: 'tables', slot }))}
+            onDefineMenu={(slot) => guard(() => setSide({ kind: 'menu', slot }))}
+          />
+        )}
       </div>
 
       <div className="layout__side">
-        {defining ? (
+        {pending && (
+          <div
+            className="summary menu-editor__discard"
+            role="alertdialog"
+            aria-labelledby="menu-leave"
+          >
+            <p id="menu-leave" className="modify-dialog__discard-title">
+              Discard your changes to the menu?
+            </p>
+            <div className="menu-editor__actions">
+              <button type="button" className="pill" autoFocus onClick={() => setPending(null)}>
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="pill menu-editor__danger"
+                onClick={() => {
+                  setPending(null);
+                  setMenuDirty(false);
+                  pending.run();
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+        {side?.kind === 'tables' && (
           <DefineTablesForm
-            key={defining.id}
-            slot={defining}
+            key={side.slot.id}
+            slot={side.slot}
             onDone={(message) => {
-              setDefining(null);
+              setSide(null);
               toast.show({ message });
             }}
-            onCancel={() => setDefining(null)}
+            onCancel={() => setSide(null)}
           />
-        ) : (
-          <NewSlotForm key={date} date={date} />
         )}
+        {side?.kind === 'menu' && (
+          <MenuEditor
+            key={side.slot.id}
+            slot={side.slot}
+            onDirtyChange={onMenuDirty}
+            onDone={(message) => {
+              setSide(null);
+              toast.show({ message });
+            }}
+            onClose={() => setSide(null)}
+          />
+        )}
+        {side === null && <NewSlotForm key={date} date={date} />}
       </div>
       {repeating && (
         <RepeatWeeklyScheduleDialog

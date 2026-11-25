@@ -203,3 +203,160 @@
     font-size: 1.8rem;
   }
 }
+
+/* Time slots: the menu button of a slot card, with how many courses are written. */
+.schedule__menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.schedule__menu-meta {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.schedule__menu-button {
+  border: 2px solid var(--green);
+  white-space: nowrap;
+}
+.schedule__menu-button:hover:not(:disabled) {
+  background: var(--green);
+  color: #fff;
+}
+
+/* The staff editor, in the side panel of Time slots. */
+.menu-editor__intro {
+  margin: -6px 0 0;
+}
+.menu-editor select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.menu-course {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.menu-course__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 10px;
+}
+.menu-course__head .field {
+  margin: 0;
+}
+.menu-course__head .requirement__remove {
+  margin-bottom: 12px;
+}
+.menu-course__add {
+  justify-self: start;
+}
+.menu-dish-form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.menu-dish-form > legend {
+  padding: 0 6px;
+}
+.menu-dish-form .field {
+  margin: 0;
+}
+.menu-dish-form__names {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.menu-dish-form__names .field:first-child {
+  grid-column: 1 / -1;
+}
+.menu-dish-form__marks-label {
+  margin: 0 0 6px;
+}
+.menu-dish-form__marks.diet-options {
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+}
+.requirements .menu-dish-form__marks .diet-option {
+  min-height: 60px;
+  padding: 8px 4px;
+  font-size: 12px;
+}
+.menu-dish-form .requirement__remove {
+  justify-self: end;
+}
+
+.menu-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.menu-tool {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.menu-tool:hover {
+  border-color: var(--green);
+}
+.menu-tool:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 1px;
+}
+.menu-tool--bold {
+  font-weight: 700;
+}
+.menu-tool--italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+.menu-text-field textarea {
+  min-height: 72px;
+}
+.menu-text-field textarea[aria-invalid='true'] {
+  border-color: var(--error);
+}
+.menu-text-field__hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-editor__discard {
+  display: grid;
+  gap: 10px;
+}
+.menu-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.menu-editor__danger {
+  border-color: var(--error);
+  background: var(--error);
+  color: #fff;
+}
