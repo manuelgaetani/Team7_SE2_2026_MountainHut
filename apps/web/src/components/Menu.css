@@ -223,9 +223,19 @@
   color: #fff;
 }
 
-/* The staff editor, in the side panel of Time slots. */
-.menu-editor__intro {
-  margin: -6px 0 0;
+/* The staff editor, in a dialog in the style of Modify booking (.dialog, .modify-dialog). */
+.menu-dialog {
+  width: min(100%, 760px);
+}
+.menu-editor {
+  display: grid;
+  gap: 16px;
+}
+.menu-editor .field {
+  margin: 0;
+}
+.menu-dialog__actions--single {
+  grid-template-columns: 1fr;
 }
 .menu-editor select {
   width: 100%;
@@ -346,17 +356,8 @@
   gap: 8px;
 }
 
-.menu-editor__discard {
-  display: grid;
-  gap: 10px;
-}
-.menu-editor__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.menu-editor__danger {
-  border-color: var(--error);
-  background: var(--error);
-  color: #fff;
+@media (max-width: 600px) {
+  .menu-dish-form__names {
+    grid-template-columns: 1fr;
+  }
 }
