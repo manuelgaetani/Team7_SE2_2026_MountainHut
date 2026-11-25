@@ -10,3 +10,4 @@ export * from './slots.js';
 export * from './hikers.js';
 export * from './floor.js';
 export * from './menus.js';
+export * from './hikes.js';

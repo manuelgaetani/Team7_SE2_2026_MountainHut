@@ -1,0 +1,236 @@
+# MH-20 — Register a hike
+
+|                |                                                                                 |
+| -------------- | ------------------------------------------------------------------------------- |
+| **Status**     | API complete, not tested yet (no unit, integration or E2E tests); web not begun |
+| **Depends on** | MH-58 (authentication and `RolesGuard`), hiker profiles (`hikers` table)        |
+
+## User story
+
+**Business value:** 938
+
+As a hiker,  
+I want to register my planned hike before departure,  
+so that the hut has information that can be used if I do not return as expected.
+
+### Clarifications
+
+From the story in the course repository:
+
+- Hike information should include: destination (name), route (a text description, e.g. "via the Chiaretto lake"), intermediate passage points (possible intermediate points, e.g. "Viso Mozzo").
+- In addition to entering the information it is reasonable to let the hiker select from a few predefined or popular hikes.
+- When registering the hike it is also required to provide: planned departure date and time, expected return date and time.
+
+From the course issues:
+
+- [#49](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/49) (closed): what a hike holds; predefined hikes are fine "as long as the UX is smooth". Reported in the story.
+- [#51](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/51) (closed): departure and return are both mandatory, and the PO agreed that **the expected return must be later than the planned departure**. This last rule is not in the story's Clarifications yet (see Open points).
+- [#53](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/53) (closed, filed under MH-21): a hike is considered started at its planned departure time; a hiker who does not leave declares the hike finished with MH-22. Not in the Clarifications of MH-21 yet (see Open points).
+
+Team assumptions:
+
+- _Route required, passage points optional._ The clarification calls the passage points "possible", so a hike may have none; destination and route are required.
+- _"Before departure"._ A hike can be registered only while its departure is still in the future (hut local time).
+- _One hike at a time._ A hiker cannot have two hikes whose periods overlap: it would make the monitoring of MH-21/MH-24 ambiguous. Hikes that only touch (one returns when the next departs) are allowed.
+- _Predefined hikes fill the form._ Choosing one copies destination, route and passage points into the form; the hiker can change them, and the registered values are the ones sent. The hike keeps a link to the predefined hike it started from.
+- _No cancel here._ Following #53, cancelling or finishing a hike belongs to MH-22.
+
+## Requirements
+
+| #   | Requirement                                                                                     | Status | Implemented in                                                  |
+| --- | ----------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
+| R1  | Only a logged-in `HIKER` with a hiker profile registers a hike (`401` / `403` otherwise)        | Done   | `HikesController` (`@Roles('HIKER')`), `RegisterHike.execute`   |
+| R2  | A hike has a destination and a route (required) and up to 10 passage points (optional, ordered) | Done   | `registerHikeSchema`, `hikes` table                             |
+| R3  | Planned departure and expected return date and time are required                                | Done   | `registerHikeSchema`                                            |
+| R4  | The expected return is after the planned departure (`400`, and a CHECK in the database)         | Done   | `registerHikeSchema`, `hikes_time_range_check`                  |
+| R5  | The planned departure is in the future, in the hut's time zone (`422`)                          | Done   | `decideHikeRegistration`, `localMoment`, `RegisterHike.execute` |
+| R6  | A hike cannot overlap another hike of the same hiker (`409`)                                    | Done   | `HikesRepository.lockHiker`, `findOverlapping`, `RegisterHike`  |
+| R7  | The hiker can list the hut's predefined hikes to start from one                                 | Done   | `GET /api/hikes/predefined`, `ListPredefinedHikes`, `seed.ts`   |
+| R8  | A registration may name the predefined hike it started from (`404` if it does not exist)        | Done   | `registerHikeSchema.predefinedHikeId`, `RegisterHike.execute`   |
+| R9  | Web app: the hiker registers a hike from a form, optionally starting from a predefined hike     | To do  | —                                                               |
+
+### Decisions
+
+- **Endpoints.** `POST /api/hikes` registers a hike; `GET /api/hikes/predefined` lists the hut's hikes. Both are for hikers only: the staff will see the hikes through MH-21.
+- **Dates and times.** Like the slots, departure and return are the hut's local date and time, sent as `YYYY-MM-DD` + `HH:MM` and stored as `TIMESTAMP` without time zone. "Now" is converted to the hut's time zone (`BOOKING_TIMEZONE`, default `Europe/Rome`) before the comparison, so a departure is in the future when it is in the future at the hut.
+- **Departure in the current minute.** Already come: the departure must be strictly after the current local minute.
+- **Status codes.** `400` for an invalid body (including a return not after the departure, which does not depend on the clock); `422` for a departure already come (depends on the clock); `409` for an overlap; `404` for an unknown predefined hike; `403` for a user without a hiker profile.
+- **Concurrency.** The registration runs in one transaction and locks the hiker's row (`SELECT ... FOR UPDATE`) before the overlap check, so two registrations of the same hiker run one after the other: of two identical requests sent together, one gets `201` and the other `409`.
+- **Predefined hikes are reference data.** They live in their own table (`predefined_hikes`, unique by destination and route), filled by the seed. Deleting one leaves the hikes that started from it, with the link set to `null`.
+- **Text.** Destination, route and passage points are trimmed; empty strings are refused. Limits: destination 100, route 500, passage point 100 characters, 10 passage points.
+- **Language.** All API messages are in English.
+
+## How it works
+
+1. `POST /api/hikes` arrives with the session cookie. `AuthGuard` checks the session, `RolesGuard` the `HIKER` role, `ZodValidationPipe(registerHikeSchema)` the body (required fields, lengths, return after departure).
+2. `RegisterHike.execute` computes the hut's local time now (`localMoment`) and refuses a departure that has already come (`422`).
+3. In one transaction it:
+   1. finds the hiker profile of the user (`403` if none);
+   2. checks the predefined hike, if one is named (`404`);
+   3. locks the hiker's row;
+   4. looks for a hike of the same hiker that overlaps the new one (`409`, naming it);
+   5. saves the hike.
+4. The answer is `201` with the registered hike.
+
+## API
+
+### `GET /api/hikes/predefined`
+
+Hikers only. The hut's list of hikes, by destination and route.
+
+```bash
+curl -b cookies.txt http://localhost:3000/api/hikes/predefined
+```
+
+Response `200 OK`:
+
+```json
+[
+  {
+    "id": 2,
+    "destination": "Monte Vettore",
+    "route": "From Forca di Presta via Rifugio Zilioli",
+    "passagePoints": ["Forca di Presta", "Rifugio Tito Zilioli"]
+  }
+]
+```
+
+### `POST /api/hikes`
+
+Hikers only. The hiker comes from the session, never from the body.
+
+| Field              | Type     | Rules                                                                        |
+| ------------------ | -------- | ---------------------------------------------------------------------------- |
+| `destination`      | string   | Required, trimmed, 1–100 characters                                          |
+| `route`            | string   | Required, trimmed, 1–500 characters                                          |
+| `passagePoints`    | string[] | Optional (default `[]`), at most 10, each trimmed, 1–100 characters, ordered |
+| `departureDate`    | string   | `YYYY-MM-DD`, valid calendar date, hut local time                            |
+| `departureTime`    | string   | `HH:MM`, hut local time; departure must be in the future                     |
+| `returnDate`       | string   | `YYYY-MM-DD`, valid calendar date                                            |
+| `returnTime`       | string   | `HH:MM`; return must be after the departure                                  |
+| `predefinedHikeId` | integer  | Optional: the predefined hike the form started from                          |
+
+```bash
+curl -b cookies.txt -H 'Content-Type: application/json' \
+  http://localhost:3000/api/hikes \
+  -d '{"destination":"Monte Vettore","route":"From Forca di Presta",
+       "passagePoints":["Forca di Presta","Rifugio Tito Zilioli"],
+       "departureDate":"2035-06-01","departureTime":"08:00",
+       "returnDate":"2035-06-01","returnTime":"17:00","predefinedHikeId":2}'
+```
+
+Response `201 Created`:
+
+```json
+{
+  "id": 1,
+  "destination": "Monte Vettore",
+  "route": "From Forca di Presta",
+  "passagePoints": ["Forca di Presta", "Rifugio Tito Zilioli"],
+  "departureDate": "2035-06-01",
+  "departureTime": "08:00",
+  "returnDate": "2035-06-01",
+  "returnTime": "17:00",
+  "predefinedHikeId": 2
+}
+```
+
+### Errors
+
+| Status | When                                                    | `message`                                                                             |
+| ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `400`  | Body invalid, or return not after the departure         | `Invalid data` (with `issues`)                                                        |
+| `401`  | No active session cookie                                | `Not authenticated`                                                                   |
+| `403`  | Role is not `HIKER`                                     | `Operation not allowed for your role`                                                 |
+| `403`  | The user has no hiker profile                           | `A hiker profile is required to register a hike`                                      |
+| `404`  | `predefinedHikeId` does not exist                       | `Predefined hike not found`                                                           |
+| `409`  | The hike overlaps another hike of the same hiker        | `This hike overlaps your hike to Monte Vettore (2035-06-01 08:00 – 2035-06-01 17:00)` |
+| `422`  | The planned departure has already come (hut local time) | `The planned departure must be in the future`                                         |
+
+## Web app
+
+Not begun. The form must follow `guides/08-ui-conventions.md` (date with `DayPicker`/date field, inline field errors, toast or dialog on success).
+
+## Data model
+
+| Table              | Change / Role                       |
+| ------------------ | ----------------------------------- |
+| `predefined_hikes` | New: the hut's list of hikes        |
+| `hikes`            | New: hikes registered by the hikers |
+
+`predefined_hikes`:
+
+| Column           | Type   | Notes                             |
+| ---------------- | ------ | --------------------------------- |
+| `id`             | SERIAL | Primary key                       |
+| `destination`    | TEXT   | Unique with `route`               |
+| `route`          | TEXT   |                                   |
+| `passage_points` | TEXT[] | Not null, default empty, in order |
+
+`hikes`:
+
+| Column               | Type           | Notes                                                        |
+| -------------------- | -------------- | ------------------------------------------------------------ |
+| `id`                 | SERIAL         | Primary key                                                  |
+| `hiker_id`           | INTEGER        | `hikers.id`, on delete cascade; indexed with `departure_at`  |
+| `predefined_hike_id` | INTEGER        | `predefined_hikes.id`, nullable, on delete set null; indexed |
+| `destination`        | TEXT           |                                                              |
+| `route`              | TEXT           |                                                              |
+| `passage_points`     | TEXT[]         | Not null, default empty, in order                            |
+| `departure_at`       | TIMESTAMP(0)   | Hut local time                                               |
+| `return_at`          | TIMESTAMP(0)   | Hut local time; CHECK `return_at > departure_at`             |
+| `created_at`         | TIMESTAMPTZ(3) | Default now                                                  |
+
+Migrations:
+
+- `20261125120000_register_a_hike`
+
+## Configuration
+
+No new variables. The hut's time zone is `BOOKING_TIMEZONE` (default `Europe/Rome`), already used by the bookings.
+
+## Code map
+
+| Path                                                           | Content                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `docs/stories/MH-20-register-a-hike.md`                        | This document                                                                  |
+| `packages/shared/src/hikes.ts`                                 | `registerHikeSchema`, limits, `hikeMoment`, `PredefinedHike`, `RegisteredHike` |
+| `apps/api/prisma/schema.prisma`                                | `PredefinedHike` and `Hike` models                                             |
+| `apps/api/prisma/migrations/20261125120000_register_a_hike/`   | Tables, indexes, foreign keys and the time range CHECK                         |
+| `apps/api/src/seed.ts`                                         | Four predefined hikes around Monte Vettore (upserted)                          |
+| `apps/api/src/hikes/hikes.module.ts`                           | Module wiring, registered in `app.module.ts`                                   |
+| `apps/api/src/hikes/domain/hike.ts`                            | `Hike`, `NewHike`, `LocalMoment`                                               |
+| `apps/api/src/hikes/domain/hike-registration-policy.ts`        | `localMoment`, `decideHikeRegistration`                                        |
+| `apps/api/src/hikes/application/hikes.repository.port.ts`      | Storage port                                                                   |
+| `apps/api/src/hikes/application/register-hike.ts`              | `RegisterHike`: checks, lock and save in one transaction                       |
+| `apps/api/src/hikes/application/list-predefined-hikes.ts`      | `ListPredefinedHikes`                                                          |
+| `apps/api/src/hikes/infrastructure/prisma-hikes.repository.ts` | Prisma queries, hiker row lock, local time mapping                             |
+| `apps/api/src/hikes/presentation/hikes.controller.ts`          | `GET /api/hikes/predefined`, `POST /api/hikes`, hikers only                    |
+
+## Testing
+
+No automated tests yet: this step covered the backend only.
+
+| Spec | Covers |
+| ---- | ------ |
+| —    | —      |
+
+### Try it manually
+
+1. Start the stack and seed the demo data: `docker compose up --build -d`, then `npm run prisma:seed -w @mountain-hut/api`.
+2. Sign in as the demo hiker: `curl -c cookies.txt -H 'Content-Type: application/json' http://localhost:3000/api/auth/login -d '{"email":"hiker@mountainhut.com","password":"Password123!"}'`.
+3. `GET /api/hikes/predefined` returns the four hikes of the seed.
+4. Register a hike in the future with the `POST /api/hikes` example above: `201`. Send it again: `409`.
+5. Send a departure earlier today: `422`. Send a return before the departure: `400`.
+6. Inspect the rows: `docker compose exec db psql -U mountainhut -d mountainhut -c 'select * from hikes'`.
+
+Checked by hand on 2026-11-25 against a throwaway database: the migration matches `schema.prisma` (`prisma migrate diff`: no difference), the seed is idempotent, every status in the error table, the time zone boundary (a departure one minute ago in Rome, still future in UTC, gets `422`) and two identical concurrent registrations (`201` and `409`).
+
+## Open points
+
+- **Report to the staff:** the decision of [#51](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/51) that the return must be after the departure is not in the Clarifications of MH-20.
+- **Report to the staff:** the decision of [#53](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/53) (a hike starts at its departure time; not leaving is handled by MH-22) is not in the Clarifications of MH-21, which still says "No approved clarifications yet".
+- **Predefined hikes only from the seed.** An installation without demo data has an empty list; the staff cannot manage the list yet. To decide whether to load the list in a migration or add a staff page.
+- **MH-22.** When a hike can be declared finished, decide whether a finished hike still blocks an overlapping registration (today every hike does).
+- **Tests.** Unit (schema, policy, use case, controller, repository), integration (CHECK, row lock) and E2E tests are still to write.
+- **Web app.** R9.
