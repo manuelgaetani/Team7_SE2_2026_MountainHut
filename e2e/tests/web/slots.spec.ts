@@ -59,8 +59,8 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await expect(page).toHaveURL('/staff/slots');
 
     // Select the isolated test date
-    const dayInput = page.getByLabel('Day', { exact: true });
-    await dayInput.fill(testDate);
+    // The day is opened by its address: the test date is decades ahead.
+    await page.goto(`/staff/slots?date=${testDate}`);
     await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
 
     // 1. Create a slot with 2 tables: Table 1 (4 seats) and Table 2 (6 seats)
@@ -126,5 +126,25 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await page.goto('/staff/slots');
     await expect(page.getByText('Time slots and tables')).toBeVisible();
     await expect(page.getByLabel('Day', { exact: true })).toBeVisible();
+  });
+
+  test('the day is chosen in the calendar of the site, as on the Book a table page', async ({
+    page,
+    employeeUser,
+  }) => {
+    await signIn(page, employeeUser);
+    await page.goto('/staff/slots?date=2031-03-10');
+    const day = page.getByLabel('Day', { exact: true });
+    await expect(day).toHaveText('Mon 10 Mar 2031');
+
+    await day.click();
+    const calendar = page.getByRole('group', { name: 'Calendar' });
+    await expect(calendar.getByText('March 2031')).toBeVisible();
+    await calendar.getByRole('button', { name: 'Next month' }).click();
+    await calendar.getByRole('button', { name: 'Tue 15 Apr' }).click();
+
+    await expect(calendar).toHaveCount(0);
+    await expect(day).toHaveText('Tue 15 Apr 2031');
+    await expect(day).toBeFocused();
   });
 });

@@ -1,5 +1,6 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { SlotSummary } from '@mountain-hut/shared';
+import { TimeList } from './TimeList.tsx';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const isBookable = (slot: SlotSummary, guests: number): boolean =>
@@ -33,17 +34,74 @@ export function TimeSlotPicker({
   reason = (s) => defaultReason(s, guests),
 }: TimeSlotPickerProps) {
   const labelId = useId();
+  const listId = useId();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const selected = slots.find((s) => s.id === value);
   const range =
     slots.length > 0 ? `${slots[0].startTime}–${slots[slots.length - 1].endTime}` : null;
 
+  function close(returnFocus: boolean) {
+    setOpen(false);
+    if (returnFocus) toggleRef.current?.focus();
+  }
+
+  // A click outside the picker closes the list.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
+
+  function pick(slotId: number) {
+    onChange(slotId);
+    close(true);
+  }
+
   return (
-    <section className="field" aria-labelledby={labelId}>
+    <section className="field picker" aria-labelledby={labelId} ref={rootRef}>
       <div className="field__head">
         <h3 id={labelId} className="field__label">
           {label}
         </h3>
-        {range && <span className="field__meta">{range}</span>}
+        {/* The list floats under this button, over the content: the time buttons do not move. */}
+        {range && (
+          <div className="picker-anchor">
+            <button
+              ref={toggleRef}
+              type="button"
+              className="field__meta picker-toggle"
+              aria-expanded={open}
+              aria-controls={open ? listId : undefined}
+              aria-label={`${range}, choose a time from the list`}
+              title="Choose a time from the list"
+              onClick={() => (open ? close(false) : setOpen(true))}
+            >
+              {range}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+            </button>
+
+            {open && (
+              <TimeList
+                id={listId}
+                slots={slots}
+                value={value}
+                canChoose={canChoose}
+                reason={reason}
+                hint="Times that are full or closed cannot be chosen."
+                onPick={pick}
+                onClose={() => close(true)}
+              />
+            )}
+          </div>
+        )}
       </div>
       <div className="slots" role="radiogroup" aria-labelledby={labelId}>
         {slots.map((slot) => {

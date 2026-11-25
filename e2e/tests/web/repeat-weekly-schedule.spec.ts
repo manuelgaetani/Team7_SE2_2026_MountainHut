@@ -81,7 +81,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await expect(page).toHaveURL('/staff/slots');
 
       // 2. Select source Monday and create a base slot with 2 tables
-      await page.getByLabel('Day', { exact: true }).fill(monday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${monday}`);
       await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
 
       await page.getByLabel('Start').fill('12:00');
@@ -125,7 +126,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await expect(page.getByText(/Schedule successfully repeated across 2 weeks/i)).toBeVisible();
 
       // 6. Navigate to Day +7 (next Monday) and verify duplicated slot
-      await page.getByLabel('Day', { exact: true }).fill(nextMonday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${nextMonday}`);
       const nextWeekCard = page.locator('.schedule__slot', { hasText: '12:00–13:30' });
       await expect(nextWeekCard).toBeVisible();
       await expect(nextWeekCard).toContainText('2 tables · 0/10 seats taken');
@@ -133,7 +135,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await expect(nextWeekCard).toContainText('Table 2 · 6 seats');
 
       // 7. Navigate to Day +14 (second Monday) and verify duplicated slot
-      await page.getByLabel('Day', { exact: true }).fill(secondMonday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${secondMonday}`);
       const secondWeekCard = page.locator('.schedule__slot', { hasText: '12:00–13:30' });
       await expect(secondWeekCard).toBeVisible();
       await expect(secondWeekCard).toContainText('2 tables · 0/10 seats taken');
@@ -160,7 +163,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await signIn(page, employeeUser);
 
       await page.goto('/staff/slots');
-      await page.getByLabel('Day', { exact: true }).fill(monday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${monday}`);
 
       // Create a slot first so repetition is possible
       await page.getByLabel('Start').fill('12:00');
@@ -215,7 +219,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
         }),
       );
       await page.goto('/staff/slots');
-      await page.getByLabel('Day', { exact: true }).fill(monday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${monday}`);
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
       await dialog
@@ -230,7 +235,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
     async function openRepeatDialog(page: Page, user: TestUser) {
       await signIn(page, user);
       await page.goto('/staff/slots');
-      await page.getByLabel('Day', { exact: true }).fill(uniqueMondayDate());
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${uniqueMondayDate()}`);
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
       await expect(dialog).toBeVisible();
@@ -314,7 +320,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       const monday = uniqueMondayDate();
       await signIn(page, employeeUser);
       await page.goto('/staff/slots');
-      await page.getByLabel('Day', { exact: true }).fill(monday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${monday}`);
       await page.getByRole('button', { name: /Repeat weekly schedule/i }).click();
       const dialog = page.getByRole('dialog', { name: /Repeat weekly schedule/i });
 
@@ -337,7 +344,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       const monday = uniqueMondayDate();
       await signIn(page, employeeUser);
       await page.goto('/staff/slots');
-      await page.getByLabel('Day', { exact: true }).fill(monday);
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${monday}`);
 
       await page.getByLabel('Start').fill('12:00');
       await page.getByLabel('End').fill('13:30');
@@ -364,7 +372,8 @@ test.describe('MH-09 Black-Box Web UI: Repeat a weekly schedule', () => {
       await expect(dialog).toBeHidden();
 
       expect(repeatRequests).toEqual([]);
-      await page.getByLabel('Day', { exact: true }).fill(addDays(monday, 7));
+      // The day is opened by its address: the test dates are decades ahead.
+      await page.goto(`/staff/slots?date=${addDays(monday, 7)}`);
       await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
     });
   });

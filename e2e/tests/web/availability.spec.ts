@@ -91,7 +91,8 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     // 1. Staff creates a slot with Table 1 (4 seats) via UI
     await signIn(page, employeeUser);
     await page.goto('/staff/slots');
-    await page.getByLabel('Day', { exact: true }).fill(testDate);
+    // The day is opened by its address: the test dates are decades ahead.
+    await page.goto(`/staff/slots?date=${testDate}`);
     await page.getByLabel('Start').fill('12:00');
     await page.getByLabel('End').fill('13:30');
     await page.getByLabel('Seats, row 1').fill('4');
@@ -342,4 +343,21 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       deleteSlot(slotId);
     }
   });
+});
+
+test('the time is typed freely or chosen hour and minutes from the clock', async ({ page }) => {
+  await page.goto('/availability');
+  const time = page.getByLabel('Time', { exact: true });
+
+  await time.fill('1940');
+  await time.blur();
+  await expect(time).toHaveValue('19:40');
+
+  await page.getByRole('button', { name: 'Choose hour and minutes' }).click();
+  const clock = page.getByRole('group', { name: 'Hour and minutes' });
+  await clock.getByRole('button', { name: '12 hours' }).click();
+  await clock.getByRole('button', { name: '25 minutes' }).click();
+
+  await expect(clock).toHaveCount(0);
+  await expect(time).toHaveValue('12:25');
 });

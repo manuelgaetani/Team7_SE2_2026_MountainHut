@@ -14,7 +14,7 @@ import { useCurrentUser } from '../api/useAuth.ts';
 import { useBookableSlots } from '../api/useBookings.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
-import { FormField } from '../components/FormField.tsx';
+import { DateField } from '../components/DateField.tsx';
 import { GuestStepper } from '../components/GuestStepper.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
 import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
@@ -210,15 +210,13 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
           </h2>
           <p className="card__hint">Plan the visit to the hut.</p>
 
-          <FormField
+          <DateField
             id="booking-date"
             label="Date *"
-            type="date"
             min={toIsoDate(now)}
             value={date}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setDate(e.target.value);
+            onChange={(iso) => {
+              setDate(iso);
               setChosenSlotId(null);
             }}
           />
