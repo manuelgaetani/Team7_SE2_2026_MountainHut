@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SlotDetails } from '../api/slots.ts';
 import { usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
@@ -18,6 +17,7 @@ import {
 } from '../lib/menu.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
+import { MenuDialog } from './MenuDialog.tsx';
 import { MenuMarkIcon } from './MenuIcons.tsx';
 import { MenuTextField } from './MenuTextField.tsx';
 import { useToast } from './Toast.tsx';
@@ -95,43 +95,6 @@ interface MenuEditorProps {
   onClose: () => void;
 }
 
-// The modal around the editor, in the style of "Modify booking": the backdrop, the × and a
-// click outside ask to close; the focus goes into the dialog and back to the opener at the end.
-function MenuDialog({ onClose, children }: { onClose: () => void; children: ReactNode }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    return () => opener?.focus();
-  }, []);
-  return createPortal(
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        className="dialog modify-dialog menu-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="menu-editor-title"
-      >
-        <button type="button" className="dialog__close" aria-label="Close" onClick={onClose}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" />
-          </svg>
-        </button>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 function MenuHeading({ slot }: { slot: SlotDetails }) {
   return (
     <>
@@ -153,7 +116,7 @@ export function MenuEditor(props: MenuEditorProps) {
 
   if (saved.isSuccess) return <MenuForm {...props} saved={saved.data} />;
   return (
-    <MenuDialog onClose={props.onClose}>
+    <MenuDialog onClose={props.onClose} labelledBy="menu-editor-title">
       <MenuHeading slot={props.slot} />
       {saved.isPending ? (
         <p role="status">Loading the menu…</p>
@@ -310,7 +273,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   }
 
   return (
-    <MenuDialog onClose={requestClose}>
+    <MenuDialog onClose={requestClose} labelledBy="menu-editor-title">
       <MenuHeading slot={slot} />
       <form
         className="menu-editor"

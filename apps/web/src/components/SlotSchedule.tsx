@@ -10,10 +10,17 @@ interface SlotScheduleProps {
   slots: SlotDetails[];
   onDefineTables: (slot: SlotDetails) => void;
   onDefineMenu: (slot: SlotDetails) => void;
+  // MH-10: the time of a slot opens its menu as hikers see it.
+  onShowMenu: (slot: SlotDetails) => void;
 }
 
 // The slots of one day with their tables, as the staff see them.
-export function SlotSchedule({ slots, onDefineTables, onDefineMenu }: SlotScheduleProps) {
+export function SlotSchedule({
+  slots,
+  onDefineTables,
+  onDefineMenu,
+  onShowMenu,
+}: SlotScheduleProps) {
   if (slots.length === 0) {
     return <p className="notice notice--ok">No time slots on this day yet.</p>;
   }
@@ -26,7 +33,15 @@ export function SlotSchedule({ slots, onDefineTables, onDefineMenu }: SlotSchedu
           <li key={slot.id} className="summary schedule__slot">
             <div className="schedule__head">
               <h3 className="summary__title">
-                {slot.startTime}–{slot.endTime}
+                <button
+                  type="button"
+                  className="schedule__time"
+                  aria-haspopup="dialog"
+                  title="See the menu as hikers see it"
+                  onClick={() => onShowMenu(slot)}
+                >
+                  {slot.startTime}–{slot.endTime}
+                </button>
               </h3>
               {slot.tables.length > 0 ? (
                 <SlotSeats slot={slot} />

@@ -7,6 +7,7 @@ import { useSchedule } from '../api/useSlots.ts';
 import { DefineTablesForm } from '../components/DefineTablesForm.tsx';
 import { DateField } from '../components/DateField.tsx';
 import { MenuEditor } from '../components/MenuEditor.tsx';
+import { MenuPreviewDialog } from '../components/MenuPreviewDialog.tsx';
 import { NewSlotForm } from '../components/NewSlotForm.tsx';
 import { RepeatWeeklyScheduleDialog } from '../components/RepeatWeeklyScheduleDialog.tsx';
 import { SlotSchedule } from '../components/SlotSchedule.tsx';
@@ -27,6 +28,8 @@ function SlotsManager() {
   const [defining, setDefining] = useState<SlotDetails | null>(null);
   // MH-10: the slot whose menu is open in the menu dialog.
   const [menuSlot, setMenuSlot] = useState<SlotDetails | null>(null);
+  // MH-10: the slot whose menu the staff look at as hikers see it.
+  const [previewSlot, setPreviewSlot] = useState<SlotDetails | null>(null);
   const [repeating, setRepeating] = useState(false);
   const schedule = useSchedule(date);
   const toast = useToast();
@@ -55,6 +58,7 @@ function SlotsManager() {
             slots={schedule.data}
             onDefineTables={setDefining}
             onDefineMenu={setMenuSlot}
+            onShowMenu={setPreviewSlot}
           />
         )}
       </div>
@@ -85,6 +89,7 @@ function SlotsManager() {
           onClose={() => setMenuSlot(null)}
         />
       )}
+      {previewSlot && <MenuPreviewDialog slot={previewSlot} onClose={() => setPreviewSlot(null)} />}
       {repeating && (
         <RepeatWeeklyScheduleDialog
           sourceStartDate={date}

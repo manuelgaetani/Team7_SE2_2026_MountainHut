@@ -361,3 +361,29 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* The time of a slot card: a button that opens the menu as hikers see it. */
+.schedule__time {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.schedule__time:hover {
+  color: var(--green);
+}
+.schedule__time:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 3px;
+}
+
+/* The preview dialog: as wide as the card on Book a table. */
+.menu-preview {
+  width: min(100%, 980px);
+}
+.menu-preview .menu-card {
+  margin: 8px 0 20px;
+}

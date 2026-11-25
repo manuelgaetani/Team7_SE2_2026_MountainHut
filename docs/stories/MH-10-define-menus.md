@@ -32,14 +32,17 @@ Team assumptions:
 | R3  | Descriptions support bold, italic, list items and sub-items, from a toolbar                             | Done (web) | `MenuTextField`, `lib/menuText.ts`, `MenuText`     |
 | R4  | A previous menu can be reused as the start of a new one, then changed                                   | Done (web) | `MenuEditor` ("Start from"), `usePastMenus`        |
 | R5  | Invalid menus are not saved: empty names, price not above 0, description over 280 characters, no dishes | Done (web) | `menuErrors`                                       |
-| R6  | Leaving the editor with unsaved changes asks first                                                      | Done (web) | `MenuEditor`, `SlotsPage` (`guard`)                |
+| R6  | Leaving the editor with unsaved changes asks first                                                      | Done (web) | `MenuEditor`                                       |
 | R7  | Hikers see the menu of the chosen slot on Book a table, with the marks and a legend                     | Done (web) | `SlotMenuCard`, `MenuLegend`, `BookingPage`        |
+| R9  | The staff see the menu of a slot as hikers see it, from the time on the slot card                       | Done (web) | `MenuPreviewDialog`, `SlotSchedule`                |
 | R8  | The menus are stored by the API                                                                         | To do      | `api/menus.ts` keeps them in the browser until now |
 
 ## Web app
 
 - **Time slots** (`/staff/slots`). Every slot card has a **Define menu** button, or **Edit menu** with _"Menu · 3 courses"_ once a menu is saved. The button opens the menu editor in a dialog, in the style of Modify booking.
 - **Menu editor** (`MenuEditor`). _Start from_ lists this slot's menu, an empty menu (the four default courses) and every previous menu (_"Sun 22 Nov · 12:00–14:00"_). Each course has a name and its dishes; each dish has _Name (Italian)_, _Name (English)_, _Price (€)_ (a comma is accepted), the marks as toggle tiles and a _Description_ with the toolbar **Bold**, _Italic_, _List item_, _Sub-item_. Removing a dish or a course shows a toast (_"Dish removed: Canederli in brodo."_) with **Undo**, which puts it back in its place. **Save menu** shows the errors next to the fields, or saves and closes with the toast _"Menu saved for 12:00–14:00."_. **Close** or `Escape` with changes asks _"Discard your changes?"_ (**Keep editing** / **Discard**).
+- **Preview** (`MenuPreviewDialog`). On `/staff/slots` the time of a slot card (_12:00–14:00_) is a button: it opens a dialog with the menu exactly as hikers see it on Book a table.
+- **Table numbers.** Table numbers go from 1 to 50 (`MAX_TABLE_NUMBER` in `lib/slotTables.ts`): a bigger number shows _"Table numbers go from 1 to 50."_ and **Add a table** stops at 50 rows. The API keeps its own limit until the shared schema gets this one.
 - **Book a table** (`/book`). Once a time is chosen, the menu of that slot is shown under the form: the courses in two columns, the dish name in Italian with its marks and price, the English name in small italics, the description, and the legend at the bottom. Without a menu: _"The menu of this slot is not out yet."_.
 
 ## Data model (web, until the API)
@@ -81,19 +84,21 @@ Until then the menus live in the browser (`localStorage`, key `mh.menus`), start
 
 ## Code map
 
-| File                                        | Role                                                       |
-| ------------------------------------------- | ---------------------------------------------------------- |
-| `apps/web/src/lib/menu.ts`                  | Types, marks, limits, price format, validation             |
-| `apps/web/src/lib/menuText.ts`              | Parser of the description formatting                       |
-| `apps/web/src/api/menus.ts`                 | Local store of the menus (to be replaced by the API calls) |
-| `apps/web/src/api/menuSeed.ts`              | Example menus to reuse                                     |
-| `apps/web/src/api/useMenus.ts`              | `useSlotMenu`, `usePastMenus`, `useSaveSlotMenu`           |
-| `apps/web/src/components/MenuIcons.tsx`     | Mark icons, `MenuMarks`, `MenuLegend`                      |
-| `apps/web/src/components/MenuText.tsx`      | Formatted description                                      |
-| `apps/web/src/components/MenuTextField.tsx` | Description field with its toolbar                         |
-| `apps/web/src/components/MenuEditor.tsx`    | Staff editor                                               |
-| `apps/web/src/components/SlotMenuCard.tsx`  | Hiker card on Book a table                                 |
-| `apps/web/src/components/Menu.css`          | Styles of the card, the marks and the editor               |
+| File                                            | Role                                                       |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `apps/web/src/lib/menu.ts`                      | Types, marks, limits, price format, validation             |
+| `apps/web/src/lib/menuText.ts`                  | Parser of the description formatting                       |
+| `apps/web/src/api/menus.ts`                     | Local store of the menus (to be replaced by the API calls) |
+| `apps/web/src/api/menuSeed.ts`                  | Example menus to reuse                                     |
+| `apps/web/src/api/useMenus.ts`                  | `useSlotMenu`, `usePastMenus`, `useSaveSlotMenu`           |
+| `apps/web/src/components/MenuIcons.tsx`         | Mark icons, `MenuMarks`, `MenuLegend`                      |
+| `apps/web/src/components/MenuText.tsx`          | Formatted description                                      |
+| `apps/web/src/components/MenuTextField.tsx`     | Description field with its toolbar                         |
+| `apps/web/src/components/MenuDialog.tsx`        | Dialog shell of the editor and the preview                 |
+| `apps/web/src/components/MenuPreviewDialog.tsx` | Staff preview of the hiker card                            |
+| `apps/web/src/components/MenuEditor.tsx`        | Staff editor                                               |
+| `apps/web/src/components/SlotMenuCard.tsx`      | Hiker card on Book a table                                 |
+| `apps/web/src/components/Menu.css`              | Styles of the card, the marks and the editor               |
 
 ## Try it manually
 
