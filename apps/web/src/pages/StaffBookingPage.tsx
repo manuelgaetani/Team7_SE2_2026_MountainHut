@@ -17,7 +17,7 @@ import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
 import { FormField } from '../components/FormField.tsx';
 import { GuestStepper } from '../components/GuestStepper.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
-import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
+import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
 import { StaffBookingErrorDialog } from '../components/StaffBookingErrorDialog.tsx';
 import { TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
@@ -31,7 +31,13 @@ import {
 import './BookingPage.css';
 import './StaffBookingPage.css';
 import { apiErrorMessage } from '../lib/errors.ts';
-import { AllergyBadge } from '../components/AllergyBadge.tsx';
+import { RequirementLine } from '../components/RequirementLine.tsx';
+import {
+  draftErrors,
+  isFilled,
+  toRequirement,
+  type RequirementDraft,
+} from '../lib/requirements.ts';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 const FOOTER_TEXT: Record<HikerMode, string> = {
@@ -55,9 +61,7 @@ const seats = (n: number): string => (n === 1 ? '1 free seat' : `${n} free seats
 
 // MH-05: one entry per subset of the party. The list is left out when there are no needs.
 const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] | undefined =>
-  rows.length === 0
-    ? undefined
-    : rows.map(({ allergies, description }) => ({ allergies, description }));
+  rows.length === 0 ? undefined : rows.map(toRequirement);
 
 // Empty optional fields are left out of the request.
 const optional = (s: string): string | undefined => (s.trim() === '' ? undefined : s);
@@ -120,6 +124,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(DEFAULT_PARTY);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
+  const [requirementErrors, setRequirementErrors] = useState<Partial<Record<number, string>>>({});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -156,6 +161,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrors({});
+    setRequirementErrors({});
     setFormError(null);
 
     const chosenHiker = toHiker(hiker);
@@ -163,8 +169,9 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
       setErrors({ hikerId: 'Select a hiker, or add a new one with Quick entry or Full profile.' });
       return;
     }
-    if (requirements.some((r) => r.description.trim() === '')) {
-      setErrors({ requirements: 'Describe each requirement or remove it.' });
+    const rowErrors = draftErrors(requirements);
+    if (Object.keys(rowErrors).length > 0) {
+      setRequirementErrors(rowErrors);
       return;
     }
 
@@ -256,7 +263,11 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             <p className="notice notice--ok">No time slots can be booked on this day.</p>
           )}
 
-          <RequirementsEditor value={requirements} onChange={setRequirements} />
+          <RequirementsEditor
+            value={requirements}
+            onChange={setRequirements}
+            errors={requirementErrors}
+          />
           {errors.requirements && (
             <p role="alert" className="field-error">
               {errors.requirements}
@@ -266,16 +277,13 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
           <div className="card__recap">
             {summary && <strong>{summary}</strong>}
             {guests >= 1 && <strong>{people(guests)}</strong>}
-            {requirements.some((r) => r.description.trim() !== '') && (
+            {requirements.some(isFilled) && (
               <ul className="card__requirements" aria-label="Requirements of the party">
-                {requirements
-                  .filter((r) => r.description.trim() !== '')
-                  .map((r) => (
-                    <li key={r.key}>
-                      {r.allergies && <AllergyBadge />}
-                      {r.description}
-                    </li>
-                  ))}
+                {requirements.filter(isFilled).map((r) => (
+                  <li key={r.key}>
+                    <RequirementLine requirement={toRequirement(r)} />
+                  </li>
+                ))}
               </ul>
             )}
           </div>

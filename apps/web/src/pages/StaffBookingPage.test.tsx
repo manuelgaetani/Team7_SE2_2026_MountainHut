@@ -20,7 +20,7 @@ const TEXT = {
   people: 'Number of people',
   addRequirement: 'Add a requirement',
   addAnotherRequirement: 'Add another requirement',
-  emptyRequirement: 'Describe each requirement or remove it.',
+  emptyRequirement: 'Choose at least one need, or remove this requirement.',
   done: 'Booking created',
   selectHiker: 'Select a hiker, or add a new one with Quick entry or Full profile.',
   noSlots: 'No time slots can be booked on this day.',
@@ -144,16 +144,19 @@ async function waitForSlots() {
   await screen.findByRole('radio', { name: '12:30–14:00' });
 }
 
-// Adds a requirement row of the MH-05 editor and fills it.
-function addRequirement(n: number, description: string, allergies: boolean) {
+// Adds a requirement row of the MH-05 editor, picks the needs of the list and writes the rest.
+function addRequirement(n: number, description: string, allergies: boolean, needs: string[] = []) {
   const add = screen.queryByRole('button', { name: TEXT.addRequirement });
   fireEvent.click(add ?? screen.getByRole('button', { name: TEXT.addAnotherRequirement }));
   // Each entry is a group named "Requirement n", with short names for its controls.
   const row = within(screen.getByRole('group', { name: `Requirement ${n}` }));
-  fireEvent.change(row.getByRole('textbox', { name: 'Details' }), {
+  for (const name of needs) fireEvent.click(row.getByRole('checkbox', { name }));
+  if (description === '') return;
+  fireEvent.click(row.getByRole('checkbox', { name: 'Other' }));
+  fireEvent.change(row.getByRole('textbox', { name: 'Other need' }), {
     target: { value: description },
   });
-  if (allergies) fireEvent.click(row.getByRole('checkbox', { name: 'Allergies' }));
+  if (allergies) fireEvent.click(row.getByRole('checkbox', { name: 'Allergy or intolerance' }));
 }
 
 async function selectLuca() {
@@ -355,9 +358,11 @@ describe('StaffBookingPage (MH-07)', () => {
     addRequirement(1, '1 vegan, peanut allergy', true);
     addRequirement(2, '1 shellfish allergy', true);
     addRequirement(3, '2 vegetarians', false);
+    addRequirement(4, '', false, ['Soy-free', 'Vegan']);
 
     const recap = screen.getByRole('list', { name: 'Requirements of the party' });
-    expect(within(recap).getAllByText('Allergies')).toHaveLength(2);
+    expect(within(recap).getAllByText('Allergies')).toHaveLength(3);
+    expect(within(recap).getByText('Soy-free')).toHaveClass('diet-tag');
 
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
@@ -367,9 +372,10 @@ describe('StaffBookingPage (MH-07)', () => {
       slotId: 1,
       partySize: 4,
       requirements: [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: true, description: '1 shellfish allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
+        { restrictions: ['SOY_FREE', 'VEGAN'], allergies: false, description: '' },
       ],
       hiker: { kind: 'EXISTING', hikerId: 7 },
     });

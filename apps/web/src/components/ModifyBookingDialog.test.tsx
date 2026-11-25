@@ -10,7 +10,8 @@ const TEXT = {
   more: 'More guests',
   fewer: 'Fewer guests',
   add: 'Add another requirement',
-  emptyRequirement: 'Describe the requirement or remove it.',
+  emptyRequirement: 'Describe the other need, or untick Other.',
+  noNeed: 'Choose at least one need, or remove this requirement.',
   confirm: 'Confirm changes',
   close: 'Close',
   discardTitle: 'Discard your changes?',
@@ -41,8 +42,8 @@ const booking: MyBooking = {
   endTime: '14:00',
   partySize: 4,
   requirements: [
-    { allergies: true, description: '1 vegan, peanut allergy' },
-    { allergies: false, description: '2 vegetarians' },
+    { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+    { restrictions: [], allergies: false, description: '2 vegetarians' },
   ],
   status: 'CONFIRMED',
 };
@@ -99,8 +100,11 @@ const partySize = () => screen.getByLabelText(TEXT.people);
 const more = () => screen.getByRole('button', { name: TEXT.more });
 const fewer = () => screen.getByRole('button', { name: TEXT.fewer });
 const row = (n: number) => within(screen.getAllByTestId('requirement-row')[n - 1]);
-const details = (n: number) => row(n).getByLabelText('Details');
-const allergies = (n: number) => row(n).getByRole('checkbox', { name: 'Allergies' });
+const details = (n: number) => row(n).getByLabelText('Other need');
+const allergies = (n: number) => row(n).getByRole('checkbox', { name: 'Allergy or intolerance' });
+const need = (n: number, name: string) => row(n).getByRole('checkbox', { name });
+// A new entry shows its free text only once Other is ticked.
+const tickOther = (n: number) => fireEvent.click(need(n, 'Other'));
 const remove = (n: number) => row(n).getByRole('button', { name: 'Remove' });
 // The dialog has two Close buttons: the x in the corner and the one in the action row.
 const actionRow = () => {
@@ -304,6 +308,7 @@ describe('ModifyBookingDialog', () => {
       setup();
       await openDialog();
       fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
+      tickOther(3);
       expect(details(3)).toHaveValue('');
       fireEvent.change(details(3), { target: { value: '1 shellfish allergy' } });
       fireEvent.click(allergies(3));
@@ -315,10 +320,25 @@ describe('ModifyBookingDialog', () => {
       setup();
       await openDialog();
       fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
+      tickOther(3);
       fireEvent.change(details(3), { target: { value: '   ' } });
       confirm();
       expect(await row(3).findByText(TEXT.emptyRequirement)).toBeVisible();
       expect(details(3)).toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('counts picking a need of the list as a change, and sends it', async () => {
+      const fetchMock = setup();
+      await openDialog();
+      fireEvent.click(need(2, 'Vegan'));
+      confirm();
+      await waitFor(() => expect(changeCalls(fetchMock)).toHaveLength(1));
+      expect(sentChange(fetchMock)).toEqual({
+        requirements: [
+          { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+          { restrictions: ['VEGAN'], allergies: false, description: '2 vegetarians' },
+        ],
+      });
     });
 
     it('removes a requirement', async () => {
@@ -387,15 +407,17 @@ describe('ModifyBookingDialog', () => {
     const fetchMock = setup();
     await openDialog();
     fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
+    fireEvent.click(need(3, 'Gluten-free'));
+    tickOther(3);
     fireEvent.change(details(3), { target: { value: ' 1 shellfish allergy ' } });
     fireEvent.click(allergies(3));
     confirm();
     await waitFor(() => expect(changeCalls(fetchMock)).toHaveLength(1));
     expect(sentChange(fetchMock)).toEqual({
       requirements: [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: false, description: '2 vegetarians' },
-        { allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
+        { restrictions: ['GLUTEN_FREE'], allergies: true, description: '1 shellfish allergy' },
       ],
     });
   });
@@ -405,7 +427,7 @@ describe('ModifyBookingDialog', () => {
     await openDialog();
     fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
     confirm();
-    await screen.findByText(TEXT.emptyRequirement);
+    await screen.findByText(TEXT.noNeed);
     expect(changeCalls(fetchMock)).toHaveLength(0);
   });
 
@@ -537,6 +559,7 @@ describe('ModifyBookingDialog', () => {
       fireEvent.click(fewer());
       fireEvent.click(remove(2));
       fireEvent.click(screen.getByRole('button', { name: TEXT.add }));
+      tickOther(2);
       fireEvent.change(details(2), { target: { value: '2 vegetarians' } });
       clickClose();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -621,7 +644,7 @@ describe('ModifyBookingDialog', () => {
     expect(sentChange(fetchMock)).toEqual({
       slotId: 21,
       partySize: 5,
-      requirements: [{ allergies: true, description: '1 vegan, peanut allergy' }],
+      requirements: [{ restrictions: [], allergies: true, description: '1 vegan, peanut allergy' }],
     });
   });
 

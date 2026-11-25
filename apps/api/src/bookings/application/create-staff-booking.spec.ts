@@ -319,7 +319,7 @@ describe('CreateStaffBooking', () => {
 
     describe('requirements (MH-05)', () => {
       it('stores and returns the requirements of the party', async () => {
-        const requirements = [{ allergies: true, description: '1 nut allergy' }];
+        const requirements = [{ restrictions: [], allergies: true, description: '1 nut allergy' }];
         const result = await useCase.execute({ ...forExisting, requirements }, NOW);
         expect(bookings.createBooking).toHaveBeenCalledWith(
           expect.objectContaining({ requirements }),

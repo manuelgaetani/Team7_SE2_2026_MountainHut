@@ -1,0 +1,101 @@
+/* Needs of the hut (issue from Team 16): one toggle tile per need, icon above its name. */
+.diet-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+/* Overrides the generic ".field label" styles of the forms. */
+.requirements .diet-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 76px;
+  margin: 0;
+  padding: 10px 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.requirements .diet-option:hover {
+  border-color: var(--green);
+}
+/* The checkbox stays in the page for the keyboard and screen readers, but the tile shows it. */
+.requirements .diet-option .diet-option__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.diet-option__icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+/* Picked: filled tile and a tick in the corner, so the state does not rely on colour only. */
+.requirements .diet-option:has(.diet-option__input:checked) {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+.requirements .diet-option:has(.diet-option__input:checked)::after {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  font-size: 12px;
+}
+.requirements .diet-option:has(.diet-option__input:focus-visible) {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
+}
+.requirement__other {
+  display: grid;
+  gap: 6px;
+}
+.requirement .requirement__remove {
+  justify-self: end;
+}
+
+/* The needs of the list where a requirement is shown (summary, dialogs, booking cards). */
+.diet-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  padding: 1px 8px 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: baseline;
+}
+.diet-tag__icon {
+  width: 13px;
+  height: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .requirements .diet-option {
+    transition: none;
+  }
+}

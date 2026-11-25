@@ -10,6 +10,7 @@ import {
 } from '../../fixtures/db.js';
 
 interface PartyRequirementItem {
+  restrictions: string[];
   allergies: boolean;
   description: string;
 }
@@ -77,9 +78,9 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     const slotId = slot([4, 4]);
 
     const requirements: PartyRequirementItem[] = [
-      { allergies: true, description: '1 vegan, peanut allergy' },
-      { allergies: true, description: '1 shellfish allergy' },
-      { allergies: false, description: '2 vegetarians' },
+      { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+      { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+      { restrictions: [], allergies: false, description: '2 vegetarians' },
     ];
 
     const res = await loggedInRequest.post('/api/bookings', {
@@ -104,7 +105,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     const slotId = slot([4]);
 
     const requirements: PartyRequirementItem[] = [
-      { allergies: true, description: 'Severe celiac disease (gluten allergy)' },
+      { restrictions: [], allergies: true, description: 'Severe celiac disease (gluten allergy)' },
     ];
 
     const res = await loggedInRequest.post('/api/bookings', {
@@ -119,7 +120,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     const body = (await res.json()) as BookingResponse;
     expect(body.partySize).toBe(2);
     expect(body.requirements).toEqual([
-      { allergies: true, description: 'Severe celiac disease (gluten allergy)' },
+      { restrictions: [], allergies: true, description: 'Severe celiac disease (gluten allergy)' },
     ]);
   });
 
@@ -129,7 +130,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     const slotId = slot([4]);
 
     const requirements: PartyRequirementItem[] = [
-      { allergies: false, description: 'All guests prefer Halal menu options' },
+      { restrictions: [], allergies: false, description: 'All guests prefer Halal menu options' },
     ];
 
     const res = await loggedInRequest.post('/api/bookings', {
@@ -144,7 +145,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
     const body = (await res.json()) as BookingResponse;
     expect(body.partySize).toBe(2);
     expect(body.requirements).toEqual([
-      { allergies: false, description: 'All guests prefer Halal menu options' },
+      { restrictions: [], allergies: false, description: 'All guests prefer Halal menu options' },
     ]);
   });
 
@@ -185,6 +186,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
   }) => {
     const slotId = slot([8]);
     const requirements: PartyRequirementItem[] = Array.from({ length: 20 }, (_, i) => ({
+      restrictions: [],
       allergies: i % 2 === 0,
       description: `Requirement item ${i + 1}`,
     }));
@@ -212,14 +214,16 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: true, description: '   1 vegan, peanut allergy   ' }],
+        requirements: [
+          { restrictions: [], allergies: true, description: '   1 vegan, peanut allergy   ' },
+        ],
       },
     });
 
     expect(res.status()).toBe(201);
     const body = (await res.json()) as BookingResponse;
     expect(body.requirements).toEqual([
-      { allergies: true, description: '1 vegan, peanut allergy' },
+      { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
     ]);
   });
 
@@ -235,8 +239,8 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
         slotId,
         partySize: 3,
         requirements: [
-          { allergies: true, description: '1 peanut allergy' },
-          { allergies: false, description: '2 lacto-vegetarians' },
+          { restrictions: [], allergies: true, description: '1 peanut allergy' },
+          { restrictions: [], allergies: false, description: '2 lacto-vegetarians' },
         ],
       },
     });
@@ -286,7 +290,9 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: false, description: '<script>alert(1)</script> & "salt"' }],
+        requirements: [
+          { restrictions: [], allergies: false, description: '<script>alert(1)</script> & "salt"' },
+        ],
       },
     });
     expect(res.status()).toBe(201);
@@ -306,7 +312,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: true, description: '' }],
+        requirements: [{ restrictions: [], allergies: true, description: '' }],
       },
     });
     expect(resEmpty.status()).toBe(400);
@@ -315,7 +321,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: true, description: '   ' }],
+        requirements: [{ restrictions: [], allergies: true, description: '   ' }],
       },
     });
     expect(resWhitespace.status()).toBe(400);
@@ -330,7 +336,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: false, description: 'A'.repeat(501) }],
+        requirements: [{ restrictions: [], allergies: false, description: 'A'.repeat(501) }],
       },
     });
 
@@ -346,7 +352,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: false, description: 'no\u0000nuts' }],
+        requirements: [{ restrictions: [], allergies: false, description: 'no\u0000nuts' }],
       },
     });
 
@@ -358,6 +364,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
   }) => {
     const slotId = slot([4]);
     const requirements: PartyRequirementItem[] = Array.from({ length: 21 }, (_, i) => ({
+      restrictions: [],
       allergies: false,
       description: `Requirement item ${i + 1}`,
     }));
@@ -391,7 +398,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: { allergies: true, description: 'peanut allergy' },
+        requirements: { restrictions: [], allergies: true, description: 'peanut allergy' },
       },
     });
     expect(resObject.status()).toBe(400);
@@ -407,7 +414,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: 'yes', description: 'Gluten free' }],
+        requirements: [{ restrictions: [], allergies: 'yes', description: 'Gluten free' }],
       },
     });
     expect(resInvalidFlag.status()).toBe(400);
@@ -417,7 +424,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: true }],
+        requirements: [{ restrictions: [], allergies: true }],
       },
     });
     expect(resMissingDesc.status()).toBe(400);
@@ -442,7 +449,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: true, description: '1 nut allergy' }],
+        requirements: [{ restrictions: [], allergies: true, description: '1 nut allergy' }],
       },
     });
 
@@ -458,7 +465,7 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
       data: {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: false, description: '2 vegans' }],
+        requirements: [{ restrictions: [], allergies: false, description: '2 vegans' }],
       },
     });
 
@@ -468,9 +475,9 @@ test.describe('MH-05 Black-Box API: Party Requirements and Allergies', () => {
 
 // The story example: three requirements for subsets of a party of 4.
 const STORY_EXAMPLE: PartyRequirementItem[] = [
-  { allergies: true, description: '1 vegan, peanut allergy' },
-  { allergies: true, description: '1 shellfish allergy' },
-  { allergies: false, description: '2 vegetarians' },
+  { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+  { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+  { restrictions: [], allergies: false, description: '2 vegetarians' },
 ];
 
 test.describe('MH-05 Black-Box API: Story example and boundaries', () => {
@@ -504,12 +511,16 @@ test.describe('MH-05 Black-Box API: Story example and boundaries', () => {
     const description = 'A'.repeat(500);
 
     const res = await loggedInRequest.post('/api/bookings', {
-      data: { slotId: slot([4]), partySize: 2, requirements: [{ allergies: false, description }] },
+      data: {
+        slotId: slot([4]),
+        partySize: 2,
+        requirements: [{ restrictions: [], allergies: false, description }],
+      },
     });
 
     expect(res.status()).toBe(201);
     const { id } = (await res.json()) as BookingResponse;
-    expect(partyRequirements(id)).toEqual([{ allergies: false, description }]);
+    expect(partyRequirements(id)).toEqual([{ restrictions: [], allergies: false, description }]);
   });
 });
 
@@ -525,6 +536,48 @@ test.describe('MH-05 Gray-Box API: Stored party requirements', () => {
 
     // The response only echoes the request: the database shows what the hut will read.
     expect(partyRequirements(id)).toEqual(STORY_EXAMPLE);
+  });
+
+  test('Team 16: Stores the needs picked from the list of the hut, with or without free text', async ({
+    loggedInRequest,
+  }) => {
+    const requirements: PartyRequirementItem[] = [
+      { restrictions: ['GLUTEN_FREE', 'VEGAN'], allergies: false, description: '' },
+      { restrictions: ['NUT_FREE'], allergies: true, description: 'shellfish' },
+    ];
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: { slotId: slot([4]), partySize: 3, requirements },
+    });
+    expect(res.status()).toBe(201);
+    const body = (await res.json()) as BookingResponse;
+    expect(body.requirements).toEqual(requirements);
+    expect(partyRequirements(body.id)).toEqual(requirements);
+  });
+
+  test('Team 16: Rejects a need that is not in the list of the hut with 400', async ({
+    loggedInRequest,
+  }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId: slot([4]),
+        partySize: 2,
+        requirements: [{ restrictions: ['MEAT_FREE'], allergies: false, description: '' }],
+      },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('Team 16: Rejects an entry with neither a picked need nor a description with 400', async ({
+    loggedInRequest,
+  }) => {
+    const res = await loggedInRequest.post('/api/bookings', {
+      data: {
+        slotId: slot([4]),
+        partySize: 2,
+        requirements: [{ restrictions: [], allergies: false, description: '' }],
+      },
+    });
+    expect(res.status()).toBe(400);
   });
 
   test('R6: Stores no requirements for a booking made without them', async ({
@@ -544,14 +597,16 @@ test.describe('MH-05 Gray-Box API: Stored party requirements', () => {
       data: {
         slotId: slot([4]),
         partySize: 2,
-        requirements: [{ allergies: true, description: '  1 shellfish allergy  ' }],
+        requirements: [
+          { restrictions: [], allergies: true, description: '  1 shellfish allergy  ' },
+        ],
       },
     });
     expect(res.status()).toBe(201);
     const { id } = (await res.json()) as BookingResponse;
 
     expect(partyRequirements(id)).toEqual([
-      { allergies: true, description: '1 shellfish allergy' },
+      { restrictions: [], allergies: true, description: '1 shellfish allergy' },
     ]);
   });
 
@@ -562,7 +617,11 @@ test.describe('MH-05 Gray-Box API: Stored party requirements', () => {
     const description = `peanut allergy ${randomUUID()}`;
 
     const res = await loggedInRequest.post('/api/bookings', {
-      data: { slotId: slot([2]), partySize: 4, requirements: [{ allergies: true, description }] },
+      data: {
+        slotId: slot([2]),
+        partySize: 4,
+        requirements: [{ restrictions: [], allergies: true, description }],
+      },
     });
 
     expect(res.status()).toBe(409);
@@ -577,7 +636,11 @@ test.describe('MH-05 Gray-Box API: Stored party requirements', () => {
     slotIds.push(slotId);
 
     const res = await loggedInRequest.post('/api/bookings', {
-      data: { slotId, partySize: 2, requirements: [{ allergies: true, description }] },
+      data: {
+        slotId,
+        partySize: 2,
+        requirements: [{ restrictions: [], allergies: true, description }],
+      },
     });
 
     expect(res.status()).toBe(422);
@@ -592,8 +655,8 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   }) => {
     const slotId = slot([4]);
     const requirements: PartyRequirementItem[] = [
-      { allergies: true, description: '1 severe celiac (gluten allergy)' },
-      { allergies: false, description: '1 vegetarian' },
+      { restrictions: [], allergies: true, description: '1 severe celiac (gluten allergy)' },
+      { restrictions: [], allergies: false, description: '1 vegetarian' },
     ];
 
     const createRes = await loggedInRequest.post('/api/bookings', {
@@ -620,8 +683,8 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
         slotId,
         partySize: 3,
         requirements: [
-          { allergies: true, description: '1 peanut allergy' },
-          { allergies: false, description: '2 vegans' },
+          { restrictions: [], allergies: true, description: '1 peanut allergy' },
+          { restrictions: [], allergies: false, description: '2 vegans' },
         ],
       },
     });
@@ -633,6 +696,7 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
     const target = bookings.find((b) => b.slotId === slotId);
     expect(target).toBeDefined();
     expect(target?.requirements).toContainEqual({
+      restrictions: [],
       allergies: true,
       description: '1 peanut allergy',
     });
@@ -644,7 +708,7 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
   }) => {
     const slotId = slot([4]);
     const initialRequirements: PartyRequirementItem[] = [
-      { allergies: false, description: '2 vegetarians' },
+      { restrictions: [], allergies: false, description: '2 vegetarians' },
     ];
 
     const createRes = await loggedInRequest.post('/api/bookings', {
@@ -654,8 +718,8 @@ test.describe('MH-05 Black-Box API: Planned Future Scenarios (TODOs)', () => {
     const { id: bookingId } = (await createRes.json()) as BookingResponse;
 
     const updatedRequirements: PartyRequirementItem[] = [
-      { allergies: true, description: '1 vegan, peanut allergy' },
-      { allergies: false, description: '1 vegetarian' },
+      { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+      { restrictions: [], allergies: false, description: '1 vegetarian' },
     ];
 
     const patchRes = await loggedInRequest.patch(`/api/bookings/${bookingId}`, {

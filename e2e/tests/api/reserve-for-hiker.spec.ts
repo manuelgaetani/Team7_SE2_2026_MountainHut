@@ -31,7 +31,7 @@ interface StaffBookingResult {
   partySize: number;
   status: string;
   tables: { tableNumber: number; assignedSeats: number }[];
-  requirements: { allergies: boolean; description: string }[];
+  requirements: { restrictions: []; allergies: boolean; description: string }[];
   hiker: HikerProfile;
   generatedPassword?: string;
 }
@@ -593,8 +593,8 @@ test.describe('MH-07 API: reservation entered by the staff', () => {
 
   test('stores the party requirements of the reservation', async ({ employeeRequest }) => {
     const requirements = [
-      { allergies: true, description: 'Two people allergic to nuts' },
-      { allergies: false, description: 'One vegetarian' },
+      { restrictions: [], allergies: true, description: 'Two people allergic to nuts' },
+      { restrictions: [], allergies: false, description: 'One vegetarian' },
     ];
     const booking = await staffBooked(employeeRequest, {
       slotId: createSlot([6]),

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { createBookingSchema, MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
+import { createBookingSchema } from '@mountain-hut/shared';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useBookableSlots, useCreateBooking } from '../api/useBookings.ts';
@@ -10,7 +10,12 @@ import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
-import type { RequirementDraft } from '../components/RequirementsEditor.tsx';
+import {
+  draftErrors,
+  isFilled,
+  toRequirement,
+  type RequirementDraft,
+} from '../lib/requirements.ts';
 import { draftFromSearch } from '../lib/bookingRedirect.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { BookingSentDialog } from '../components/BookingSentDialog.tsx';
@@ -24,12 +29,9 @@ const bookingError = (e: unknown): string =>
 
 const plural = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
-// The rows with a description, trimmed as the API stores them. The key of each row is
-// kept: it identifies the requirement in the lists of the summary and of the dialog.
-const filledRequirements = (rows: RequirementDraft[]): RequirementDraft[] =>
-  rows
-    .filter((r) => r.description.trim() !== '')
-    .map((r) => ({ ...r, description: r.description.trim() }));
+// The rows that already say something. The key of each row is kept: it identifies the
+// requirement in the lists of the summary and of the dialog.
+const filledRequirements = (rows: RequirementDraft[]): RequirementDraft[] => rows.filter(isFilled);
 
 function BookingFlow() {
   const slotsQuery = useBookableSlots();
@@ -88,24 +90,14 @@ function BookingFlow() {
   function handleSubmit() {
     if (!slot) return;
     setError(null);
-    const rowErrors: Partial<Record<number, string>> = {};
-    for (const r of requirements) {
-      const length = r.description.trim().length;
-      if (length === 0) rowErrors[r.key] = 'Describe the requirement or remove it.';
-      else if (length > MAX_REQUIREMENTS_LENGTH) {
-        rowErrors[r.key] = `A requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters.`;
-      }
-    }
+    const rowErrors = draftErrors(requirements);
     setRequirementErrors(rowErrors);
     if (Object.keys(rowErrors).length > 0) return;
     const parsed = createBookingSchema.safeParse({
       slotId: slot.id,
       partySize: guests,
       ...(requirements.length > 0 && {
-        requirements: requirements.map(({ allergies, description }) => ({
-          allergies,
-          description,
-        })),
+        requirements: requirements.map(toRequirement),
       }),
     });
     if (!parsed.success) {
@@ -115,7 +107,7 @@ function BookingFlow() {
     const filled = filledRequirements(requirements);
     const summary = `${dateShort(fromIsoDate(date))} · ${slot.startTime} · ${plural(guests)}`;
     book.mutate(parsed.data, {
-      // The API stores the requirements as sent, trimmed: the dialog shows the same rows.
+      // The API stores the requirements as sent: the dialog shows the same rows.
       onSuccess: () => setSent({ summary, requirements: filled }),
       onError: (e) => setError(bookingError(e)),
     });
