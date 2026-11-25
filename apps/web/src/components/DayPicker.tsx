@@ -113,91 +113,94 @@ export function DayPicker({
         <h3 id={labelId} className="field__label">
           {label}
         </h3>
-        <button
-          ref={toggleRef}
-          type="button"
-          className="field__meta day-picker__toggle"
-          aria-expanded={open}
-          aria-controls={open ? calendarId : undefined}
-          aria-label={`${shown}, choose a date from the calendar`}
-          title="Choose a date from the calendar"
-          onClick={toggle}
-        >
-          {shown}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect
-              x="3.5"
-              y="5"
-              width="17"
-              height="15"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            />
-            <path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" />
-          </svg>
-        </button>
-      </div>
+        {/* The calendar floats under this button, over the content: the day strip does not move. */}
+        <div className="day-picker__anchor">
+          <button
+            ref={toggleRef}
+            type="button"
+            className="field__meta day-picker__toggle"
+            aria-expanded={open}
+            aria-controls={open ? calendarId : undefined}
+            aria-label={`${shown}, choose a date from the calendar`}
+            title="Choose a date from the calendar"
+            onClick={toggle}
+          >
+            {shown}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect
+                x="3.5"
+                y="5"
+                width="17"
+                height="15"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+              <path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+          </button>
 
-      {open && (
-        <div
-          id={calendarId}
-          ref={calendarRef}
-          className="calendar"
-          role="group"
-          aria-label="Calendar"
-          onKeyDown={onCalendarKeyDown}
-        >
-          <div className="calendar__head">
-            <button
-              type="button"
-              className="calendar__nav"
-              aria-label="Previous month"
-              disabled={month <= firstMonth}
-              onClick={() => setMonth(shiftMonth(month, -1))}
+          {open && (
+            <div
+              id={calendarId}
+              ref={calendarRef}
+              className="calendar"
+              role="group"
+              aria-label="Calendar"
+              onKeyDown={onCalendarKeyDown}
             >
-              ‹
-            </button>
-            <p className="calendar__title" aria-live="polite">
-              {monthYear(fromIsoDate(month))}
-            </p>
-            <button
-              type="button"
-              className="calendar__nav"
-              aria-label="Next month"
-              disabled={month >= lastMonth}
-              onClick={() => setMonth(shiftMonth(month, 1))}
-            >
-              ›
-            </button>
-          </div>
-          <div className="calendar__grid">
-            {WEEKDAYS.map((day) => (
-              <span key={day} className="calendar__weekday" aria-hidden="true">
-                {day}
-              </span>
-            ))}
-            {monthCells(month).map((iso, i) =>
-              iso === null ? (
-                <span key={`blank-${i}`} aria-hidden="true" />
-              ) : (
+              <div className="calendar__head">
                 <button
-                  key={iso}
                   type="button"
-                  className="calendar__day"
-                  aria-label={dateShort(fromIsoDate(iso))}
-                  aria-pressed={iso === value}
-                  disabled={!bookable.has(iso)}
-                  onClick={() => pick(iso)}
+                  className="calendar__nav"
+                  aria-label="Previous month"
+                  disabled={month <= firstMonth}
+                  onClick={() => setMonth(shiftMonth(month, -1))}
                 >
-                  {fromIsoDate(iso).getDate()}
+                  ‹
                 </button>
-              ),
-            )}
-          </div>
-          <p className="calendar__hint">Only the days with free time slots can be chosen.</p>
+                <p className="calendar__title" aria-live="polite">
+                  {monthYear(fromIsoDate(month))}
+                </p>
+                <button
+                  type="button"
+                  className="calendar__nav"
+                  aria-label="Next month"
+                  disabled={month >= lastMonth}
+                  onClick={() => setMonth(shiftMonth(month, 1))}
+                >
+                  ›
+                </button>
+              </div>
+              <div className="calendar__grid">
+                {WEEKDAYS.map((day) => (
+                  <span key={day} className="calendar__weekday" aria-hidden="true">
+                    {day}
+                  </span>
+                ))}
+                {monthCells(month).map((iso, i) =>
+                  iso === null ? (
+                    <span key={`blank-${i}`} aria-hidden="true" />
+                  ) : (
+                    <button
+                      key={iso}
+                      type="button"
+                      className="calendar__day"
+                      aria-label={dateShort(fromIsoDate(iso))}
+                      aria-pressed={iso === value}
+                      disabled={!bookable.has(iso)}
+                      onClick={() => pick(iso)}
+                    >
+                      {fromIsoDate(iso).getDate()}
+                    </button>
+                  ),
+                )}
+              </div>
+              <p className="calendar__hint">Only the days with free time slots can be chosen.</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="days" role="radiogroup" aria-labelledby={labelId} ref={stripRef}>
         {dates.map((iso) => {
