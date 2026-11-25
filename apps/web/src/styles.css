@@ -153,10 +153,16 @@ body {
   padding: 10px 10px 14px;
   border-bottom: 1px solid var(--border);
 }
+.profile-menu__who > span:last-child {
+  min-width: 0;
+}
+/* A long email ends with "…" instead of breaking in the middle of a word; the title shows it all. */
 .profile-menu__who strong {
   display: block;
+  overflow: hidden;
   font-size: 0.9rem;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .profile-menu__role {
   display: block;

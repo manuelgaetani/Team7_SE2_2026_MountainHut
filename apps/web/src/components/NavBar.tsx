@@ -67,7 +67,7 @@ function ProfileMenu({ user }: { user: AuthUser }) {
               {initial}
             </span>
             <span>
-              <strong>{user.email}</strong>
+              <strong title={user.email}>{user.email}</strong>
               <span className="profile-menu__role">{ROLE_LABEL[user.role]}</span>
             </span>
           </div>
