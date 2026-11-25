@@ -7,6 +7,10 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Menus of the slots (MH-10): `PUT /api/slots/:id/menu` (staff only) creates or replaces the menu of a slot, a free text of 1 to 5000 characters with basic formatting as a small Markdown subset (`**bold**`, `*italic*`, `- item`, `  - sub item`), stored as written. `GET /api/slots/:id/menu` (any logged-in role) returns it, `404` if the slot has no menu. `GET /api/menus` (staff only) lists the menus already written, each text once with its latest slot, to reuse and change one. New table `menus` (migration `slot_menus`): one menu per slot, deleted with its slot.
+
 ## [release-1] - 2026-11-23
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).
