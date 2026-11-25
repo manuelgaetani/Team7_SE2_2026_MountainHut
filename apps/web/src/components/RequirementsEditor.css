@@ -90,11 +90,7 @@
   line-height: 1.6;
   vertical-align: middle;
 }
-/* Next to the tags the allergy badge lines up with them. */
-.allergy-badge:has(+ .diet-tag) {
-  margin-block: 4px;
-  vertical-align: middle;
-}
+
 .diet-tag__icon {
   width: 13px;
   height: 13px;
