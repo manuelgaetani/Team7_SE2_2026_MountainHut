@@ -204,28 +204,29 @@
   }
 }
 
-/* Time slots: the menu button of a slot card, with how many courses are written. */
-.schedule__menu {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+/* Time slots: under the seats of a slot card, how many courses its menu has. */
+.schedule__meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
 }
 .schedule__menu-meta {
-  font-size: 12px;
   white-space: nowrap;
-}
-.schedule__menu-button {
-  border: 2px solid var(--green);
-  white-space: nowrap;
-}
-.schedule__menu-button:hover:not(:disabled) {
-  background: var(--green);
-  color: #fff;
 }
 
-/* The staff editor, in the side panel of Time slots. */
-.menu-editor__intro {
-  margin: -6px 0 0;
+/* The staff editor, in a dialog in the style of Modify booking (.dialog, .modify-dialog). */
+.menu-dialog {
+  width: min(100%, 760px);
+}
+.menu-editor {
+  display: grid;
+  gap: 16px;
+}
+.menu-editor .field {
+  margin: 0;
+}
+.menu-dialog__actions--single {
+  grid-template-columns: 1fr;
 }
 .menu-editor select {
   width: 100%;
@@ -255,8 +256,8 @@
 .menu-course__head .field {
   margin: 0;
 }
-.menu-course__head .requirement__remove {
-  margin-bottom: 12px;
+.menu-course__head .pill--remove {
+  margin-bottom: 4px;
 }
 .menu-course__add {
   justify-self: start;
@@ -297,7 +298,7 @@
   padding: 8px 4px;
   font-size: 12px;
 }
-.menu-dish-form .requirement__remove {
+.menu-dish-form .pill--remove {
   justify-self: end;
 }
 
@@ -346,17 +347,59 @@
   gap: 8px;
 }
 
-.menu-editor__discard {
-  display: grid;
-  gap: 10px;
+@media (max-width: 600px) {
+  .menu-dish-form__names {
+    grid-template-columns: 1fr;
+  }
 }
-.menu-editor__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+
+/* The time of a slot card: a button that opens the menu as hikers see it. */
+.schedule__time {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
-.menu-editor__danger {
-  border-color: var(--error);
-  background: var(--error);
-  color: #fff;
+.schedule__time:hover {
+  color: var(--green);
+}
+.schedule__time:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 3px;
+}
+
+/* The preview dialog: as wide as the card on Book a table. */
+.menu-preview {
+  width: min(100%, 980px);
+}
+.menu-preview .menu-card {
+  margin: 8px 0 20px;
+}
+.menu-editor__add-course {
+  justify-self: start;
+}
+
+/* The buttons of the menu dialog stay at its bottom edge while the dishes scroll. */
+.menu-editor__footer {
+  position: sticky;
+  bottom: -26px;
+  z-index: 1;
+  margin: 0 -32px -26px;
+  padding: 14px 32px 26px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -10px 24px rgb(20 28 22 / 0.06);
+}
+.menu-editor__footer .modify-dialog__actions {
+  margin-top: 0;
+}
+@media (max-width: 600px) {
+  .menu-editor__footer {
+    bottom: -20px;
+    margin: 0 -20px -20px;
+    padding: 12px 20px 20px;
+  }
 }

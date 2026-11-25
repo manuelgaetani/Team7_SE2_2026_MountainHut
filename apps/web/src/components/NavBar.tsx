@@ -5,6 +5,19 @@ import { isStaff, ROLE_LABEL } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useSignOut } from './useSignOut.ts';
 
+// "name@domain" with a line-break opportunity before the "@".
+function emailParts(email: string) {
+  const at = email.indexOf('@');
+  if (at <= 0) return email;
+  return (
+    <>
+      {email.slice(0, at)}
+      <wbr />
+      {email.slice(at)}
+    </>
+  );
+}
+
 const navClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link nav-link--active' : 'nav-link';
 
@@ -67,7 +80,7 @@ function ProfileMenu({ user }: { user: AuthUser }) {
               {initial}
             </span>
             <span>
-              <strong>{user.email}</strong>
+              <strong>{emailParts(user.email)}</strong>
               <span className="profile-menu__role">{ROLE_LABEL[user.role]}</span>
             </span>
           </div>

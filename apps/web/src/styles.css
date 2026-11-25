@@ -153,6 +153,13 @@ body {
   padding: 10px 10px 14px;
   border-bottom: 1px solid var(--border);
 }
+/* The panel is a grid: without min-width 0 its rows grow as wide as the email. */
+.profile-menu__who,
+.profile-menu__who > span:last-child {
+  min-width: 0;
+}
+/* A long email goes to a new line before the "@" (a <wbr> in the markup), not mid-word; only
+   a part still too long for the panel breaks anywhere. */
 .profile-menu__who strong {
   display: block;
   font-size: 0.9rem;
@@ -211,6 +218,43 @@ body {
 
 .nav-actions .pill:hover,
 .nav-actions .pill[aria-current='page'],
+/* Secondary actions that must be seen: a thick green border, filled on hover
+   (Repeat weekly schedule, Define tables, Add a table, Add a dish). */
+.pill.pill--outline {
+  border: 2px solid var(--green);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.pill.pill--outline:hover:not(:disabled) {
+  background: var(--green);
+  color: #fff;
+}
+/* Removing something from a form: red like Cancel booking, filled on hover. */
+.pill.pill--remove {
+  border: 1.5px solid #e7b9b5;
+  background: #fff;
+  color: var(--error);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.pill.pill--remove:hover:not(:disabled) {
+  border-color: var(--error);
+  background: var(--error);
+  color: #fff;
+}
+.pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill--outline,
+  .pill--remove {
+    transition: none;
+  }
+}
+
 .pill--solid {
   background: var(--ink);
   color: #fff;

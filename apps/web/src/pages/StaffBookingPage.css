@@ -291,14 +291,10 @@
   display: flex;
   gap: 10px;
 }
-.action-bar .pill--primary {
-  background: var(--green-dark);
-  border-color: var(--green-dark);
-  color: #fff;
-}
-.action-bar .pill--primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* The same buttons as the dialogs of the site (.modify-dialog__secondary / __primary). */
+.action-bar__buttons > button {
+  min-width: 140px;
+  white-space: nowrap;
 }
 
 /* Dialogs of the staff booking: larger text than the hiker's, read aloud to the hiker */
@@ -342,13 +338,14 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .action-bar__buttons > button {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 8px;
+    font-size: 14px;
+  }
 }
 
-.action-bar .pill--danger {
-  background: var(--error);
-  border-color: var(--error);
-  color: #fff;
-}
 .action-bar__discard {
   color: var(--ink);
   font-size: 14px;

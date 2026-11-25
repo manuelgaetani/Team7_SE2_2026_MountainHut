@@ -173,7 +173,7 @@ export function RequirementsEditor({ value, onChange, errors }: RequirementsEdit
 
             <button
               type="button"
-              className="requirement__remove"
+              className="pill pill--remove requirement__remove"
               onClick={() => remove(row, index)}
             >
               Remove
