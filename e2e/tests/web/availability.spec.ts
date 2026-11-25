@@ -3,6 +3,15 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
 import { createSlot, deleteSlot } from '../../fixtures/db.js';
+import { SLOT } from '../../fixtures/slots.js';
+
+// The party size is a stepper that starts at 2.
+async function partyStepper(page: Page, size: number) {
+  const form = page.locator('.availability-form');
+  for (let current = 2; current < size; current += 1) {
+    await form.getByRole('button', { name: 'More guests' }).click();
+  }
+}
 
 // The overlap rule (MH-02) refuses two overlapping slots on the same day, so MH-04 uses its own
 // range of years (3000-8000): far from createSlot (2031-2131) and MH-09 (2200-2580), and wide
@@ -15,9 +24,9 @@ function uniqueDate(): string {
 async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
 }
 
 interface ListedSlot {
@@ -96,13 +105,14 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await expect(page.getByText('Slot created: 12:00–13:30, 4 seats.')).toBeVisible();
 
     // 2. Staff logs out: visitor is anonymous (no login required)
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click();
 
     // 3. Anonymous visitor navigates to the availability check page
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('12:00');
-    await page.getByLabel(/Party size|Guests/i).fill('3');
+    await partyStepper(page, 3);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // 4. Verify available status and table layout detail
@@ -136,7 +146,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('13:00');
-    await page.getByLabel(/Party size|Guests/i).fill('6');
+    await partyStepper(page, 6);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // 3. Verify multi-table breakdown detail is visible (e.g. 2 + 2 + 2 seats)
@@ -166,7 +176,7 @@ test.describe.skip('MH-04 Black-Box Web UI: Check availability', () => {
     await page.goto('/availability');
     await page.getByLabel(/Date|Day/i).fill(testDate);
     await page.getByLabel(/Time/i).fill('18:00');
-    await page.getByLabel(/Party size|Guests/i).fill('8');
+    await partyStepper(page, 8);
     await page.getByRole('button', { name: /Check availability/i }).click();
 
     // Verify unavailable notice
@@ -197,7 +207,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       await test.step('a signed-in hiker can book an available slot', async () => {
         await signIn(page, registeredUser);
         const slots = await openBookingPage(page, () =>
-          page.getByRole('link', { name: 'Book a table' }).click(),
+          page.getByRole('navigation').getByRole('link', { name: 'Book a table' }).click(),
         );
         await expect(page).toHaveURL(/\/book$/);
         await chooseDay(page, slots, dateOf(slots, slotId));
@@ -206,8 +216,10 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
         await expect(book).toBeDisabled();
 
         const time = slots.find((s) => s.id === slotId)!.startTime;
-        await page.getByRole('radio', { name: time, exact: true }).click();
-        await expect(page.locator('.recap')).toContainText(`A table is waiting for you at ${time}`);
+        await page.getByRole('radio', { name: SLOT(time) }).click();
+        await expect(page.locator('.field__confirm')).toContainText(
+          `A table is waiting for you at ${time}`,
+        );
         await expect(book).toBeEnabled();
       });
     } finally {
@@ -274,8 +286,8 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       // Marker on the window: it disappears if the page reloads.
       await page.evaluate(() => ((window as unknown as { marker: boolean }).marker = true));
 
-      const noon = page.getByRole('radio', { name: '12:00', exact: true });
-      const afternoon = page.getByRole('radio', { name: '14:00', exact: true });
+      const noon = page.getByRole('radio', { name: SLOT('12:00') });
+      const afternoon = page.getByRole('radio', { name: SLOT('14:00') });
       const confirm = page.locator('.field__confirm');
       const summaryTime = page
         .getByRole('complementary', { name: 'Booking Summary' })
@@ -319,7 +331,7 @@ test.describe('MH-04 Black-Box Web UI: Availability on the booking page', () => 
       await chooseDay(page, slots, dateOf(slots, slotId));
 
       await expect(page.getByRole('radiogroup', { name: 'When are you coming?' })).toBeVisible();
-      await expect(page.getByRole('radiogroup', { name: 'When?' })).toBeVisible();
+      await expect(page.getByRole('radiogroup', { name: 'What time?' })).toBeVisible();
 
       const value = page.locator('output.stepper__value');
       await expect(value).toHaveAttribute('aria-live', 'polite');

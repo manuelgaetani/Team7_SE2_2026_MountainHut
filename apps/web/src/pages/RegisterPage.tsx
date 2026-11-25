@@ -6,7 +6,9 @@ import { ApiError } from '../api/client.ts';
 import { useRegister } from '../api/useAuth.ts';
 import { AuthTabs } from '../components/AuthTabs.tsx';
 import { FormField } from '../components/FormField.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { authPath, safeNext } from '../lib/bookingRedirect.ts';
+import { PASSWORD_HINT } from '../lib/passwordRules.ts';
 
 type Errors = Partial<Record<string, string>>;
 
@@ -22,6 +24,7 @@ const FIELD_MESSAGES: Record<string, string> = {
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
+  const toast = useToast();
   // Kept for the sign in that follows, e.g. the booking chosen in the availability check.
   const next = safeNext(useSearchParams()[0].get('next'));
   const [email, setEmail] = useState('');
@@ -69,6 +72,7 @@ export function RegisterPage() {
 
     register.mutate(parsed.data, {
       onSuccess: () => {
+        toast.show({ message: 'Account created. Sign in to continue.' });
         void navigate(authPath('/login', next));
       },
       onError: (e) => {
@@ -120,7 +124,7 @@ export function RegisterPage() {
           label="Password"
           type="password"
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          hint={PASSWORD_HINT}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={errors.password}

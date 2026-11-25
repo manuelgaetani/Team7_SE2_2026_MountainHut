@@ -12,19 +12,20 @@ function uniqueDate(): string {
 async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
 }
 
 test.describe('MH-02 UI: Time slots and table capacity management', () => {
-  test('asks a signed-out visitor to log in before managing slots', async ({ page }) => {
+  test('asks a signed-out visitor to sign in before managing slots', async ({ page }) => {
     await page.goto('/staff/slots');
-    await expect(page.getByText('with a staff account to manage the time slots')).toBeVisible();
-    const loginLink = page.getByRole('link', { name: 'Log in' });
+    const notice = page.getByText('with a staff account to manage the time slots');
+    await expect(notice).toBeVisible();
+    const loginLink = notice.getByRole('link', { name: 'Sign in' });
     await expect(loginLink).toBeVisible();
     await expect(loginLink).toHaveAttribute('href', '/login');
-    await expect(page.getByLabel('Day')).toHaveCount(0);
+    await expect(page.getByLabel('Day', { exact: true })).toHaveCount(0);
   });
 
   test('forbids standard hikers from accessing the staff slots page', async ({
@@ -34,12 +35,14 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await signIn(page, registeredUser);
 
     // NavBar should not have the "Time slots" link for hikers
-    await expect(page.getByRole('link', { name: 'Time slots' })).toHaveCount(0);
+    await expect(
+      page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
+    ).toHaveCount(0);
 
     // Directly navigating shows the staff-only notice
     await page.goto('/staff/slots');
     await expect(page.getByText('This page is for the hut staff.')).toBeVisible();
-    await expect(page.getByLabel('Day')).toHaveCount(0);
+    await expect(page.getByLabel('Day', { exact: true })).toHaveCount(0);
   });
 
   test('employee logs in, sees "Time slots" in nav, and manages slots', async ({
@@ -50,13 +53,13 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
     await signIn(page, employeeUser);
 
     // NavBar shows the staff link
-    const slotsLink = page.getByRole('link', { name: 'Time slots' });
+    const slotsLink = page.getByRole('navigation').getByRole('link', { name: 'Time slots' });
     await expect(slotsLink).toBeVisible();
     await slotsLink.click();
     await expect(page).toHaveURL('/staff/slots');
 
     // Select the isolated test date
-    const dayInput = page.getByLabel('Day');
+    const dayInput = page.getByLabel('Day', { exact: true });
     await dayInput.fill(testDate);
     await expect(page.getByText('No time slots on this day yet.')).toBeVisible();
 
@@ -117,9 +120,11 @@ test.describe('MH-02 UI: Time slots and table capacity management', () => {
   test('warden also has staff access to time slots management', async ({ page, wardenUser }) => {
     await signIn(page, wardenUser);
 
-    await expect(page.getByRole('link', { name: 'Time slots' })).toBeVisible();
+    await expect(
+      page.getByRole('navigation').getByRole('link', { name: 'Time slots' }),
+    ).toBeVisible();
     await page.goto('/staff/slots');
     await expect(page.getByText('Time slots and tables')).toBeVisible();
-    await expect(page.getByLabel('Day')).toBeVisible();
+    await expect(page.getByLabel('Day', { exact: true })).toBeVisible();
   });
 });

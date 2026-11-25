@@ -1,17 +1,34 @@
+import { useId } from 'react';
+
 export const MIN_GUESTS = 1;
 
 interface GuestStepperProps {
   value: number;
-  max: number;
+  /** Upper bound; undefined means no limit. */
+  max?: number;
   onChange: (guests: number) => void;
+  label?: string;
+  hint?: string | null;
+  id?: string;
 }
 
-export function GuestStepper({ value, max, onChange }: GuestStepperProps) {
+export function GuestStepper({
+  value,
+  max,
+  onChange,
+  label = 'How many people are in your party?',
+  hint = 'Children included',
+  id,
+}: GuestStepperProps) {
+  const generated = useId();
+  const labelId = `${id ?? generated}-label`;
   return (
-    <section className="field field--row">
+    <section className="field field--row" id={id}>
       <div>
-        <h3 className="field__label">How many people are in your party?</h3>
-        <p className="field__hint">Children included</p>
+        <h3 id={labelId} className="field__label">
+          {label}
+        </h3>
+        {hint && <p className="field__hint">{hint}</p>}
       </div>
       <div className="stepper">
         <button
@@ -23,14 +40,14 @@ export function GuestStepper({ value, max, onChange }: GuestStepperProps) {
         >
           −
         </button>
-        <output className="stepper__value" aria-live="polite">
+        <output className="stepper__value" aria-live="polite" aria-labelledby={labelId}>
           {value}
         </output>
         <button
           type="button"
-          className="stepper__btn stepper__btn--plus"
+          className="stepper__btn"
           aria-label="More guests"
-          disabled={value >= max}
+          disabled={max !== undefined && value >= max}
           onClick={() => onChange(value + 1)}
         >
           +

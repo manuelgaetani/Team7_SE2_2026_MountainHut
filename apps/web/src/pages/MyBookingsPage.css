@@ -1,26 +1,3 @@
-.my-bookings__hero {
-  padding: 56px clamp(20px, 5vw, 64px) 40px;
-  background: var(--green-dark);
-  color: #fff;
-}
-.my-bookings__eyebrow {
-  margin: 0 0 10px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
-.my-bookings__headline {
-  margin: 0;
-  font: 400 clamp(26px, 3.5vw, 36px) / 1.15 var(--font-serif);
-}
-.my-bookings__lead {
-  margin: 10px 0 0;
-  font-size: 13px;
-  opacity: 0.8;
-}
-
 .my-bookings__body {
   max-width: 1320px;
   margin: 0 auto;
@@ -29,34 +6,6 @@
 .my-bookings__title {
   margin: 0 0 20px;
   font: 400 34px/1.2 var(--font-serif);
-}
-
-/* Hiker: profile on the left, bookings on the right. */
-.my-bookings__body--split {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 40px;
-  align-items: start;
-}
-
-.my-profile__card {
-  margin: 0;
-  padding: 28px 30px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.my-profile__field + .my-profile__field {
-  margin-top: 24px;
-}
-.my-profile__field dt {
-  color: var(--muted);
-  font-size: 14px;
-}
-.my-profile__field dd {
-  margin: 6px 0 0;
-  font-size: 18px;
-  overflow-wrap: anywhere;
 }
 
 .my-bookings__tabs {
@@ -156,9 +105,6 @@
   background: #fff;
   font-size: 15px;
 }
-.my-bookings__body .booking-card__updated {
-  margin-top: 16px;
-}
 .my-bookings__body .booking-card__locked {
   margin-top: 16px;
   background: #f4efe6;
@@ -211,10 +157,6 @@
 .badge--pending {
   background: #f6e7c8;
   color: #8a5a12;
-}
-.badge--allergies {
-  background: #f4dcd9;
-  color: var(--error);
 }
 .badge--rejected,
 .badge--cancelled {

@@ -11,6 +11,7 @@ import {
 } from '../lib/slotTables.ts';
 import type { TablesChoice } from '../lib/slotTables.ts';
 import { TablesChooser } from './TablesChooser.tsx';
+import { ErrorNotice } from './ErrorNotice.tsx';
 
 interface DefineTablesFormProps {
   slot: SlotDetails;
@@ -66,11 +67,7 @@ export function DefineTablesForm({ slot, onDone, onCancel }: DefineTablesFormPro
         copyDate={slot.date}
         excludeSlotId={slot.id}
       />
-      {error && (
-        <p role="alert" className="notice notice--error">
-          {error}
-        </p>
-      )}
+      {error && <ErrorNotice message={error} />}
       <button type="submit" className="cta" disabled={define.isPending}>
         {define.isPending ? 'Saving…' : 'Save the tables'}
         <span aria-hidden="true">→</span>

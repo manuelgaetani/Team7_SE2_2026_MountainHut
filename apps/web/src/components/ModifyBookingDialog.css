@@ -1,8 +1,10 @@
 /* Builds on .dialog-backdrop, .dialog, .dialog__close and .dialog__title of the booking page. */
 .modify-dialog {
   width: min(100%, 520px);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
+  /* Scrolling inside the dialog never moves the page behind it. */
+  overscroll-behavior: contain;
   padding: 32px 32px 26px;
 }
 .modify-dialog:focus {
@@ -27,122 +29,9 @@
   font-size: 14px;
 }
 
-.modify-dialog__form .field label {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: normal;
-  text-transform: none;
-}
-.modify-dialog__form .field select,
-.modify-dialog__form .field input,
-.modify-dialog__form .field textarea {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-}
-.modify-dialog__form .field-error {
-  font-size: 13px;
-}
 .modify-dialog__form .notice {
   margin-bottom: 16px;
   font-size: 14px;
-}
-.modify-dialog__row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-}
-
-.modify-dialog__requirements {
-  /* A fieldset is as wide as its content by default: let it shrink with the dialog */
-  min-width: 0;
-  margin: 0 0 16px;
-  padding: 0;
-  border: 0;
-}
-.modify-dialog__requirements legend {
-  margin-bottom: 4px;
-  padding: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.modify-dialog__hint {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: 13px;
-}
-.requirement-row {
-  margin-bottom: 10px;
-}
-.requirement-row__fields {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.requirement-row__fields input[type='text'] {
-  flex: 1;
-  min-width: 0;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-}
-.requirement-row__fields input[aria-invalid='true'] {
-  border-color: var(--error);
-}
-.requirement-row__allergies {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.requirement-row__allergies input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--error);
-}
-.requirement-row__remove {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-.requirement-row__remove:hover {
-  background: var(--tint);
-}
-.requirement-row .field-error {
-  margin-top: 6px;
-  font-size: 13px;
-}
-.modify-dialog__add {
-  padding: 9px 14px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--green-dark);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.modify-dialog__add:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .modify-dialog__actions {
@@ -152,6 +41,7 @@
   margin-top: 8px;
 }
 .modify-dialog__secondary,
+.modify-dialog__danger,
 .modify-dialog__primary {
   padding: 14px 18px;
   border-radius: 8px;
@@ -164,6 +54,16 @@
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
+}
+.modify-dialog__danger {
+  border: 0;
+  background: var(--error);
+  color: #fff;
+}
+.modify-dialog__discard-title {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
 }
 .modify-dialog__primary {
   border: 0;
@@ -202,18 +102,9 @@
   font-weight: 700;
 }
 
-/* On phones: less padding, and the requirement text takes its own line */
+/* On phones: less padding */
 @media (max-width: 600px) {
   .modify-dialog {
     padding: 24px 20px 20px;
-  }
-  .requirement-row__fields {
-    flex-wrap: wrap;
-  }
-  .requirement-row__fields input[type='text'] {
-    flex-basis: 100%;
-  }
-  .requirement-row__remove {
-    margin-left: auto;
   }
 }
