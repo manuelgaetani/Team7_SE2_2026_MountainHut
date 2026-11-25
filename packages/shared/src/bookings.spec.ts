@@ -241,6 +241,7 @@ describe('partyRequirementSchema with the needs of the hut', () => {
       'Nut-free',
       'Soy-free',
       'Vegan',
+      'Vegetarian',
     ]);
   });
 
@@ -285,6 +286,10 @@ describe('hasAllergy', () => {
 
   it('is false for vegan only, which is a choice and not an allergy', () => {
     expect(hasAllergy(need(['VEGAN'], false, ''))).toBe(false);
+  });
+
+  it('is false for vegetarian only', () => {
+    expect(hasAllergy(need(['VEGETARIAN'], false, ''))).toBe(false);
   });
 
   it('follows the flag of the free text', () => {

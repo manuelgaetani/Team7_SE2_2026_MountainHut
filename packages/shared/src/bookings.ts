@@ -19,6 +19,7 @@ export const DIETARY_OPTIONS = [
   { code: 'NUT_FREE', label: 'Nut-free', allergen: true },
   { code: 'SOY_FREE', label: 'Soy-free', allergen: true },
   { code: 'VEGAN', label: 'Vegan', allergen: false },
+  { code: 'VEGETARIAN', label: 'Vegetarian', allergen: false },
 ] as const;
 export type DietaryOption = (typeof DIETARY_OPTIONS)[number];
 export type DietaryCode = DietaryOption['code'];
