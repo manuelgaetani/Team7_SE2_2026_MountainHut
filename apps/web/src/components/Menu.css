@@ -1,0 +1,107 @@
+/* MH-10: the menu of a slot. Marks and legend are shared by the hiker card and the staff editor. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* One mark: a small tinted square with a line icon, like the allergen keys of a printed menu. */
+.menu-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+.menu-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.menu-mark__icon {
+  width: 14px;
+  height: 14px;
+}
+/* Tints chosen for a 4.5:1 contrast of the icon on its square. */
+.menu-mark--gluten {
+  background: #f7ead0;
+  color: #7a5310;
+}
+.menu-mark--dairy {
+  background: #dde9f7;
+  color: #1f4f8a;
+}
+.menu-mark--egg {
+  background: #fbf0c4;
+  color: #6b5300;
+}
+.menu-mark--nuts {
+  background: #eee0d3;
+  color: #6b3f1d;
+}
+.menu-mark--soy {
+  background: #e7ebd2;
+  color: #4f5a17;
+}
+.menu-mark--vegetarian {
+  background: #d9ecd8;
+  color: #23592b;
+}
+.menu-mark--vegan {
+  background: #cfe3d6;
+  color: #1f3f32;
+}
+
+.menu-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 12px 20px;
+  list-style: none;
+  background: var(--tint);
+  color: var(--muted);
+  font-size: 12px;
+}
+.menu-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A dish description: small, muted, with tight lists. */
+.menu-text {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.menu-text p {
+  margin: 0;
+}
+.menu-text p + p,
+.menu-text p + ul,
+.menu-text ul + p {
+  margin-top: 4px;
+}
+.menu-text ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+.menu-text ul ul {
+  margin: 0;
+  list-style: circle;
+}
+.menu-text strong {
+  color: var(--ink);
+  font-weight: 600;
+}
