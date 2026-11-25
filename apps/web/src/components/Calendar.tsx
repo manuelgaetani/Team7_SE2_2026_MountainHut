@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { addDays, dateShort, fromIsoDate, monthOf, monthYear, toIsoDate } from '../lib/dates.ts';
+import './Popover.css';
 import './Calendar.css';
 
 interface CalendarProps {
@@ -129,7 +130,13 @@ export function Calendar({
   }
 
   return (
-    <div id={id} className="calendar" role="group" aria-label="Calendar" onKeyDown={onKeyDown}>
+    <div
+      id={id}
+      className="popover calendar"
+      role="group"
+      aria-label="Calendar"
+      onKeyDown={onKeyDown}
+    >
       <div className="calendar__head">
         <button
           type="button"
@@ -178,7 +185,7 @@ export function Calendar({
           ),
         )}
       </div>
-      {hint && <p className="calendar__hint">{hint}</p>}
+      {hint && <p className="popover__hint">{hint}</p>}
     </div>
   );
 }

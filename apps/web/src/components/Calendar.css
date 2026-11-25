@@ -1,20 +1,5 @@
 /* The one month view of the site (Book a table, Modify booking, Availability, staff pages).
-   It floats over the content: the page that holds it sets where (see .day-picker, .date-field). */
-.calendar {
-  position: absolute;
-  top: calc(100% + 6px);
-  z-index: 5;
-  display: grid;
-  gap: 8px;
-  box-sizing: border-box;
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
-}
+   Its box is a .popover (Popover.css): the page that holds it sets where (see .date-field). */
 .calendar__head {
   display: flex;
   align-items: center;
@@ -85,9 +70,4 @@
 .calendar__nav:focus-visible {
   outline: 2px solid var(--green-dark);
   outline-offset: 2px;
-}
-.calendar__hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
 }

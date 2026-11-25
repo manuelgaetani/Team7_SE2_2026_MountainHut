@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { dateShort, fromIsoDate, monthOf, monthYear, weekdayShort } from '../lib/dates.ts';
 import { Calendar } from './Calendar.tsx';
-import './DayPicker.css';
 
 interface DayPickerProps {
   dates: string[];
@@ -65,17 +64,17 @@ export function DayPicker({
   const shown = monthYear(fromIsoDate(value));
 
   return (
-    <section className="field day-picker" aria-labelledby={labelId} ref={rootRef}>
+    <section className="field picker" aria-labelledby={labelId} ref={rootRef}>
       <div className="field__head">
         <h3 id={labelId} className="field__label">
           {label}
         </h3>
         {/* The calendar floats under this button, over the content: the day strip does not move. */}
-        <div className="day-picker__anchor">
+        <div className="picker-anchor">
           <button
             ref={toggleRef}
             type="button"
-            className="field__meta day-picker__toggle"
+            className="field__meta picker-toggle"
             aria-expanded={open}
             aria-controls={open ? calendarId : undefined}
             aria-label={`${shown}, choose a date from the calendar`}
