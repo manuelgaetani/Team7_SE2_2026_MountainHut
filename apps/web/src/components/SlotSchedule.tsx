@@ -1,16 +1,19 @@
 import { Link } from 'react-router';
 import type { SlotDetails } from '../api/slots.ts';
+import { useSlotMenu } from '../api/useMenus.ts';
 import { useFloorPlan } from '../api/useSlots.ts';
+import { coursesLabel } from '../lib/menu.ts';
 import { seatsLabel, tablesLabel } from '../lib/slotTables.ts';
 import { FILL_LABELS, LEGEND_LABELS, tableFill, takenLabel } from '../lib/tableFill.ts';
 
 interface SlotScheduleProps {
   slots: SlotDetails[];
   onDefineTables: (slot: SlotDetails) => void;
+  onDefineMenu: (slot: SlotDetails) => void;
 }
 
 // The slots of one day with their tables, as the staff see them.
-export function SlotSchedule({ slots, onDefineTables }: SlotScheduleProps) {
+export function SlotSchedule({ slots, onDefineTables, onDefineMenu }: SlotScheduleProps) {
   if (slots.length === 0) {
     return <p className="notice notice--ok">No time slots on this day yet.</p>;
   }
@@ -36,12 +39,16 @@ export function SlotSchedule({ slots, onDefineTables }: SlotScheduleProps) {
             {slot.tables.length > 0 ? (
               <div className="schedule__empty">
                 <ScheduleTables slot={slot} />
-                <FloorPlanLink slot={slot} />
+                <div className="schedule__actions">
+                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} />
+                  <FloorPlanLink slot={slot} />
+                </div>
               </div>
             ) : (
               <div className="schedule__empty">
                 <p className="field__hint">No tables yet: hikers cannot book this slot.</p>
                 <div className="schedule__actions">
+                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} />
                   <FloorPlanLink slot={slot} />
                   <button
                     type="button"
@@ -139,5 +146,36 @@ function FloorPlanLink({ slot }: { slot: SlotDetails }) {
     >
       Floor plan
     </Link>
+  );
+}
+
+// MH-10: write the menu of a slot, or change it. The courses say whether it is written.
+function MenuAction({
+  slot,
+  onDefineMenu,
+}: {
+  slot: SlotDetails;
+  onDefineMenu: (slot: SlotDetails) => void;
+}) {
+  const menu = useSlotMenu(slot.id);
+  const time = `${slot.startTime}–${slot.endTime}`;
+  const written = menu.data ?? null;
+  return (
+    <span className="schedule__menu">
+      {written && (
+        <span className="field__meta schedule__menu-meta">
+          Menu · {coursesLabel(written.courses.length)}
+        </span>
+      )}
+      <button
+        type="button"
+        className="pill schedule__menu-button"
+        disabled={menu.isPending}
+        aria-label={`${written ? 'Edit' : 'Define'} the menu of ${time}`}
+        onClick={() => onDefineMenu(slot)}
+      >
+        {written ? 'Edit menu' : 'Define menu'}
+      </button>
+    </span>
   );
 }
