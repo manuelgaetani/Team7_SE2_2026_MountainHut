@@ -3,7 +3,7 @@ import { MAX_DB_INT } from '@mountain-hut/shared';
 import type { PredefinedHike } from '@mountain-hut/shared';
 import { TransactionContext } from '../../infrastructure/prisma/transaction-context.js';
 import { HikesRepository } from '../application/hikes.repository.port.js';
-import type { Hike, LocalMoment, NewHike } from '../domain/hike.js';
+import type { Hike, HikeWithHiker, LocalMoment, NewHike } from '../domain/hike.js';
 
 interface HikeRow {
   id: number;
@@ -90,6 +90,42 @@ export class PrismaHikesRepository extends HikesRepository {
       },
     });
     return toHike(row);
+  }
+
+  async findByHiker(hikerId: number): Promise<Hike[]> {
+    if (!isDbId(hikerId)) return [];
+    const rows = await this.db().hike.findMany({
+      where: { hikerId },
+      orderBy: [{ departureAt: 'desc' }, { id: 'desc' }],
+    });
+    return rows.map(toHike);
+  }
+
+  async findAllWithHiker(): Promise<HikeWithHiker[]> {
+    const rows = await this.db().hike.findMany({
+      include: {
+        hiker: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            emergencyContact: true,
+            user: { select: { email: true } },
+          },
+        },
+      },
+      orderBy: [{ departureAt: 'desc' }, { id: 'desc' }],
+    });
+    return rows.map((row) => ({
+      ...toHike(row),
+      hiker: {
+        id: row.hiker.id,
+        fullName: row.hiker.fullName,
+        email: row.hiker.user?.email ?? null,
+        phone: row.hiker.phone,
+        emergencyContact: row.hiker.emergencyContact,
+      },
+    }));
   }
 
   async findPredefined(): Promise<PredefinedHike[]> {

@@ -1,0 +1,38 @@
+/* MH-20: the hikes for the staff. Builds on .staff-hero/.staff-page of StaffBookingPage.css and the
+   tabs and cards of MyBookingsPage.css. */
+
+.staff-hikes .notice {
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.staff-hikes .booking-card {
+  padding: 22px 26px 20px;
+}
+
+.staff-hikes__search {
+  max-width: 420px;
+}
+.staff-hikes__search label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.staff-hikes__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}
+.my-bookings__tab[aria-selected='true'] .staff-hikes__count {
+  background: var(--green-dark);
+  color: #fff;
+}

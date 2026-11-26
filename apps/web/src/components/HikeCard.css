@@ -1,0 +1,79 @@
+/* MH-20: a registered hike. Builds on .booking-card and .badge of MyBookingsPage.css. */
+
+.hike-card__points {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+.hike-card__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.hike-card__times dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hike-card__times dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.hike-badge--planned {
+  background: var(--tint);
+  color: var(--green-dark);
+}
+.hike-badge--under_way {
+  background: #f6e7c8;
+  color: #8a5a12;
+}
+.hike-badge--past {
+  background: #ece9e1;
+  color: var(--muted);
+}
+
+/* The hiker and their contacts, for the staff. */
+.hike-card__hiker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--tint);
+}
+.hike-card__hiker dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hike-card__hiker dd {
+  margin: 4px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.hike-card__hiker a {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .hike-card__hiker {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hike-card__times,
+  .hike-card__hiker {
+    grid-template-columns: 1fr;
+  }
+}

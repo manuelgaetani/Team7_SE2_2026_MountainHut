@@ -1,0 +1,20 @@
+/* MH-20: the hikes of the hiker. Builds on the tabs, cards and badges of MyBookingsPage.css. */
+
+.my-hikes__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+/* Secondary action (pill--outline in guides/08-ui-conventions.md): green border, filled on hover.
+   Two classes, so it wins over the generic .pill of styles.css, loaded after this file. */
+.my-hikes__head .my-hikes__new {
+  border-color: var(--green);
+  color: var(--green-dark);
+  font-size: 14px;
+}
+.my-hikes__head .my-hikes__new:hover {
+  background: var(--green);
+  color: #fff;
+}

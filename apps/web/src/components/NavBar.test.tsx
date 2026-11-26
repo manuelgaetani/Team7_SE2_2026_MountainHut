@@ -39,6 +39,7 @@ describe('NavBar', () => {
     expect(screen.getByText(user.email)).toBeVisible();
     expect(screen.getByRole('link', { name: 'My profile' })).toHaveAttribute('href', '/profile');
     expect(screen.getByRole('link', { name: 'My bookings' })).toHaveAttribute('href', '/bookings');
+    expect(screen.getByRole('link', { name: 'My hikes' })).toHaveAttribute('href', '/hikes');
     expect(screen.getByRole('link', { name: 'Change password' })).toHaveAttribute(
       'href',
       '/change-password',
@@ -88,7 +89,7 @@ describe('NavBar', () => {
     renderAt('/');
     await accountButton();
     // My bookings and Change password moved to the account menu and the profile page.
-    expect(navLinks()).toEqual(['Mountain Hut', 'Book a table', 'Availability']);
+    expect(navLinks()).toEqual(['Mountain Hut', 'Book a table', 'Availability', 'Register a hike']);
     const nav = within(screen.getByRole('navigation'));
     expect(nav.getByRole('link', { name: 'Book a table' })).toHaveAttribute('href', '/book');
     expect(nav.queryByRole('link', { name: 'Change password' })).not.toBeInTheDocument();
@@ -98,8 +99,9 @@ describe('NavBar', () => {
     stubApi({ '/api/auth/me': () => json({ ...user, role }) });
     renderAt('/');
     await accountButton();
-    expect(navLinks()).toEqual(['Mountain Hut', 'Time slots', 'New booking']);
+    expect(navLinks()).toEqual(['Mountain Hut', 'Time slots', 'New booking', 'Hikes']);
     const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'Hikes' })).toHaveAttribute('href', '/staff/hikes');
     expect(nav.getByRole('link', { name: 'Time slots' })).toHaveAttribute('href', '/staff/slots');
     expect(nav.getByRole('link', { name: 'New booking' })).toHaveAttribute(
       'href',

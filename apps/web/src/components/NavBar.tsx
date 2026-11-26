@@ -88,9 +88,14 @@ function ProfileMenu({ user }: { user: AuthUser }) {
             My profile
           </Link>
           {!isStaff(user) && (
-            <Link to="/bookings" className="profile-menu__item">
-              My bookings
-            </Link>
+            <>
+              <Link to="/bookings" className="profile-menu__item">
+                My bookings
+              </Link>
+              <Link to="/hikes" className="profile-menu__item">
+                My hikes
+              </Link>
+            </>
           )}
           <Link to="/change-password" className="profile-menu__item">
             Change password
@@ -127,6 +132,9 @@ export function NavBar() {
           <NavLink to="/staff/bookings/new" className={navClass}>
             New booking
           </NavLink>
+          <NavLink to="/staff/hikes" className={navClass}>
+            Hikes
+          </NavLink>
         </>
       ) : (
         <>
@@ -135,6 +143,9 @@ export function NavBar() {
           </NavLink>
           <NavLink to="/availability" className={navClass}>
             Availability
+          </NavLink>
+          <NavLink to="/hikes/new" className={navClass}>
+            Register a hike
           </NavLink>
         </>
       );
