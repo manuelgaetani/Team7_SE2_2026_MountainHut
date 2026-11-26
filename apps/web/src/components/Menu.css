@@ -1,0 +1,405 @@
+/* MH-10: the menu of a slot. Marks and legend are shared by the hiker card and the staff editor. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* One mark: a small tinted square with a line icon, like the allergen keys of a printed menu. */
+.menu-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+.menu-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.menu-mark__icon {
+  width: 14px;
+  height: 14px;
+}
+/* Tints chosen for a 4.5:1 contrast of the icon on its square. */
+.menu-mark--gluten {
+  background: #f7ead0;
+  color: #7a5310;
+}
+.menu-mark--dairy {
+  background: #dde9f7;
+  color: #1f4f8a;
+}
+.menu-mark--egg {
+  background: #fbf0c4;
+  color: #6b5300;
+}
+.menu-mark--nuts {
+  background: #eee0d3;
+  color: #6b3f1d;
+}
+.menu-mark--soy {
+  background: #e7ebd2;
+  color: #4f5a17;
+}
+.menu-mark--vegetarian {
+  background: #d9ecd8;
+  color: #23592b;
+}
+.menu-mark--vegan {
+  background: #cfe3d6;
+  color: #1f3f32;
+}
+
+.menu-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 12px 20px;
+  list-style: none;
+  background: var(--tint);
+  color: var(--muted);
+  font-size: 12px;
+}
+.menu-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A dish description: small, muted, with tight lists. */
+.menu-text {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.menu-text p {
+  margin: 0;
+}
+.menu-text p + p,
+.menu-text p + ul,
+.menu-text ul + p {
+  margin-top: 4px;
+}
+.menu-text ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+.menu-text ul ul {
+  margin: 0;
+  list-style: circle;
+}
+.menu-text strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The hiker card on Book a table: a printed menu, two columns on wide screens. */
+.menu-card {
+  margin-top: 32px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.menu-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 28px 32px 8px;
+}
+.menu-card__title {
+  margin: 0;
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  font-weight: 500;
+}
+.menu-card__time {
+  color: var(--green);
+  font-size: 1.05rem;
+}
+.menu-card__state {
+  margin: 8px 32px 28px;
+}
+.menu-card__courses {
+  columns: 2 320px;
+  column-gap: 48px;
+  padding: 8px 32px 24px;
+}
+.menu-card__course {
+  break-inside: avoid;
+  padding-top: 16px;
+}
+.menu-card__course-name {
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: #9a9471;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.menu-card__dishes {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.menu-dish {
+  break-inside: avoid;
+}
+.menu-dish__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.menu-dish__name {
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.menu-dish__name .menu-marks {
+  margin-left: 4px;
+}
+.menu-dish__price {
+  flex-shrink: 0;
+  color: var(--green-dark);
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.menu-dish__translation {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .menu-card__head,
+  .menu-card__courses {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .menu-card__title {
+    font-size: 1.8rem;
+  }
+}
+
+/* Time slots: under the seats of a slot card, how many courses its menu has. */
+.schedule__meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.schedule__menu-meta {
+  white-space: nowrap;
+}
+
+/* The staff editor, in a dialog in the style of Modify booking (.dialog, .modify-dialog). */
+.menu-dialog {
+  width: min(100%, 760px);
+}
+.menu-editor {
+  display: grid;
+  gap: 16px;
+}
+.menu-editor .field {
+  margin: 0;
+}
+.menu-dialog__actions--single {
+  grid-template-columns: 1fr;
+}
+.menu-editor select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.menu-course {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.menu-course__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 10px;
+}
+.menu-course__head .field {
+  margin: 0;
+}
+.menu-course__head .pill--remove {
+  margin-bottom: 4px;
+}
+.menu-course__add {
+  justify-self: start;
+}
+.menu-dish-form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.menu-dish-form > legend {
+  padding: 0 6px;
+}
+.menu-dish-form .field {
+  margin: 0;
+}
+.menu-dish-form__names {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.menu-dish-form__names .field:first-child {
+  grid-column: 1 / -1;
+}
+.menu-dish-form__marks-label {
+  margin: 0 0 6px;
+}
+.menu-dish-form__marks.diet-options {
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+}
+.requirements .menu-dish-form__marks .diet-option {
+  min-height: 60px;
+  padding: 8px 4px;
+  font-size: 12px;
+}
+.menu-dish-form .pill--remove {
+  justify-self: end;
+}
+
+.menu-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.menu-tool {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.menu-tool:hover {
+  border-color: var(--green);
+}
+.menu-tool:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 1px;
+}
+.menu-tool--bold {
+  font-weight: 700;
+}
+.menu-tool--italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+.menu-text-field textarea {
+  min-height: 72px;
+}
+.menu-text-field textarea[aria-invalid='true'] {
+  border-color: var(--error);
+}
+.menu-text-field__hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .menu-dish-form__names {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The time of a slot card: a button that opens the menu as hikers see it. */
+.schedule__time {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.schedule__time:hover {
+  color: var(--green);
+}
+.schedule__time:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 3px;
+}
+
+/* The preview dialog: as wide as the card on Book a table. */
+.menu-preview {
+  width: min(100%, 980px);
+}
+.menu-preview .menu-card {
+  margin: 8px 0 20px;
+}
+.menu-editor__add-course {
+  justify-self: start;
+}
+
+/* The buttons of the menu dialog stay at its bottom edge while the dishes scroll. */
+.menu-editor__footer {
+  position: sticky;
+  bottom: -26px;
+  z-index: 1;
+  margin: 0 -32px -26px;
+  padding: 14px 32px 26px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -10px 24px rgb(20 28 22 / 0.06);
+}
+.menu-editor__footer .modify-dialog__actions {
+  margin-top: 0;
+}
+@media (max-width: 600px) {
+  .menu-editor__footer {
+    bottom: -20px;
+    margin: 0 -20px -20px;
+    padding: 12px 20px 20px;
+  }
+}

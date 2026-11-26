@@ -14,6 +14,8 @@ import { SlotsPage } from './pages/SlotsPage.tsx';
 import { StaffBookingPage } from './pages/StaffBookingPage.tsx';
 import { UnauthorizedPage } from './pages/UnauthorizedPage.tsx';
 import { FloorPlanPage } from './pages/FloorPlanPage.tsx';
+import { ProfilePage } from './pages/ProfilePage.tsx';
+import { ProfileLayout } from './components/ProfileLayout.tsx';
 
 export const routes = [
   {
@@ -22,11 +24,18 @@ export const routes = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'book', element: <BookingPage /> },
-      { path: 'bookings', element: <MyBookingsPage /> },
       { path: 'availability', element: <AvailabilityPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
-      { path: 'change-password', element: <ChangePasswordPage /> },
+      // The personal area: one layout with a side menu, the old addresses kept.
+      {
+        element: <ProfileLayout />,
+        children: [
+          { path: 'profile', element: <ProfilePage /> },
+          { path: 'bookings', element: <MyBookingsPage /> },
+          { path: 'change-password', element: <ChangePasswordPage /> },
+        ],
+      },
       { path: 'forgot-password', element: <ForgotPasswordPage /> },
       { path: 'reset-password', element: <ResetPasswordPage /> },
       { path: 'staff/slots', element: <SlotsPage /> },

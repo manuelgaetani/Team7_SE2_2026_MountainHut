@@ -22,10 +22,18 @@ export const emptyTablesChoice = (): TablesChoice => ({
   copyFromSlotId: null,
 });
 
+// A mountain hut has a few tables: their numbers go from 1 to MAX_TABLE_NUMBER.
+// The web checks it for now; the API keeps its own limits until the shared schema gets it.
+export const MAX_TABLE_NUMBER = 50;
+
 // The next free table number, so a new row is ready to fill in.
 export function nextTableNumber(rows: TableDraft[]): string {
   const used = rows.map((r) => Number(r.tableNumber)).filter((n) => Number.isInteger(n));
-  return String(Math.max(0, ...used) + 1);
+  const next = Math.max(0, ...used) + 1;
+  if (next <= MAX_TABLE_NUMBER) return String(next);
+  // Past the last number: the first one left free in between.
+  for (let n = 1; n <= MAX_TABLE_NUMBER; n++) if (!used.includes(n)) return String(n);
+  return String(next);
 }
 
 const isPositiveInteger = (s: string): boolean => /^[1-9]\d*$/.test(s.trim());
@@ -51,6 +59,9 @@ export function toTablesSource(
     tableNumber: Number(r.tableNumber),
     seats: Number(r.seats),
   }));
+  if (tables.some((t) => t.tableNumber > MAX_TABLE_NUMBER)) {
+    return { ok: false, error: `Table numbers go from 1 to ${MAX_TABLE_NUMBER}.` };
+  }
   if (new Set(tables.map((t) => t.tableNumber)).size !== tables.length) {
     return { ok: false, error: 'Two tables have the same number.' };
   }

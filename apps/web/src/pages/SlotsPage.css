@@ -28,7 +28,8 @@
 }
 
 .schedule__tables {
-  flex: 1;
+  /* Never squeezed into a column by the buttons: below 260px the buttons go to the next line. */
+  flex: 1 1 260px;
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
@@ -73,6 +74,7 @@
 
 .schedule__empty {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
@@ -82,6 +84,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 
 /* "Floor plan" has the colour of "Create the slot" (.cta), with rounder corners and only as
@@ -217,8 +220,17 @@
   .schedule__head .summary__title {
     margin-bottom: 4px;
   }
-  .schedule__head .field__meta {
+  .schedule__meta {
+    justify-items: start;
     margin-bottom: 14px;
+  }
+  /* Repeat weekly schedule: as wide as Define tables and the other card buttons. */
+  .schedule-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .schedule-toolbar .pill {
+    text-align: center;
   }
   .schedule__empty {
     flex-direction: column;
@@ -226,6 +238,7 @@
     gap: 14px;
   }
   .schedule__tables {
+    flex: none;
     gap: 8px;
   }
   .schedule__table {
@@ -241,6 +254,7 @@
   .schedule__actions {
     flex-direction: column;
     align-items: stretch;
+    margin-left: 0;
   }
   .slot-form__times {
     grid-template-columns: 1fr;
@@ -251,4 +265,43 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Narrow screens: the new slot and tables forms open in a dialog from a bar at the bottom. */
+.slot-sheet[hidden] {
+  display: none;
+}
+.slot-sheet__bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: rgb(248 245 238 / 0.94);
+  backdrop-filter: blur(8px);
+}
+.slot-sheet__open {
+  max-width: 560px;
+  margin: 0 auto;
+  font-size: 15px;
+  font-weight: 600;
+}
+/* The last slot card stays above the bar. */
+.layout--staff:has(.slot-sheet__bar) {
+  padding-bottom: 80px;
+}
+.slot-sheet__dialog {
+  width: min(100%, 560px);
+}
+/* Inside the dialog the form is not a card of its own. */
+.slot-sheet__dialog .summary {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.slot-sheet__dialog .summary__title {
+  margin: 0 40px 18px 0;
+  font: 400 26px/1.2 var(--font-serif);
 }

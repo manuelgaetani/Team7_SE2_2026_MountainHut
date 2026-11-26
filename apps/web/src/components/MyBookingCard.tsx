@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MyBooking, MyBookingStatus } from '@mountain-hut/shared';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { dateFull, fromIsoDate, monthShort } from '../lib/dates.ts';
+import { RequirementLine } from './RequirementLine.tsx';
 import { ModifyBookingDialog } from './ModifyBookingDialog.tsx';
 
 const STATUS_LABEL: Record<MyBookingStatus, string> = {
@@ -22,8 +23,7 @@ function CardFooter({ booking }: { booking: MyBooking }) {
         <ul className="booking-card__requirements">
           {booking.requirements.map((r, i) => (
             <li key={i}>
-              {r.allergies && <span className="badge badge--allergies">Allergies</span>}
-              {r.description}
+              <RequirementLine requirement={r} />
             </li>
           ))}
         </ul>

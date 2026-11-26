@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TOAST_MS, ToastProvider, useToast } from './Toast.tsx';
+import { ACTION_TOAST_MS, TOAST_MS, ToastProvider, useToast } from './Toast.tsx';
 
 const TEXT = {
   ok: 'Slot created.',
@@ -44,6 +44,20 @@ function Unmounting() {
       }}
     >
       {TEXT.showAndUnmount}
+    </button>
+  );
+}
+
+function WithUndo({ onUndo, onExpire }: { onUndo: () => void; onExpire: () => void }) {
+  const { show } = useToast();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        show({ message: TEXT.ok, action: { label: 'Undo', onClick: onUndo }, onExpire })
+      }
+    >
+      {TEXT.showOk}
     </button>
   );
 }
@@ -126,6 +140,55 @@ describe('Toast', () => {
     fireEvent.click(screen.getByRole('button', { name: TEXT.showAndUnmount }));
     expect(screen.queryByRole('button', { name: TEXT.showAndUnmount })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(TEXT.ok);
+  });
+
+  describe('with an Undo action', () => {
+    function renderUndo() {
+      const onUndo = vi.fn();
+      const onExpire = vi.fn();
+      renderToasts(<WithUndo onUndo={onUndo} onExpire={onExpire} />);
+      fireEvent.click(screen.getByRole('button', { name: TEXT.showOk }));
+      return { onUndo, onExpire };
+    }
+
+    it('runs the action, closes and never expires', () => {
+      const { onUndo, onExpire } = renderUndo();
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      act(() => {
+        vi.advanceTimersByTime(ACTION_TOAST_MS);
+      });
+      expect(onUndo).toHaveBeenCalledOnce();
+      expect(onExpire).not.toHaveBeenCalled();
+      expect(screen.queryByText(TEXT.ok)).not.toBeInTheDocument();
+    });
+
+    it('stays longer than a plain toast, then expires once', () => {
+      const { onUndo, onExpire } = renderUndo();
+      act(() => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      expect(screen.getByText(TEXT.ok)).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(ACTION_TOAST_MS - TOAST_MS);
+      });
+      expect(screen.queryByText(TEXT.ok)).not.toBeInTheDocument();
+      expect(onExpire).toHaveBeenCalledOnce();
+      expect(onUndo).not.toHaveBeenCalled();
+    });
+
+    it('expires on the close button', () => {
+      const { onExpire } = renderUndo();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.dismiss }));
+      expect(onExpire).toHaveBeenCalledOnce();
+    });
+
+    it('expires when the page is left', () => {
+      const { onExpire } = renderUndo();
+      act(() => {
+        window.dispatchEvent(new Event('pagehide'));
+      });
+      expect(onExpire).toHaveBeenCalledOnce();
+    });
   });
 
   it('throws when used outside the provider', () => {

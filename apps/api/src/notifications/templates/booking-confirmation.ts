@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import type { MailAttachment } from '../mailer.js';
 import { escapeHtml } from './escape-html.js';
-import type { PartyRequirement } from '@mountain-hut/shared';
+import { hasAllergy, requirementText, type PartyRequirement } from '@mountain-hut/shared';
 
 export interface BookingConfirmationData {
   fullName: string;
@@ -148,7 +148,7 @@ function bookingEmail(booking: BookingConfirmationData, wording: Wording): Email
   const subject = `Booking n. ${booking.bookingId} ${wording.event} - ${day}`;
   // One line per requirement: the ones with allergies are marked for the kitchen.
   const requirements = booking.requirements
-    .map((r) => (r.allergies ? `${ALLERGIES_LABEL}: ${r.description}` : r.description))
+    .map((r) => (hasAllergy(r) ? `${ALLERGIES_LABEL}: ${requirementText(r)}` : requirementText(r)))
     .join('\n');
 
   const greeting = `Hi ${booking.fullName},`;

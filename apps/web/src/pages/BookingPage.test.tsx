@@ -93,15 +93,19 @@ async function fillForm(guests = 3) {
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
-// Each requirement is a group named "Requirement n" with a "Details" field and an "Allergies" checkbox.
+// Each requirement is a group named "Requirement n": one checkbox per need of the hut, and
+// "Other", which shows an "Other need" field with an "Allergy or intolerance" checkbox.
 const requirementRow = (n: number) =>
   within(screen.getByRole('group', { name: `Requirement ${n}` }));
-const typeRequirement = (n: number, value: string) =>
-  fireEvent.change(requirementRow(n).getByRole('textbox', { name: 'Details' }), {
+const pickNeed = (n: number, name: string) =>
+  fireEvent.click(requirementRow(n).getByRole('checkbox', { name }));
+const typeRequirement = (n: number, value: string) => {
+  if (!requirementRow(n).queryByRole('textbox', { name: 'Other need' })) pickNeed(n, 'Other');
+  fireEvent.change(requirementRow(n).getByRole('textbox', { name: 'Other need' }), {
     target: { value },
   });
-const tickAllergies = (n: number) =>
-  fireEvent.click(requirementRow(n).getByRole('checkbox', { name: 'Allergies' }));
+};
+const tickAllergies = (n: number) => pickNeed(n, 'Allergy or intolerance');
 
 describe('BookingPage', () => {
   afterEach(() => {
@@ -356,10 +360,34 @@ describe('BookingPage', () => {
       slotId: 1,
       partySize: 3,
       requirements: [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ],
     });
+  });
+
+  it('sends the needs picked from the list, with no free text', async () => {
+    const fetchMock = stubApi({});
+    renderPage();
+    await fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a requirement' }));
+    pickNeed(1, 'Vegan');
+    pickNeed(1, 'Gluten-free');
+    submit();
+    const dialog = await screen.findByRole('dialog');
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bookings') as unknown as [
+      string,
+      { body: string },
+    ];
+    expect(JSON.parse(call[1].body).requirements).toEqual([
+      { restrictions: ['GLUTEN_FREE', 'VEGAN'], allergies: false, description: '' },
+    ]);
+    // Gluten-free is an allergen: the kitchen sees the allergy mark.
+    expect(
+      within(dialog)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['AllergiesGluten-freeVegan']);
   });
 
   it('summarises the requirements in the side panel', async () => {
@@ -371,7 +399,8 @@ describe('BookingPage', () => {
     tickAllergies(1);
     const summary = within(screen.getByRole('complementary', { name: 'Booking Summary' }));
     expect(summary.getByText('Requirements:')).toBeInTheDocument();
-    expect(summary.getByText('1 shellfish allergy (allergies)')).toBeInTheDocument();
+    expect(summary.getByText('1 shellfish allergy', { exact: false })).toBeInTheDocument();
+    expect(summary.getByText('Allergies')).toHaveClass('allergy-badge');
   });
 
   it('does not send the booking when a requirement is empty', async () => {
@@ -382,9 +411,11 @@ describe('BookingPage', () => {
     submit();
     const row = within(screen.getByTestId('requirement-row'));
     expect(await row.findByRole('alert')).toHaveTextContent(
-      'Describe the requirement or remove it.',
+      'Choose at least one need, or remove this requirement.',
     );
-    expect(row.getByRole('textbox', { name: 'Details' })).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('group', { name: 'Requirement 1' })).toHaveAccessibleDescription(
+      'Choose at least one need, or remove this requirement.',
+    );
     // Only the row shows the error: no second, form-level alert.
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalledWith('/api/bookings', expect.anything());
@@ -416,7 +447,7 @@ describe('BookingPage', () => {
       within(dialog)
         .getAllByRole('listitem')
         .map((li) => li.textContent),
-    ).toEqual(['Allergies (special care needed): 1 shellfish allergy', '2 vegetarians']);
+    ).toEqual(['Allergies1 shellfish allergy', '2 vegetarians']);
   });
 
   it('does not send the booking when a requirement is too long', async () => {

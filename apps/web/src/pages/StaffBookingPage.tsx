@@ -4,6 +4,7 @@ import {
   createStaffBookingSchema,
   MAX_REQUIREMENTS_LENGTH,
   type PartyRequirement,
+  type SlotSummary,
   type StaffBookingHiker,
   type StaffBookingResult,
 } from '@mountain-hut/shared';
@@ -13,12 +14,13 @@ import { useCurrentUser } from '../api/useAuth.ts';
 import { useBookableSlots } from '../api/useBookings.ts';
 import { useSchedule } from '../api/useSlots.ts';
 import { useCreateStaffBooking } from '../api/useStaffBookings.ts';
-import { FormField } from '../components/FormField.tsx';
+import { DateField } from '../components/DateField.tsx';
 import { GuestStepper } from '../components/GuestStepper.tsx';
 import { HikerPicker } from '../components/HikerPicker.tsx';
-import { RequirementsEditor, type RequirementDraft } from '../components/RequirementsEditor.tsx';
+import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
 import { StaffBookingDoneDialog } from '../components/StaffBookingDoneDialog.tsx';
 import { StaffBookingErrorDialog } from '../components/StaffBookingErrorDialog.tsx';
+import { TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { dateLong, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import {
   emptyHikerDraft,
@@ -27,8 +29,16 @@ import {
   type HikerMode,
 } from '../lib/hikerDraft.ts';
 import './BookingPage.css';
+import '../components/ModifyBookingDialog.css';
 import './StaffBookingPage.css';
 import { apiErrorMessage } from '../lib/errors.ts';
+import { RequirementLine } from '../components/RequirementLine.tsx';
+import {
+  draftErrors,
+  isFilled,
+  toRequirement,
+  type RequirementDraft,
+} from '../lib/requirements.ts';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 
 const FOOTER_TEXT: Record<HikerMode, string> = {
@@ -52,9 +62,7 @@ const seats = (n: number): string => (n === 1 ? '1 free seat' : `${n} free seats
 
 // MH-05: one entry per subset of the party. The list is left out when there are no needs.
 const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] | undefined =>
-  rows.length === 0
-    ? undefined
-    : rows.map(({ allergies, description }) => ({ allergies, description }));
+  rows.length === 0 ? undefined : rows.map(toRequirement);
 
 // Empty optional fields are left out of the request.
 const optional = (s: string): string | undefined => (s.trim() === '' ? undefined : s);
@@ -69,10 +77,22 @@ function hasStarted(slot: SlotDetails, now: Date): boolean {
 
 // Why a slot cannot be chosen; empty when it can. freeSeats is unknown until GET /slots answers.
 function slotNote(slot: SlotDetails, now: Date, freeSeats: number | undefined): string {
-  if (hasStarted(slot, now)) return ' (already started)';
-  if (slot.totalSeats === 0) return ' (no tables)';
-  if (freeSeats === 0) return ' (full)';
+  if (hasStarted(slot, now)) return 'Already started';
+  if (slot.totalSeats === 0) return 'No tables';
+  if (freeSeats === 0) return 'Full';
   return '';
+}
+
+// The schedule slots in the shape of the time buttons of the booking page.
+function toPickable(slot: SlotDetails, freeSeats: number | undefined, note: string): SlotSummary {
+  return {
+    id: slot.id,
+    date: slot.date,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    freeSeats: freeSeats ?? 0,
+    availability: note === '' ? 'AVAILABLE' : 'FULL',
+  };
 }
 
 function toHiker(draft: HikerDraft): StaffBookingHiker | null {
@@ -105,6 +125,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const [chosenSlotId, setChosenSlotId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(DEFAULT_PARTY);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
+  const [requirementErrors, setRequirementErrors] = useState<Partial<Record<number, string>>>({});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -117,7 +138,9 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   const freeSeats = new Map(upcoming.data?.map((s) => [s.id, s.freeSeats]));
   const now = new Date();
   const slots = schedule.data ?? [];
-  const bookable = slots.filter((s) => slotNote(s, now, freeSeats.get(s.id)) === '');
+  const notes = new Map(slots.map((s) => [s.id, slotNote(s, now, freeSeats.get(s.id))]));
+  const bookable = slots.filter((s) => notes.get(s.id) === '');
+  const pickable = slots.map((s) => toPickable(s, freeSeats.get(s.id), notes.get(s.id) ?? ''));
   const slot = bookable.find((s) => s.id === chosenSlotId) ?? bookable[0] ?? null;
   const summary = slot ? `${dateLong(fromIsoDate(date))} · ${slot.startTime}` : null;
   const slotFree = slot ? freeSeats.get(slot.id) : undefined;
@@ -139,6 +162,7 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrors({});
+    setRequirementErrors({});
     setFormError(null);
 
     const chosenHiker = toHiker(hiker);
@@ -146,8 +170,9 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
       setErrors({ hikerId: 'Select a hiker, or add a new one with Quick entry or Full profile.' });
       return;
     }
-    if (requirements.some((r) => r.description.trim() === '')) {
-      setErrors({ requirements: 'Describe each requirement or remove it.' });
+    const rowErrors = draftErrors(requirements);
+    if (Object.keys(rowErrors).length > 0) {
+      setRequirementErrors(rowErrors);
       return;
     }
 
@@ -186,46 +211,37 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
           </h2>
           <p className="card__hint">Plan the visit to the hut.</p>
 
-          <FormField
+          <DateField
             id="booking-date"
             label="Date *"
-            type="date"
             min={toIsoDate(now)}
             value={date}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setDate(e.target.value);
+            onChange={(iso) => {
+              setDate(iso);
               setChosenSlotId(null);
             }}
           />
 
-          <div className="field">
-            <label htmlFor="booking-slot">Time *</label>
-            <select
-              id="booking-slot"
-              value={slot?.id ?? ''}
-              disabled={!schedule.isSuccess || bookable.length === 0}
-              aria-invalid={errors.slotId ? true : undefined}
-              onChange={(e) => setChosenSlotId(Number(e.target.value))}
-            >
-              {bookable.length === 0 && <option value="">No time slots</option>}
-              {slots.map((s) => {
-                const free = freeSeats.get(s.id);
-                const note = slotNote(s, now, free);
-                return (
-                  <option key={s.id} value={s.id} disabled={note !== ''}>
-                    {s.startTime}–{s.endTime}
-                    {note || (free === undefined ? '' : ` · ${seats(free)}`)}
-                  </option>
-                );
-              })}
-            </select>
-            {errors.slotId && (
-              <p role="alert" className="field-error">
-                {errors.slotId}
-              </p>
-            )}
-          </div>
+          {/* The same time buttons as the booking page of the hikers. */}
+          <TimeSlotPicker
+            slots={pickable}
+            guests={guests}
+            value={slot?.id ?? null}
+            onChange={setChosenSlotId}
+            label="Time *"
+            canChoose={(s) => notes.get(s.id) === ''}
+            reason={(s) => {
+              const note = notes.get(s.id) ?? '';
+              if (note !== '') return note;
+              const free = freeSeats.get(s.id);
+              return free === undefined ? null : seats(free);
+            }}
+          />
+          {errors.slotId && (
+            <p role="alert" className="field-error">
+              {errors.slotId}
+            </p>
+          )}
           <GuestStepper
             id="booking-party"
             label="Number of people"
@@ -246,7 +262,11 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
             <p className="notice notice--ok">No time slots can be booked on this day.</p>
           )}
 
-          <RequirementsEditor value={requirements} onChange={setRequirements} />
+          <RequirementsEditor
+            value={requirements}
+            onChange={setRequirements}
+            errors={requirementErrors}
+          />
           {errors.requirements && (
             <p role="alert" className="field-error">
               {errors.requirements}
@@ -256,16 +276,13 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
           <div className="card__recap">
             {summary && <strong>{summary}</strong>}
             {guests >= 1 && <strong>{people(guests)}</strong>}
-            {requirements.some((r) => r.description.trim() !== '') && (
+            {requirements.some(isFilled) && (
               <ul className="card__requirements" aria-label="Requirements of the party">
-                {requirements
-                  .filter((r) => r.description.trim() !== '')
-                  .map((r) => (
-                    <li key={r.key}>
-                      {r.allergies && <span className="allergy-badge">Allergies</span>}
-                      {r.description}
-                    </li>
-                  ))}
+                {requirements.filter(isFilled).map((r) => (
+                  <li key={r.key}>
+                    <RequirementLine requirement={toRequirement(r)} />
+                  </li>
+                ))}
               </ul>
             )}
           </div>
@@ -282,14 +299,14 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
                 <button
                   ref={keepRef}
                   type="button"
-                  className="pill"
+                  className="modify-dialog__secondary"
                   onClick={() => setConfirmingDiscard(false)}
                 >
                   Keep editing
                 </button>
                 <button
                   type="button"
-                  className="pill pill--danger"
+                  className="modify-dialog__danger"
                   onClick={() => void navigate('/')}
                 >
                   Discard
@@ -302,14 +319,14 @@ function StaffBookingForm({ onReset }: { onReset: () => void }) {
               <div className="action-bar__buttons">
                 <button
                   type="button"
-                  className="pill"
+                  className="modify-dialog__secondary"
                   onClick={() => (dirty ? setConfirmingDiscard(true) : void navigate('/'))}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="pill pill--primary"
+                  className="modify-dialog__primary"
                   disabled={createBooking.isPending}
                 >
                   {createBooking.isPending ? 'Creating…' : 'Create booking'}

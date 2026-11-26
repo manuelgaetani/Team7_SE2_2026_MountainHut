@@ -510,8 +510,8 @@ describe('Reserve for a hiker with PostgreSQL (integration) - MH-07', () => {
 
     it('stores the party requirements in the order they were entered', async () => {
       const requirements = [
-        { allergies: true, description: '2 nut allergies' },
-        { allergies: false, description: '1 vegetarian' },
+        { restrictions: [], allergies: true, description: '2 nut allergies' },
+        { restrictions: [], allergies: false, description: '1 vegetarian' },
       ];
 
       const result = await reserve({
@@ -525,7 +525,7 @@ describe('Reserve for a hiker with PostgreSQL (integration) - MH-07', () => {
         await prisma.partyRequirement.findMany({
           where: { bookingId: result.id },
           orderBy: { id: 'asc' },
-          select: { allergies: true, description: true },
+          select: { restrictions: true, allergies: true, description: true },
         }),
       ).toEqual(requirements);
     });

@@ -170,10 +170,12 @@ model BookingTable {
 
 // Needs of a subset of the party (e.g. "2 vegetarians"); a booking has zero or more.
 model PartyRequirement {
-  id          Int     @id @default(autoincrement())
-  bookingId   Int     @map("booking_id")
-  allergies   Boolean
-  description String
+  id           Int      @id @default(autoincrement())
+  bookingId    Int      @map("booking_id")
+  allergies    Boolean
+  description  String
+  // Needs picked from the list of the hut (DIETARY_OPTIONS in @mountain-hut/shared).
+  restrictions String[] @default([])
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
