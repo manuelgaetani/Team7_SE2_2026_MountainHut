@@ -51,11 +51,17 @@ export function useRegister() {
   return useMutation({ mutationFn: registerRequest });
 }
 
+// A read of the user sent while the session was still open (e.g. by the page opened on Sign out)
+// can answer after the logout: it is cancelled, so it cannot bring the user back.
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: logoutRequest,
-    onSuccess: () => {
+    onMutate: () => queryClient.cancelQueries({ queryKey: ME_KEY }),
+    onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: ME_KEY });
+      // The data of the user who signed out (bookings, profile...) must not reach the next one.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== ME_KEY[0] });
       queryClient.setQueryData(ME_KEY, null);
     },
   });
