@@ -4,21 +4,9 @@ import type { RegisterHikeData, RegisteredHike } from '@mountain-hut/shared';
 import { AppConfig } from '../../config/app-config.js';
 import { DomainError } from '../../shared-kernel/domain-error.js';
 import { UnitOfWork } from '../../shared-kernel/unit-of-work.js';
-import type { Hike } from '../domain/hike.js';
 import { decideHikeRegistration, localMoment } from '../domain/hike-registration-policy.js';
 import { HikesRepository } from './hikes.repository.port.js';
-
-const toRegisteredHike = (hike: Hike): RegisteredHike => ({
-  id: hike.id,
-  destination: hike.destination,
-  route: hike.route,
-  passagePoints: hike.passagePoints,
-  departureDate: hike.departureAt.slice(0, 10),
-  departureTime: hike.departureAt.slice(11, 16),
-  returnDate: hike.returnAt.slice(0, 10),
-  returnTime: hike.returnAt.slice(11, 16),
-  predefinedHikeId: hike.predefinedHikeId,
-});
+import { toRegisteredHike } from './to-registered-hike.js';
 
 // MH-20: a hiker registers a planned hike before departure.
 @Injectable()

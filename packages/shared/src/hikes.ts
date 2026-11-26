@@ -69,3 +69,17 @@ export interface RegisteredHike {
   returnTime: string;
   predefinedHikeId: number | null;
 }
+
+// Who registered a hike, as the staff need it to reach them or their contact person.
+export interface HikeHiker {
+  id: number;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  emergencyContact: string | null;
+}
+
+// A registered hike seen by the hut staff, with its hiker.
+export interface StaffHike extends RegisteredHike {
+  hiker: HikeHiker;
+}

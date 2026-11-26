@@ -15,3 +15,15 @@ export interface NewHike {
 export interface Hike extends NewHike {
   id: number;
 }
+
+export interface HikeHikerContact {
+  id: number;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  emergencyContact: string | null;
+}
+
+export interface HikeWithHiker extends Hike {
+  hiker: HikeHikerContact;
+}

@@ -7,7 +7,7 @@ import '../pages/ProfilePage.css';
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'profile-nav__link profile-nav__link--active' : 'profile-nav__link';
 
-// The personal area: profile, bookings and password share one page with a side menu.
+// The personal area: profile, bookings, hikes and password share one page with a side menu.
 // Without a session, or while a temporary password must be replaced, the page shows alone.
 export function ProfileLayout() {
   const { data: user } = useCurrentUser();
@@ -41,9 +41,14 @@ export function ProfileLayout() {
               My profile
             </NavLink>
             {!isStaff(shell) && (
-              <NavLink to="/bookings" className={tabClass}>
-                My bookings
-              </NavLink>
+              <>
+                <NavLink to="/bookings" className={tabClass}>
+                  My bookings
+                </NavLink>
+                <NavLink to="/hikes" end className={tabClass}>
+                  My hikes
+                </NavLink>
+              </>
             )}
             <NavLink to="/change-password" className={tabClass}>
               Change password

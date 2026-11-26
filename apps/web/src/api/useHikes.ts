@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchPredefinedHikes, registerHike } from './hikes.ts';
+import { fetchMyHikes, fetchPredefinedHikes, fetchStaffHikes, registerHike } from './hikes.ts';
 
-const HIKES_KEY = ['hikes'] as const;
-const PREDEFINED_HIKES_KEY = [...HIKES_KEY, 'predefined'] as const;
+const PREDEFINED_HIKES_KEY = ['hikes', 'predefined'] as const;
+const MY_HIKES_KEY = ['hikes', 'mine'] as const;
+const STAFF_HIKES_KEY = ['hikes', 'staff'] as const;
 
 // The hut's predefined hikes: reference data, it rarely changes.
 export function usePredefinedHikes() {
@@ -13,15 +14,24 @@ export function usePredefinedHikes() {
   });
 }
 
+// The hikes of the logged-in hiker, for the personal area.
+export function useMyHikes() {
+  return useQuery({ queryKey: MY_HIKES_KEY, queryFn: fetchMyHikes });
+}
+
+// Every registered hike, for the staff. Refreshed every minute: the page stays open at the desk.
+export function useStaffHikes() {
+  return useQuery({
+    queryKey: STAFF_HIKES_KEY,
+    queryFn: fetchStaffHikes,
+    refetchInterval: 60 * 1000,
+  });
+}
+
 export function useRegisterHike() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: registerHike,
-    // The hiker's own hikes (MH-21/MH-22) live under the same key.
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: HIKES_KEY,
-        predicate: (q) => q.queryKey[1] !== 'predefined',
-      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: MY_HIKES_KEY }),
   });
 }

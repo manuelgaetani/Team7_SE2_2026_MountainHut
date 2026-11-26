@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   hikeMoment,
   MAX_HIKE_DESTINATION_LENGTH,
@@ -7,7 +7,6 @@ import {
   MAX_HIKE_ROUTE_LENGTH,
   registerHikeSchema,
   type PredefinedHike,
-  type RegisteredHike,
 } from '@mountain-hut/shared';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
@@ -15,10 +14,10 @@ import { usePredefinedHikes, useRegisterHike } from '../api/useHikes.ts';
 import { DateField } from '../components/DateField.tsx';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 import { FormField } from '../components/FormField.tsx';
-import { HikeRegisteredDialog } from '../components/HikeRegisteredDialog.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { PassagePointsEditor, type PassagePointDraft } from '../components/PassagePointsEditor.tsx';
 import { TimeField } from '../components/TimeField.tsx';
+import { useToast } from '../components/Toast.tsx';
 import { dateFull, fromIsoDate, toIsoDate } from '../lib/dates.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
 import { normalizeTime } from '../lib/time.ts';
@@ -120,6 +119,8 @@ function PredefinedChooser({ chosenId, onChoose, onClear }: PredefinedChooserPro
 
 function RegisterHikeForm({ onReset }: { onReset: () => void }) {
   const registerHike = useRegisterHike();
+  const toast = useToast();
+  const navigate = useNavigate();
   const [today] = useState(() => toIsoDate(new Date()));
   const [predefinedHikeId, setPredefinedHikeId] = useState<number | null>(null);
   const [destination, setDestination] = useState('');
@@ -132,7 +133,6 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pointErrors, setPointErrors] = useState<Partial<Record<number, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [registered, setRegistered] = useState<RegisteredHike | null>(null);
 
   function choose(hike: PredefinedHike) {
     setPredefinedHikeId(hike.id);
@@ -197,7 +197,14 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
     }
 
     registerHike.mutate(parsed.data, {
-      onSuccess: setRegistered,
+      // A short outcome: a toast, with the way to the hike in the personal area.
+      onSuccess: (hike) => {
+        toast.show({
+          message: `Hike registered: ${hike.destination}, ${dateFull(fromIsoDate(hike.departureDate))} at ${hike.departureTime}.`,
+          action: { label: 'View my hikes', onClick: () => void navigate('/hikes') },
+        });
+        onReset();
+      },
       onError: (err) => setFormError(registerError(err)),
     });
   }
@@ -343,8 +350,6 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
           </p>
         </div>
       </aside>
-
-      {registered && <HikeRegisteredDialog hike={registered} onClose={onReset} />}
     </form>
   );
 }

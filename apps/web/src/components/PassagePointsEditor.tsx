@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { MAX_HIKE_PASSAGE_POINT_LENGTH, MAX_HIKE_PASSAGE_POINTS } from '@mountain-hut/shared';
+import { useToast } from './Toast.tsx';
 
 // One row of the editor: the key stays the same while the text and the order change.
 export interface PassagePointDraft {
@@ -19,6 +20,18 @@ const nextKey = (rows: PassagePointDraft[]): number =>
 
 // MH-20: the optional intermediate points of a hike, in the order they are passed.
 export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePointsEditorProps) {
+  const toast = useToast();
+  // The latest rows and handler, read by an Undo pressed after later edits.
+  const latest = useRef({ value, onChange });
+  useEffect(() => {
+    latest.current = { value, onChange };
+  });
+  // Undo toasts of this editor: they make no sense once the form is gone.
+  const undoToasts = useRef<number[]>([]);
+  useEffect(() => {
+    const ids = undoToasts.current;
+    return () => ids.forEach((id) => toast.dismiss(id));
+  }, [toast]);
   // The row just added takes the focus once shown.
   const focusKey = useRef<number | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
@@ -29,6 +42,24 @@ export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePoi
   });
 
   const full = value.length >= MAX_HIKE_PASSAGE_POINTS;
+
+  // Same as the requirements of a booking: the row goes, a toast offers to put it back.
+  function remove(row: PassagePointDraft, index: number) {
+    onChange(value.filter((r) => r.key !== row.key));
+    const id = toast.show({
+      message: 'Passage point removed.',
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const rows = latest.current.value.filter((r) => r.key !== row.key);
+          const restored = [...rows];
+          restored.splice(Math.min(index, rows.length), 0, row);
+          latest.current.onChange(restored.slice(0, MAX_HIKE_PASSAGE_POINTS));
+        },
+      },
+    });
+    undoToasts.current.push(id);
+  }
 
   function add() {
     const key = nextKey(value);
@@ -81,7 +112,7 @@ export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePoi
                   type="button"
                   className="pill pill--remove"
                   aria-label={`Remove passage point ${index + 1}`}
-                  onClick={() => onChange(value.filter((r) => r.key !== row.key))}
+                  onClick={() => remove(row, index)}
                 >
                   Remove
                 </button>

@@ -1,5 +1,5 @@
 import type { PredefinedHike } from '@mountain-hut/shared';
-import type { Hike, LocalMoment, NewHike } from '../domain/hike.js';
+import type { Hike, HikeWithHiker, LocalMoment, NewHike } from '../domain/hike.js';
 
 // Storage of the registered hikes and of the hut's list. Inside UnitOfWork.run every call joins
 // the transaction.
@@ -22,6 +22,12 @@ export abstract class HikesRepository {
   abstract predefinedHikeExists(id: number): Promise<boolean>;
 
   abstract create(hike: NewHike): Promise<Hike>;
+
+  // Every hike of the hiker, the latest departure first.
+  abstract findByHiker(hikerId: number): Promise<Hike[]>;
+
+  // Every registered hike with its hiker, for the staff: the latest departure first.
+  abstract findAllWithHiker(): Promise<HikeWithHiker[]>;
 
   // The hut's list, by destination and route.
   abstract findPredefined(): Promise<PredefinedHike[]>;

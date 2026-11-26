@@ -1,6 +1,8 @@
 import type { RegisterHikeData } from '@mountain-hut/shared';
 import { loadAppConfig } from '../src/config/app-config.js';
 import { RegisterHike } from '../src/hikes/application/register-hike.js';
+import { ListHikesForStaff } from '../src/hikes/application/list-hikes-for-staff.js';
+import { ListMyHikes } from '../src/hikes/application/list-my-hikes.js';
 import { ListPredefinedHikes } from '../src/hikes/application/list-predefined-hikes.js';
 import { PrismaHikesRepository } from '../src/hikes/infrastructure/prisma-hikes.repository.js';
 import { PrismaUnitOfWork } from '../src/infrastructure/prisma/prisma-unit-of-work.js';
@@ -38,6 +40,8 @@ describe('Hikes with PostgreSQL (integration) - MH-20', () => {
   const repo = new PrismaHikesRepository(context);
   const register = new RegisterHike(uow, repo, config);
   const listPredefined = new ListPredefinedHikes(repo);
+  const listMine = new ListMyHikes(repo);
+  const listForStaff = new ListHikesForStaff(repo);
 
   const hikeCount = () => prisma.hike.count();
 
@@ -229,6 +233,74 @@ describe('Hikes with PostgreSQL (integration) - MH-20', () => {
       await register.execute(marco.userId, HIKE, NOW);
 
       expect(await hikeCount()).toBe(2);
+    });
+  });
+
+  describe('my hikes', () => {
+    it('lists only the hikes of the hiker, the latest departure first', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const marco = await createHiker(prisma, 'marco@example.test');
+      const early = await register.execute(
+        anna.userId,
+        period('2031-07-02', '07:30', '2031-07-02', '17:00'),
+        NOW,
+      );
+      const late = await register.execute(
+        anna.userId,
+        period('2031-12-15', '23:45', '2031-12-16', '00:15'),
+        NOW,
+      );
+      await register.execute(marco.userId, HIKE, NOW);
+
+      const mine = await listMine.execute(anna.userId);
+
+      expect(mine.map((h) => h.id)).toEqual([late.id, early.id]);
+      expect(mine[0]).toEqual(late);
+    });
+
+    it('returns an empty list for a hiker without hikes', async () => {
+      const { userId } = await createHiker(prisma, 'anna@example.test');
+      await expect(listMine.execute(userId)).resolves.toEqual([]);
+    });
+  });
+
+  describe('hikes for the staff', () => {
+    it('lists the hikes of every hiker with their contacts, the latest departure first', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const temporary = await prisma.hiker.create({
+        data: { fullName: 'Luca Verdi', phone: null, emergencyContact: 'Sara Verdi' },
+      });
+      const early = await register.execute(anna.userId, HIKE, NOW);
+      const late = await repo.create({
+        hikerId: temporary.id,
+        predefinedHikeId: null,
+        destination: 'Pian del Re',
+        route: 'via the Po springs',
+        passagePoints: [],
+        departureAt: '2031-08-01T06:00',
+        returnAt: '2031-08-01T12:00',
+      });
+
+      const hikes = await listForStaff.execute();
+
+      expect(hikes.map((h) => h.id)).toEqual([late.id, early.id]);
+      expect(hikes[0].hiker).toEqual({
+        id: temporary.id,
+        fullName: 'Luca Verdi',
+        email: null,
+        phone: null,
+        emergencyContact: 'Sara Verdi',
+      });
+      expect(hikes[1]).toEqual({
+        ...early,
+        hiker: {
+          id: anna.hikerId,
+          fullName: 'Test',
+          email: 'anna@example.test',
+          phone: '3331234567',
+          emergencyContact: null,
+        },
+      });
     });
   });
 

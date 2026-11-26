@@ -37,21 +37,24 @@ Team assumptions:
 
 ## Requirements
 
-| #   | Requirement                                                                                     | Status | Implemented in                                                  |
-| --- | ----------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
-| R1  | Only a logged-in `HIKER` with a hiker profile registers a hike (`401` / `403` otherwise)        | Done   | `HikesController` (`@Roles('HIKER')`), `RegisterHike.execute`   |
-| R2  | A hike has a destination and a route (required) and up to 10 passage points (optional, ordered) | Done   | `registerHikeSchema`, `hikes` table                             |
-| R3  | Planned departure and expected return date and time are required                                | Done   | `registerHikeSchema`                                            |
-| R4  | The expected return is after the planned departure (`400`, and a CHECK in the database)         | Done   | `registerHikeSchema`, `hikes_time_range_check`                  |
-| R5  | The planned departure is in the future, in the hut's time zone (`422`)                          | Done   | `decideHikeRegistration`, `localMoment`, `RegisterHike.execute` |
-| R6  | A hike cannot overlap another hike of the same hiker (`409`)                                    | Done   | `HikesRepository.lockHiker`, `findOverlapping`, `RegisterHike`  |
-| R7  | The hiker can list the hut's predefined hikes to start from one                                 | Done   | `GET /api/hikes/predefined`, `ListPredefinedHikes`, `seed.ts`   |
-| R8  | A registration may name the predefined hike it started from (`404` if it does not exist)        | Done   | `registerHikeSchema.predefinedHikeId`, `RegisterHike.execute`   |
-| R9  | Web app: the hiker registers a hike from a form, optionally starting from a predefined hike     | Done   | `RegisterHikePage` (`/hikes/new`), `useRegisterHike`            |
+| #   | Requirement                                                                                     | Status | Implemented in                                                                 |
+| --- | ----------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------ |
+| R1  | Only a logged-in `HIKER` with a hiker profile registers a hike (`401` / `403` otherwise)        | Done   | `HikesController` (`@Roles('HIKER')`), `RegisterHike.execute`                  |
+| R2  | A hike has a destination and a route (required) and up to 10 passage points (optional, ordered) | Done   | `registerHikeSchema`, `hikes` table                                            |
+| R3  | Planned departure and expected return date and time are required                                | Done   | `registerHikeSchema`                                                           |
+| R4  | The expected return is after the planned departure (`400`, and a CHECK in the database)         | Done   | `registerHikeSchema`, `hikes_time_range_check`                                 |
+| R5  | The planned departure is in the future, in the hut's time zone (`422`)                          | Done   | `decideHikeRegistration`, `localMoment`, `RegisterHike.execute`                |
+| R6  | A hike cannot overlap another hike of the same hiker (`409`)                                    | Done   | `HikesRepository.lockHiker`, `findOverlapping`, `RegisterHike`                 |
+| R7  | The hiker can list the hut's predefined hikes to start from one                                 | Done   | `GET /api/hikes/predefined`, `ListPredefinedHikes`, `seed.ts`                  |
+| R8  | A registration may name the predefined hike it started from (`404` if it does not exist)        | Done   | `registerHikeSchema.predefinedHikeId`, `RegisterHike.execute`                  |
+| R9  | Web app: the hiker registers a hike from a form, optionally starting from a predefined hike     | Done   | `RegisterHikePage` (`/hikes/new`), `useRegisterHike`                           |
+| R10 | The hiker sees their registered hikes in the personal area (team addition)                      | Done   | `GET /api/hikes/mine`, `ListMyHikes`, `MyHikesPage` (`/hikes`)                 |
+| R11 | The staff see every registered hike with the hiker's contacts (team addition, ahead of MH-21)   | Done   | `GET /api/staff/hikes`, `ListHikesForStaff`, `StaffHikesPage` (`/staff/hikes`) |
 
 ### Decisions
 
-- **Endpoints.** `POST /api/hikes` registers a hike; `GET /api/hikes/predefined` lists the hut's hikes. Both are for hikers only: the staff will see the hikes through MH-21.
+- **Endpoints.** `POST /api/hikes` registers a hike; `GET /api/hikes/predefined` lists the hut's hikes; `GET /api/hikes/mine` lists the hiker's own hikes. These are for hikers only. `GET /api/staff/hikes` (employee and warden) lists every hike with its hiker: a first read-only view for the staff, before the monitoring of MH-21.
+- **Hike state on the web.** A hike is _Planned_ before its departure, _Under way_ from the departure (issue #53) to the expected return, _Past_ from then on. It is computed in the browser from the hut-local moments; no state is stored yet (MH-22 will add the finished hikes).
 - **Dates and times.** Like the slots, departure and return are the hut's local date and time, sent as `YYYY-MM-DD` + `HH:MM` and stored as `TIMESTAMP` without time zone. "Now" is converted to the hut's time zone (`BOOKING_TIMEZONE`, default `Europe/Rome`) before the comparison, so a departure is in the future when it is in the future at the hut.
 - **Departure in the current minute.** Already come: the departure must be strictly after the current local minute.
 - **Status codes.** `400` for an invalid body (including a return not after the departure, which does not depend on the clock); `422` for a departure already come (depends on the clock); `409` for an overlap; `404` for an unknown predefined hike; `403` for a user without a hiker profile.
@@ -135,6 +138,45 @@ Response `201 Created`:
 }
 ```
 
+### `GET /api/hikes/mine`
+
+Hikers only. The hikes of the logged-in hiker, the latest departure first, in the shape of `POST /api/hikes`'s answer.
+
+```bash
+curl -b cookies.txt http://localhost:3000/api/hikes/mine
+```
+
+`200 OK` with an array of registered hikes (empty if none); `403` `A hiker profile is required to see your hikes` for a user without a hiker profile.
+
+### `GET /api/staff/hikes`
+
+Employee and warden only. Every registered hike with its hiker, the latest departure first. `email` is `null` for a temporary hiker (no account); `phone` and `emergencyContact` may be `null`.
+
+```json
+[
+  {
+    "id": 1,
+    "destination": "Monte Vettore",
+    "route": "From Forca di Presta",
+    "passagePoints": ["Forca di Presta"],
+    "departureDate": "2035-06-01",
+    "departureTime": "08:00",
+    "returnDate": "2035-06-01",
+    "returnTime": "17:00",
+    "predefinedHikeId": 2,
+    "hiker": {
+      "id": 5,
+      "fullName": "Mario Rossi",
+      "email": "hiker@mountainhut.com",
+      "phone": "+39 333 1234567",
+      "emergencyContact": null
+    }
+  }
+]
+```
+
+`403` `Operation not allowed for your role` for a hiker.
+
 ### Errors
 
 | Status | When                                                    | `message`                                                                             |
@@ -149,22 +191,32 @@ Response `201 Created`:
 
 ## Web app
 
-| Route        | Page               | Who                                                                       |
-| ------------ | ------------------ | ------------------------------------------------------------------------- |
-| `/hikes/new` | `RegisterHikePage` | Hikers. NavBar link **Register a hike** (hiker links, after Availability) |
+| Route          | Page               | Who                                                                         |
+| -------------- | ------------------ | --------------------------------------------------------------------------- |
+| `/hikes/new`   | `RegisterHikePage` | Hikers. NavBar link **Register a hike** (hiker links, after Availability)   |
+| `/hikes`       | `MyHikesPage`      | Hikers, in the personal area: side menu and account menu **My hikes**       |
+| `/staff/hikes` | `StaffHikesPage`   | Employee and warden. NavBar link **Hikes** (staff links, after New booking) |
 
 Access (`guides/08-ui-conventions.md`, section 7): `Loading…` while the session loads; a visitor reads "Sign in to register a hike." (the link returns to `/hikes/new`); a staff account reads "Staff accounts cannot register a hike." and the predefined hikes are not requested.
 
 The page, under the hut hero, has the form on the left and a recap on the right:
 
 1. **Start from a popular hike** (`GET /api/hikes/predefined`): one tile per hike (`aria-pressed`). Choosing one copies destination, route and passage points into the form and remembers its id (`predefinedHikeId`); the hiker can still edit everything. **Start from scratch** empties those fields and forgets the id. The section is hidden when the list is empty; if it cannot be loaded an `ErrorNotice` is shown and the form still works.
-2. **Where you are going**: destination (`FormField`), route (textarea) and the passage points (`PassagePointsEditor`: numbered rows, **Add a passage point** / **Remove**, disabled at 10).
+2. **Where you are going**: destination (`FormField`), route (textarea) and the passage points (`PassagePointsEditor`: numbered rows, **Add a passage point** / **Remove**, disabled at 10; a removal shows a "Passage point removed." toast with **Undo**, which puts the row back in its place, as for the requirements of a booking).
 3. **When**: departure and expected return, each a `DateField` (from today; the return from the departure day) plus a `TimeField`. Choosing the departure date also sets the return date when it is empty or earlier.
 4. **Your hike** recap: the values as they are typed, the passage points as `A → B`, the time away ("1 day 4 h"), and the **Register the hike** button (`Registering…` while pending).
 
 Validation is inline, before any request: `registerHikeSchema.safeParse` with a message per field ("Enter the destination of the hike.", "Choose the departure date.", "The expected return must be after the planned departure.", "Enter the name of the place, or remove this passage point."), plus a departure already come in the browser's clock ("The planned departure must be in the future."); the hut still checks it in its own time zone (`422`). Times typed as `800` or `8.30` are normalised to `HH:MM`.
 
-Feedback: success opens `HikeRegisteredDialog` ("Have a good hike") with the hike and what the hut does with it; **Done**, `Escape`, × or the backdrop close it and empty the form. Errors go to an `ErrorNotice` above the button: the API message for `403`, `404`, `409` (overlap) and `422`; the session-expired text with a "sign in" link on `401`; "The hike could not be registered. Please try again." otherwise.
+Feedback: success shows a toast ("Hike registered: Monte Vettore, Friday 27 November 2026 at 08:00.") with a **View my hikes** action leading to `/hikes`, and empties the form. Errors go to an `ErrorNotice` above the button: the API message for `403`, `404`, `409` (overlap) and `422`; the session-expired text with a "sign in" link on `401`; "The hike could not be registered. Please try again." otherwise.
+
+### My hikes (`/hikes`)
+
+In the personal area (`ProfileLayout`), like My bookings: a visitor is sent to `/unauthorized`; a staff account reads "Staff accounts have no hikes." and nothing is requested. Tabs **Upcoming** (planned and under way, the soonest first) and **Past** (the latest first). Each hike is a `HikeCard`: departure day, destination, state badge (_Planned_, _Under way_, _Past_), route, passage points, departure and expected return. Empty: "You have no upcoming hikes." with a **Register a hike** link; the same link sits next to the title. Errors: `ErrorNotice` with the API message on `403`, the session text on `401`, "Your hikes could not be loaded. Please try again." otherwise.
+
+### Hikes for the staff (`/staff/hikes`)
+
+Staff hero like New booking. Access: "Sign in with a staff account to see the hikes." for a visitor, "This page is for the hut staff." for a hiker (the hikes are not requested). Tabs **Under way** (default), **Planned**, **Past**, each with its count; a **Search** field filters by hiker, destination, route or passage point ("No hike matches the search."). Each `HikeCard` adds the hiker's name, phone (`tel:` link), email (`mailto:` link) and emergency contact, with `—` when missing. The list is refreshed every minute while the page is open.
 
 ## Data model
 
@@ -206,36 +258,50 @@ No new variables. The hut's time zone is `BOOKING_TIMEZONE` (default `Europe/Rom
 
 ## Code map
 
-| Path                                                            | Content                                                                        |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `docs/stories/MH-20-register-a-hike.md`                         | This document                                                                  |
-| `packages/shared/src/hikes.ts`                                  | `registerHikeSchema`, limits, `hikeMoment`, `PredefinedHike`, `RegisteredHike` |
-| `apps/api/prisma/schema.prisma`                                 | `PredefinedHike` and `Hike` models                                             |
-| `apps/api/prisma/migrations/20261125120000_register_a_hike/`    | Tables, indexes, foreign keys and the time range CHECK                         |
-| `apps/api/src/seed.ts`                                          | Four predefined hikes around Monte Vettore (upserted)                          |
-| `apps/api/src/hikes/hikes.module.ts`                            | Module wiring, registered in `app.module.ts`                                   |
-| `apps/api/src/hikes/domain/hike.ts`                             | `Hike`, `NewHike`, `LocalMoment`                                               |
-| `apps/api/src/hikes/domain/hike-registration-policy.ts`         | `localMoment`, `decideHikeRegistration`                                        |
-| `apps/api/src/hikes/application/hikes.repository.port.ts`       | Storage port                                                                   |
-| `apps/api/src/hikes/application/register-hike.ts`               | `RegisterHike`: checks, lock and save in one transaction                       |
-| `apps/api/src/hikes/application/list-predefined-hikes.ts`       | `ListPredefinedHikes`                                                          |
-| `apps/api/src/hikes/infrastructure/prisma-hikes.repository.ts`  | Prisma queries, hiker row lock, local time mapping                             |
-| `apps/api/src/hikes/presentation/hikes.controller.ts`           | `GET /api/hikes/predefined`, `POST /api/hikes`, hikers only                    |
-| `apps/web/src/api/hikes.ts`, `apps/web/src/api/useHikes.ts`     | Fetch functions, `usePredefinedHikes`, `useRegisterHike`                       |
-| `apps/web/src/pages/RegisterHikePage.tsx` (+ `.css`)            | The page: access, predefined hikes, form, validation, recap                    |
-| `apps/web/src/components/PassagePointsEditor.tsx`               | Ordered passage points, add and remove, errors per row                         |
-| `apps/web/src/components/HikeRegisteredDialog.tsx`              | Success dialog                                                                 |
-| `apps/web/src/router.tsx`, `apps/web/src/components/NavBar.tsx` | Route `/hikes/new`, hiker link **Register a hike**                             |
+| Path                                                            | Content                                                                                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `docs/stories/MH-20-register-a-hike.md`                         | This document                                                                                                            |
+| `packages/shared/src/hikes.ts`                                  | `registerHikeSchema`, limits, `hikeMoment`, `PredefinedHike`, `RegisteredHike`, `HikeHiker`, `StaffHike`                 |
+| `apps/api/prisma/schema.prisma`                                 | `PredefinedHike` and `Hike` models                                                                                       |
+| `apps/api/prisma/migrations/20261125120000_register_a_hike/`    | Tables, indexes, foreign keys and the time range CHECK                                                                   |
+| `apps/api/src/seed.ts`                                          | Four predefined hikes around Monte Vettore (upserted)                                                                    |
+| `apps/api/src/hikes/hikes.module.ts`                            | Module wiring, registered in `app.module.ts`                                                                             |
+| `apps/api/src/hikes/domain/hike.ts`                             | `Hike`, `NewHike`, `LocalMoment`                                                                                         |
+| `apps/api/src/hikes/domain/hike-registration-policy.ts`         | `localMoment`, `decideHikeRegistration`                                                                                  |
+| `apps/api/src/hikes/application/hikes.repository.port.ts`       | Storage port                                                                                                             |
+| `apps/api/src/hikes/application/register-hike.ts`               | `RegisterHike`: checks, lock and save in one transaction                                                                 |
+| `apps/api/src/hikes/application/list-predefined-hikes.ts`       | `ListPredefinedHikes`                                                                                                    |
+| `apps/api/src/hikes/application/list-my-hikes.ts`               | `ListMyHikes` (hiker's own hikes, `403` without a profile)                                                               |
+| `apps/api/src/hikes/application/list-hikes-for-staff.ts`        | `ListHikesForStaff` (every hike with its hiker)                                                                          |
+| `apps/api/src/hikes/application/to-registered-hike.ts`          | Stored hike → API shape (date and time split)                                                                            |
+| `apps/api/src/hikes/infrastructure/prisma-hikes.repository.ts`  | Prisma queries, hiker row lock, local time mapping                                                                       |
+| `apps/api/src/hikes/presentation/hikes.controller.ts`           | `GET /api/hikes/predefined`, `GET /api/hikes/mine`, `POST /api/hikes`, hikers only                                       |
+| `apps/api/src/hikes/presentation/staff-hikes.controller.ts`     | `GET /api/staff/hikes`, employee and warden                                                                              |
+| `apps/web/src/api/hikes.ts`, `apps/web/src/api/useHikes.ts`     | Fetch functions, `usePredefinedHikes`, `useMyHikes`, `useStaffHikes`, `useRegisterHike`                                  |
+| `apps/web/src/pages/RegisterHikePage.tsx` (+ `.css`)            | The page: access, predefined hikes, form, validation, recap                                                              |
+| `apps/web/src/components/PassagePointsEditor.tsx`               | Ordered passage points, add and remove, errors per row                                                                   |
+| `apps/web/src/pages/MyHikesPage.tsx` (+ `.css`)                 | My hikes in the personal area                                                                                            |
+| `apps/web/src/pages/StaffHikesPage.tsx` (+ `.css`)              | Hikes for the staff: tabs, counts, search                                                                                |
+| `apps/web/src/components/HikeCard.tsx` (+ `.css`)               | One hike, optionally with the hiker's contacts                                                                           |
+| `apps/web/src/lib/hikeState.ts`                                 | `hikeState` (Planned / Under way / Past), `nowMoment`                                                                    |
+| `apps/web/src/components/ProfileLayout.tsx`                     | Side menu link **My hikes**                                                                                              |
+| `apps/web/src/router.tsx`, `apps/web/src/components/NavBar.tsx` | Routes `/hikes/new`, `/hikes`, `/staff/hikes`; links **Register a hike**, **My hikes** (account menu), **Hikes** (staff) |
 
 ## Testing
 
-| Spec                                           | Covers                                                                                                                                                                                                                                                                                                                                    |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web/src/pages/RegisterHikePage.test.tsx` | R9: visitor, staff, hiker; predefined hikes (fill, start from scratch, empty, load error); inline validation (required, spaces, return after departure, past departure and +1 minute boundary, empty passage point, 10 points, remove); payload with and without `predefinedHikeId`; success dialog and reset; `409`, `422`, `401`, `500` |
-| `apps/api/test/hikes.int-spec.ts`              | R1–R8 against PostgreSQL: storage and order of passage points, hut-local time (summer/winter), no hiker profile, departure before now (+1 minute boundary), overlaps and touching hikes, predefined hikes (list, link, unknown, deleted), CHECK/FK/cascade/unique, concurrent registrations and row lock                                  |
-| `apps/web/src/components/NavBar.test.tsx`      | Hiker links include **Register a hike**                                                                                                                                                                                                                                                                                                   |
+| Spec                                                             | Covers                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/pages/RegisterHikePage.test.tsx`                   | R9: visitor, staff, hiker; predefined hikes (fill, start from scratch, empty, load error); inline validation (required, spaces, return after departure, past departure and +1 minute boundary, empty passage point, 10 points, remove, undo toast); payload with and without `predefinedHikeId`; success toast, reset and **View my hikes**; `409`, `422`, `401`, `500` |
+| `apps/api/test/hikes.int-spec.ts`                                | R1–R8, R10, R11 against PostgreSQL (my hikes and staff list added, not run yet): storage and order of passage points, hut-local time (summer/winter), no hiker profile, departure before now (+1 minute boundary), overlaps and touching hikes, predefined hikes (list, link, unknown, deleted), CHECK/FK/cascade/unique, concurrent registrations and row lock         |
+| `apps/web/src/components/NavBar.test.tsx`                        | Hiker links include **Register a hike**, account menu **My hikes**; staff links include **Hikes**                                                                                                                                                                                                                                                                       |
+| `apps/web/src/pages/MyHikesPage.test.tsx`                        | R10: visitor, staff, loading; upcoming (soonest first) and past tabs, states and the return boundary; details; empty; `403`, `401`, `500`                                                                                                                                                                                                                               |
+| `apps/web/src/pages/StaffHikesPage.test.tsx`                     | R11: visitor, hiker, employee and warden; hiker contacts and dashes; counts per tab and order; search; empty; loading; `401`, `500`                                                                                                                                                                                                                                     |
+| `apps/web/src/pages/ProfilePage.test.tsx`                        | Side menu link **My hikes** for hikers, not for staff                                                                                                                                                                                                                                                                                                                   |
+| `apps/api/src/hikes/application/list-my-hikes.spec.ts`           | R10: mapping, order, empty, `403` without a profile                                                                                                                                                                                                                                                                                                                     |
+| `apps/api/src/hikes/application/list-hikes-for-staff.spec.ts`    | R11: mapping with the hiker, temporary hiker, empty                                                                                                                                                                                                                                                                                                                     |
+| `apps/api/src/hikes/presentation/staff-hikes.controller.spec.ts` | R11: guards, `200` for employee and warden, `403` for a hiker                                                                                                                                                                                                                                                                                                           |
 
-API unit and E2E tests are still to write.
+API unit tests of the registration (schema, policy, use case, controller, repository) and E2E tests are still to write.
 
 ### Try it manually
 
@@ -244,8 +310,9 @@ API unit and E2E tests are still to write.
 3. `GET /api/hikes/predefined` returns the four hikes of the seed.
 4. Register a hike in the future with the `POST /api/hikes` example above: `201`. Send it again: `409`.
 5. Send a departure earlier today: `422`. Send a return before the departure: `400`.
-6. In the browser, sign in as the hiker and open **Register a hike**: pick **Monte Vettore**, choose tomorrow 08:00 – 17:00, press **Register the hike**: the dialog appears. Register it again: the overlap message appears above the button.
-7. Inspect the rows: `docker compose exec db psql -U mountainhut -d mountainhut -c 'select * from hikes'`.
+6. In the browser, sign in as the hiker and open **Register a hike**: pick **Monte Vettore**, choose tomorrow 08:00 – 17:00, press **Register the hike**: a toast confirms it; **View my hikes** opens the personal area with the hike under Upcoming. Register it again: the overlap message appears above the button.
+7. Sign in as an employee and open **Hikes**: the hike is under Planned with the hiker's contacts; search by the hiker's name.
+8. Inspect the rows: `docker compose exec db psql -U mountainhut -d mountainhut -c 'select * from hikes'`.
 
 Checked by hand on 2026-11-25 against a throwaway database: the migration matches `schema.prisma` (`prisma migrate diff`: no difference), the seed is idempotent, every status in the error table, the time zone boundary (a departure one minute ago in Rome, still future in UTC, gets `422`) and two identical concurrent registrations (`201` and `409`).
 
@@ -255,5 +322,6 @@ Checked by hand on 2026-11-25 against a throwaway database: the migration matche
 - **Report to the staff:** the decision of [#53](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/53) (a hike starts at its departure time; not leaving is handled by MH-22) is not in the Clarifications of MH-21, which still says "No approved clarifications yet".
 - **Predefined hikes only from the seed.** An installation without demo data has an empty list; the staff cannot manage the list yet. To decide whether to load the list in a migration or add a staff page.
 - **MH-22.** When a hike can be declared finished, decide whether a finished hike still blocks an overlapping registration (today every hike does).
-- **Tests.** API unit (schema, policy, use case, controller, repository) and E2E tests are still to write.
+- **Tests.** API unit tests of the registration (schema, policy, use case, controller, repository) and E2E tests are still to write; the integration cases for my hikes and the staff list were not run yet.
+- **MH-21.** The staff page is read-only; overdue alerts and the monitoring of MH-21/MH-24 will build on it.
 - **Time zone on the web.** The page checks the departure with the browser clock; a hiker in another time zone may pass it and get the hut's `422`, shown above the button.

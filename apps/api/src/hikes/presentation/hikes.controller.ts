@@ -9,6 +9,7 @@ import { ApiZodBody } from '../../presentation/api-zod-body.decorator.js';
 import { CurrentUser } from '../../presentation/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../presentation/current-user.decorator.js';
 import { ZodValidationPipe } from '../../presentation/zod-validation.pipe.js';
+import { ListMyHikes } from '../application/list-my-hikes.js';
 import { ListPredefinedHikes } from '../application/list-predefined-hikes.js';
 import { RegisterHike } from '../application/register-hike.js';
 
@@ -22,12 +23,19 @@ export class HikesController {
   constructor(
     private readonly registerHike: RegisterHike,
     private readonly predefinedHikes: ListPredefinedHikes,
+    private readonly myHikes: ListMyHikes,
   ) {}
 
   // The hut's list of hikes, to fill the registration from one of them.
   @Get('predefined')
   listPredefined(): Promise<PredefinedHike[]> {
     return this.predefinedHikes.execute();
+  }
+
+  // The hikes of the logged-in hiker, for the personal area.
+  @Get('mine')
+  listMine(@CurrentUser() user: AuthenticatedUser): Promise<RegisteredHike[]> {
+    return this.myHikes.execute(user.id);
   }
 
   @Post()

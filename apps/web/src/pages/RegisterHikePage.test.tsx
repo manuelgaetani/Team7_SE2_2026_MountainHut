@@ -27,8 +27,10 @@ const TEXT = {
   returnBeforeDeparture: 'The expected return must be after the planned departure.',
   departurePast: 'The planned departure must be in the future.',
   pointEmpty: 'Enter the name of the place, or remove this passage point.',
-  registered: 'Have a good hike',
-  done: 'Done',
+  pointRemoved: 'Passage point removed.',
+  undo: 'Undo',
+  registered: 'Hike registered: Monte Vettore, Friday 27 November 2026 at 08:00.',
+  viewMine: 'View my hikes',
   sessionExpired: /The session has expired/,
   overlap: 'This hike overlaps your hike to Monte Vettore (2026-11-27 08:00 – 2026-11-27 17:00)',
   failed: 'The hike could not be registered. Please try again.',
@@ -285,10 +287,36 @@ describe('RegisterHikePage (MH-20)', () => {
       expect(screen.getByLabelText('Passage point 1')).toHaveValue('Rifugio Tito Zilioli');
       expect(screen.queryByLabelText('Passage point 2')).not.toBeInTheDocument();
     });
+    it('offers to undo the removal of a passage point, back in its place', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 1' }));
+      expect(screen.getByRole('status')).toHaveTextContent(TEXT.pointRemoved);
+
+      fireEvent.click(screen.getByRole('button', { name: TEXT.undo }));
+
+      expect(screen.getByLabelText('Passage point 1')).toHaveValue('Forca di Presta');
+      expect(screen.getByLabelText('Passage point 2')).toHaveValue('Rifugio Tito Zilioli');
+      expect(screen.queryByRole('button', { name: TEXT.undo })).not.toBeInTheDocument();
+    });
+
+    it('closes the undo toast when the form is emptied after a registration', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 2' }));
+      fillWhen();
+      submit();
+      expect(await screen.findByText(TEXT.registered)).toBeVisible();
+      await waitFor(() =>
+        expect(screen.queryByRole('button', { name: TEXT.undo })).not.toBeInTheDocument(),
+      );
+    });
   });
 
   describe('registration', () => {
-    it('sends the hike started from a predefined one and shows what happens next', async () => {
+    it('sends the hike started from a predefined one and confirms it with a toast', async () => {
       const fetchMock = stub();
       await openPage();
       fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
@@ -296,7 +324,7 @@ describe('RegisterHikePage (MH-20)', () => {
       fillWhen({ departureTime: '800' });
       submit();
 
-      const dialog = await screen.findByRole('dialog', { name: TEXT.registered });
+      expect(await screen.findByRole('status')).toHaveTextContent(TEXT.registered);
       expect(sentBody(fetchMock, HIKES_URL)).toEqual({
         destination: vettore.destination,
         route: vettore.route,
@@ -307,8 +335,6 @@ describe('RegisterHikePage (MH-20)', () => {
         returnTime: '17:00',
         predefinedHikeId: vettore.id,
       });
-      expect(within(dialog).getByText(/Forca di Presta → Rifugio Tito Zilioli/)).toBeVisible();
-      expect(within(dialog).getByText('Friday 27 November 2026, 08:00')).toBeVisible();
     });
 
     it('sends a hike written by hand, trimmed, without a predefined hike', async () => {
@@ -325,7 +351,7 @@ describe('RegisterHikePage (MH-20)', () => {
       fillWhen({ returnDay: 'Sat 28 Nov', returnTime: '12:00' });
       submit();
 
-      await screen.findByRole('dialog', { name: TEXT.registered });
+      await screen.findByText(/Hike registered/);
       expect(sentBody(fetchMock, HIKES_URL)).toEqual({
         destination: 'Monte Sibilla',
         route: 'From Montemonaco',
@@ -337,17 +363,32 @@ describe('RegisterHikePage (MH-20)', () => {
       });
     });
 
-    it('empties the form when the dialog is closed with Done', async () => {
+    it('empties the form after the registration', async () => {
       stub();
       await openPage();
       fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
       fillWhen();
       submit();
-      const dialog = await screen.findByRole('dialog', { name: TEXT.registered });
-      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.done }));
+      await screen.findByText(TEXT.registered);
 
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(await screen.findByLabelText(TEXT.destination)).toHaveValue('');
+      expect(screen.getByLabelText(TEXT.destination)).toHaveValue('');
+      expect(screen.getByRole('button', { name: /Monte Vettore/ })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+    });
+
+    it('leads from the toast to the hikes in the personal area', async () => {
+      stub({ '/api/hikes/mine': () => json([registered()]) });
+      const router = renderAt('/hikes/new');
+      await screen.findByRole('button', { name: TEXT.submit });
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      fillWhen();
+      submit();
+      fireEvent.click(await screen.findByRole('button', { name: TEXT.viewMine }));
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/hikes'));
+      expect(await screen.findByRole('heading', { name: 'My hikes' })).toBeVisible();
     });
 
     it('shows the overlap explained by the API next to the form', async () => {
@@ -357,7 +398,7 @@ describe('RegisterHikePage (MH-20)', () => {
       fillWhen();
       submit();
       expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.overlap);
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Hike registered/)).not.toBeInTheDocument();
     });
 
     it('passes through a departure refused by the hut clock (422)', async () => {

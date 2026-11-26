@@ -7,6 +7,7 @@ const asHiker = (myProfile: () => Response = () => json(hikerProfile)) =>
     '/api/auth/me': () => json(user),
     '/api/hikers/me': myProfile,
     '/api/bookings/me': () => json([]),
+    '/api/hikes/mine': () => json([]),
   });
 
 const details = async () => within(await screen.findByRole('region', { name: 'My profile' }));
@@ -60,6 +61,7 @@ describe('ProfilePage', () => {
     expect(box.getByText('Hut warden')).toBeVisible();
     expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/hikers/me');
     expect(sideMenu().queryByRole('link', { name: 'My bookings' })).not.toBeInTheDocument();
+    expect(sideMenu().queryByRole('link', { name: 'My hikes' })).not.toBeInTheDocument();
   });
 
   it('links the bookings and the password change from the side menu', async () => {
@@ -74,6 +76,10 @@ describe('ProfilePage', () => {
     fireEvent.click(sideMenu().getByRole('link', { name: 'My bookings' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/bookings'));
     expect(await screen.findByRole('heading', { name: 'My bookings' })).toBeVisible();
+
+    fireEvent.click(sideMenu().getByRole('link', { name: 'My hikes' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/hikes'));
+    expect(await screen.findByRole('heading', { name: 'My hikes' })).toBeVisible();
 
     fireEvent.click(sideMenu().getByRole('link', { name: 'Change password' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/change-password'));
