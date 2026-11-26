@@ -7,12 +7,14 @@
   align-items: baseline;
   gap: 12px;
 }
-.my-hikes__new {
+/* Secondary action (pill--outline in guides/08-ui-conventions.md): green border, filled on hover.
+   Two classes, so it wins over the generic .pill of styles.css, loaded after this file. */
+.my-hikes__head .my-hikes__new {
   border-color: var(--green);
   color: var(--green-dark);
   font-size: 14px;
 }
-.my-hikes__new:hover {
+.my-hikes__head .my-hikes__new:hover {
   background: var(--green);
   color: #fff;
 }
