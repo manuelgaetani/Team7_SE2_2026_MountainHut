@@ -42,6 +42,13 @@ export function createSlot(seats: number[]): number {
   return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
 }
 
+// A slot for the menu tests (MH-10). The list of previous menus keeps only the slots with the
+// latest dates, so these slots get their own years (2900-2999), later than every other suite.
+export function createMenuSlot(): number {
+  const date = `DATE '2900-01-01' + ${randomInt(36_500)}`;
+  return insertSlot(date, `TIME '12:00'`, `TIME '14:00'`, [4]);
+}
+
 // A slot that starts in about one hour, too soon to book.
 // The start is a whole minute, like the slots created through the API (HH:MM): the API looks a
 // slot up by its start time (MH-04), which would never match a start with seconds. Tests run in

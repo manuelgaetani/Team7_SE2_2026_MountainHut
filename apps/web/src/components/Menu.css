@@ -135,6 +135,12 @@
 .menu-card__state {
   margin: 8px 32px 28px;
 }
+/* A menu written as free text, outside the editor: larger and darker than a description. */
+.menu-card__free {
+  margin: 8px 32px 28px;
+  color: var(--ink);
+  font-size: 15px;
+}
 .menu-card__courses {
   columns: 2 320px;
   column-gap: 48px;

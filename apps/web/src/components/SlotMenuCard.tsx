@@ -39,7 +39,11 @@ export function SlotMenuCard({ slotId, time }: SlotMenuCardProps) {
       {menu.isSuccess && menu.data === null && (
         <p className="notice notice--ok menu-card__state">The menu of this slot is not out yet.</p>
       )}
-      {menu.isSuccess && menu.data !== null && (
+      {menu.isSuccess && menu.data?.courses === null && (
+        // A menu sent straight to the API, not written with the editor: formatted free text.
+        <MenuText text={menu.data.text} className="menu-text menu-card__free" />
+      )}
+      {menu.isSuccess && menu.data?.courses && (
         <>
           <div className="menu-card__courses">
             {menu.data.courses.map((course, c) => (

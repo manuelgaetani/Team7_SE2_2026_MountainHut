@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MenuCourse, MenuSlot } from '../lib/menu.ts';
+import type { MenuCourse } from '../lib/menu.ts';
 import { fetchPastMenus, fetchSlotMenu, saveSlotMenu } from './menus.ts';
 
 const MENUS_KEY = ['menus'] as const;
@@ -13,7 +13,7 @@ export function useSlotMenu(slotId: number | null) {
   });
 }
 
-// The saved menus the staff can reuse.
+// The saved menus the staff can reuse (staff only: hikers get 403).
 export function usePastMenus() {
   return useQuery({ queryKey: [...MENUS_KEY, 'past'] as const, queryFn: fetchPastMenus });
 }
@@ -21,8 +21,8 @@ export function usePastMenus() {
 export function useSaveSlotMenu() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ slot, courses }: { slot: MenuSlot; courses: MenuCourse[] }) =>
-      saveSlotMenu(slot, courses),
+    mutationFn: ({ slotId, courses }: { slotId: number; courses: MenuCourse[] }) =>
+      saveSlotMenu(slotId, courses),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MENUS_KEY }),
   });
 }

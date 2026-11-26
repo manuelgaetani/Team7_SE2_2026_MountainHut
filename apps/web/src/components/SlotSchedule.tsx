@@ -173,7 +173,7 @@ function MenuMeta({ slot }: { slot: SlotDetails }) {
   if (!menu.data) return null;
   return (
     <span className="field__meta schedule__menu-meta">
-      Menu · {coursesLabel(menu.data.courses.length)}
+      Menu · {menu.data.courses ? coursesLabel(menu.data.courses.length) : 'free text'}
     </span>
   );
 }
