@@ -9,6 +9,7 @@ import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { MyBookingsPage } from './pages/MyBookingsPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
+import { RegisterHikePage } from './pages/RegisterHikePage.tsx';
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx';
 import { SlotsPage } from './pages/SlotsPage.tsx';
 import { StaffBookingPage } from './pages/StaffBookingPage.tsx';
@@ -25,6 +26,7 @@ export const routes = [
       { index: true, element: <HomePage /> },
       { path: 'book', element: <BookingPage /> },
       { path: 'availability', element: <AvailabilityPage /> },
+      { path: 'hikes/new', element: <RegisterHikePage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       // The personal area: one layout with a side menu, the old addresses kept.

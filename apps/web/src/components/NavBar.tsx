@@ -123,6 +123,9 @@ export function NavBar() {
           <NavLink to="/availability" className={navClass}>
             Availability
           </NavLink>
+          <NavLink to="/hikes/new" className={navClass}>
+            Register a hike
+          </NavLink>
         </>
       );
       account = <ProfileMenu user={user} />;

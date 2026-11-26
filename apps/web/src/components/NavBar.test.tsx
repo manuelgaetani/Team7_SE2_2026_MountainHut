@@ -88,7 +88,7 @@ describe('NavBar', () => {
     renderAt('/');
     await accountButton();
     // My bookings and Change password moved to the account menu and the profile page.
-    expect(navLinks()).toEqual(['Mountain Hut', 'Book a table', 'Availability']);
+    expect(navLinks()).toEqual(['Mountain Hut', 'Book a table', 'Availability', 'Register a hike']);
     const nav = within(screen.getByRole('navigation'));
     expect(nav.getByRole('link', { name: 'Book a table' })).toHaveAttribute('href', '/book');
     expect(nav.queryByRole('link', { name: 'Change password' })).not.toBeInTheDocument();
