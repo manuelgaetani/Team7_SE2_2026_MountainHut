@@ -7,23 +7,30 @@ import { PrismaMenusRepository } from '../src/menus/infrastructure/prisma-menus.
 import { PrismaSlotsRepository } from '../src/slots/infrastructure/prisma-slots.repository.js';
 import { createSlot, resetDatabase } from './integration/database.js';
 
+// Every formatting of the story: bold, italic, item list and sub items.
+const FORMATTED_MENU = [
+  '**Dinner**',
+  '- *Polenta* with cheese',
+  '  - gluten free on request',
+  '- Apple strudel',
+  '',
+  'Wine: **Nebbiolo**  ',
+].join('\n');
+
 describe('Menus with PostgreSQL (integration) - MH-10', () => {
   const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
   const prisma = new PrismaService(config);
   const context = new TransactionContext(prisma);
   const repo = new PrismaMenusRepository(context);
   const service = new MenusService(repo);
+  const slots = new PrismaSlotsRepository(context);
 
-  // The only places that know the shape of a menu: a different menu for each label.
-  const defineMenu = (slotId: number, label: string) => service.define(slotId, { text: label });
-  const menuRow = (slotId: number, label: string) => ({ slotId, text: label });
+  const defineMenu = (slotId: number, text: string) => service.define(slotId, { text });
 
   const menuSlotIds = async () =>
     (await prisma.menu.findMany({ orderBy: { slotId: 'asc' } })).map((m) => m.slotId);
 
-  // Deletes a slot as the app does (MH-09): slot_tables has no ON DELETE CASCADE, so the
-  // repository removes its bookings and tables before the slot. The menu goes by cascade.
-  const slots = new PrismaSlotsRepository(context);
+  // As the app does: slot_tables has no ON DELETE CASCADE, the repository removes them first.
   const deleteSlot = (slotId: number) => slots.deleteSlots([slotId]);
 
   beforeEach(async () => {
@@ -35,16 +42,37 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
   });
 
   describe('storage', () => {
-    it('keeps one menu per slot when the menu is written again', async () => {
+    it('stores the text exactly as written: new lines, indentation and asterisks', async () => {
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+
+      const menu = await defineMenu(slotId, FORMATTED_MENU);
+
+      expect(menu).toEqual({ slotId, text: FORMATTED_MENU, updatedAt: expect.any(String) });
+      const row = await prisma.menu.findUniqueOrThrow({ where: { slotId } });
+      expect(row.text).toBe(FORMATTED_MENU);
+    });
+
+    it('keeps accents, symbols and emoji as written', async () => {
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const text = 'Crème brûlée – 5 € 🍮\nKäsespätzle';
+
+      await defineMenu(slotId, text);
+
+      expect((await service.findBySlot(slotId)).text).toBe(text);
+    });
+
+    it('replaces the menu of a slot instead of adding a second one', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
 
       await defineMenu(slotId, 'First menu');
-      await defineMenu(slotId, 'Second menu');
+      const replaced = await defineMenu(slotId, 'Second menu');
 
+      expect(replaced.text).toBe('Second menu');
       expect(await menuSlotIds()).toEqual([slotId]);
+      expect((await service.findBySlot(slotId)).text).toBe('Second menu');
     });
 
-    it('keeps the creation time and moves the update time when the menu is written again', async () => {
+    it('keeps the creation time and moves the update time when the menu is replaced', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
 
       await defineMenu(slotId, 'First menu');
@@ -63,7 +91,6 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
       const menu = await defineMenu(slotId, 'Soup');
 
       const row = await prisma.menu.findUniqueOrThrow({ where: { slotId } });
-      expect(menu.slotId).toBe(slotId);
       expect(menu.updatedAt).toBe(row.updatedAt.toISOString());
     });
 
@@ -74,9 +101,8 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
       await defineMenu(lunch, 'Lunch menu');
       await defineMenu(dinner, 'Dinner menu');
 
-      expect(await menuSlotIds()).toEqual([lunch, dinner]);
-      expect((await service.findBySlot(lunch)).slotId).toBe(lunch);
-      expect((await service.findBySlot(dinner)).slotId).toBe(dinner);
+      expect((await service.findBySlot(lunch)).text).toBe('Lunch menu');
+      expect((await service.findBySlot(dinner)).text).toBe('Dinner menu');
     });
   });
 
@@ -120,13 +146,13 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
   describe('database constraints', () => {
     it('allows one menu per slot (primary key on slot_id)', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
-      await prisma.menu.create({ data: menuRow(slotId, 'First') });
+      await prisma.menu.create({ data: { slotId, text: 'First' } });
 
-      await expect(prisma.menu.create({ data: menuRow(slotId, 'Second') })).rejects.toThrow();
+      await expect(prisma.menu.create({ data: { slotId, text: 'Second' } })).rejects.toThrow();
     });
 
     it('refuses a menu that points to no slot (foreign key)', async () => {
-      await expect(prisma.menu.create({ data: menuRow(999, 'Soup') })).rejects.toThrow();
+      await expect(prisma.menu.create({ data: { slotId: 999, text: 'Soup' } })).rejects.toThrow();
     });
 
     it('deletes the menu together with its slot (ON DELETE CASCADE)', async () => {
@@ -142,18 +168,26 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
         message: 'Slot not found',
       });
     });
+
+    // Why the shared schema refuses "\u0000".
+    it('cannot store a NUL character in the text column', async () => {
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+
+      await expect(repo.save(slotId, 'Soup\u0000')).rejects.toThrow();
+      expect(await menuSlotIds()).toEqual([]);
+    });
   });
 
   describe('concurrent writes', () => {
-    it('writes for the same slot at the same time all succeed and leave one menu', async () => {
+    it('writes for the same slot at the same time all succeed and leave one of the texts', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const texts = ['Menu A', 'Menu B', 'Menu C', 'Menu D'];
 
-      const results = await Promise.allSettled(
-        ['Menu A', 'Menu B', 'Menu C', 'Menu D'].map((label) => defineMenu(slotId, label)),
-      );
+      const results = await Promise.allSettled(texts.map((text) => defineMenu(slotId, text)));
 
       expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
       expect(await menuSlotIds()).toEqual([slotId]);
+      expect(texts).toContain((await service.findBySlot(slotId)).text);
     });
   });
 
@@ -166,12 +200,14 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
 
     it('returns each menu with the hut-local date and times of its slot', async () => {
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:30', [4]);
-      await defineMenu(slotId, 'Dinner');
+      await defineMenu(slotId, FORMATTED_MENU);
 
       const [previous] = await service.listPrevious();
 
-      expect(previous).toMatchObject({
+      expect(previous).toEqual({
         slotId,
+        text: FORMATTED_MENU,
+        updatedAt: expect.any(String),
         date: '2031-07-01',
         startTime: '19:00',
         endTime: '21:30',
@@ -182,7 +218,7 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
       const early = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
       const lunch = await createSlot(prisma, '2031-07-03', '12:00', '14:00', [4]);
       const dinner = await createSlot(prisma, '2031-07-03', '19:00', '21:00', [4]);
-      // Written in a different order from the slots, so the order cannot come from the writes.
+      // Written in another order, so the order cannot come from the writes.
       await defineMenu(dinner, 'Dinner');
       await defineMenu(early, 'Early');
       await defineMenu(lunch, 'Lunch');
@@ -192,11 +228,45 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
       expect(list.map((m) => m.slotId)).toEqual([dinner, lunch, early]);
     });
 
+    it('lists the same text once, with the latest slot that uses it', async () => {
+      const first = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const second = await createSlot(prisma, '2031-07-08', '19:00', '21:00', [4]);
+      const other = await createSlot(prisma, '2031-07-05', '19:00', '21:00', [4]);
+      await defineMenu(second, 'Weekly menu');
+      await defineMenu(first, 'Weekly menu');
+      await defineMenu(other, 'Other menu');
+
+      const list = await service.listPrevious();
+
+      expect(list.map((m) => [m.text, m.slotId])).toEqual([
+        ['Weekly menu', second],
+        ['Other menu', other],
+      ]);
+    });
+
+    it('treats a changed text as a different menu', async () => {
+      const first = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      const second = await createSlot(prisma, '2031-07-02', '19:00', '21:00', [4]);
+      await defineMenu(first, '- Soup');
+      await defineMenu(second, '- **Soup**');
+
+      const list = await service.listPrevious();
+
+      expect(list.map((m) => m.text)).toEqual(['- **Soup**', '- Soup']);
+    });
+
+    it('shows the replaced text, not the old one', async () => {
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
+      await defineMenu(slotId, 'Old');
+      await defineMenu(slotId, 'New');
+
+      expect((await service.listPrevious()).map((m) => m.text)).toEqual(['New']);
+    });
+
     it(`returns at most ${PREVIOUS_MENUS_LIMIT} menus, the latest ones`, async () => {
       const total = PREVIOUS_MENUS_LIMIT + 2;
       const slotIds: number[] = [];
       for (let day = 1; day <= total; day++) {
-        // Consecutive days from 1 July 2031, a different menu each.
         const date = new Date(Date.UTC(2031, 6, day)).toISOString().slice(0, 10);
         const slotId = await createSlot(prisma, date, '19:00', '21:00', [4]);
         await defineMenu(slotId, `Menu of day ${day}`);
@@ -207,7 +277,6 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
 
       expect(list).toHaveLength(PREVIOUS_MENUS_LIMIT);
       expect(list[0]!.slotId).toBe(slotIds[total - 1]);
-      // The two oldest slots are left out.
       expect(list.map((m) => m.slotId)).not.toContain(slotIds[0]);
       expect(list.map((m) => m.slotId)).not.toContain(slotIds[1]);
     });
