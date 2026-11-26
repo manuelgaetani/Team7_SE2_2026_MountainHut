@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { defineMenuSchema } from '@mountain-hut/shared';
 import type { SlotDetails } from '../api/slots.ts';
 import { usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
+import { apiErrorMessage } from '../lib/errors.ts';
 import {
+  cleanCourses,
   courseKey,
   DEFAULT_COURSES,
   dishKey,
@@ -13,8 +16,10 @@ import {
   parsePrice,
   type MenuCourse,
   type MenuMark,
+  type PastMenu,
   type SlotMenu,
 } from '../lib/menu.ts';
+import { menuToText } from '../lib/menuFormat.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
 import { FormDialog } from './FormDialog.tsx';
@@ -82,7 +87,7 @@ const toCourses = (drafts: CourseDraft[]): MenuCourse[] =>
   }));
 
 // What a past menu is called in the "Start from" list: "Sun 22 Nov · 12:00–14:00".
-const menuName = (m: SlotMenu): string =>
+const menuName = (m: PastMenu): string =>
   `${dateShort(fromIsoDate(m.date))} · ${m.startTime}–${m.endTime}`;
 
 const toggle = (marks: MenuMark[], mark: MenuMark): MenuMark[] =>
@@ -136,9 +141,12 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   const save = useSaveSlotMenu();
   const past = usePastMenus();
   const time = `${slot.startTime}–${slot.endTime}`;
-  const [original] = useState(() => (saved ? toDrafts(saved.courses) : emptyMenu()));
+  // The courses of this slot's menu; null without a menu, or for a free text sent straight to
+  // the API, which the editor cannot open (saving replaces it).
+  const savedCourses = saved?.courses ?? null;
+  const [original] = useState(() => (savedCourses ? toDrafts(savedCourses) : emptyMenu()));
   const [courses, setCourses] = useState<CourseDraft[]>(original);
-  const [startFrom, setStartFrom] = useState(saved ? 'saved' : 'empty');
+  const [startFrom, setStartFrom] = useState(savedCourses ? 'saved' : 'empty');
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   // A pending choice that waits for the answer to "Discard your changes?".
@@ -154,7 +162,10 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     if (confirming) keepRef.current?.focus();
   }, [confirming]);
 
-  const others = (past.data ?? []).filter((m) => m.slotId !== slot.id);
+  // Previous menus written with the editor; free texts cannot be opened in it.
+  const others = (past.data ?? []).filter(
+    (m): m is PastMenu & { courses: MenuCourse[] } => m.slotId !== slot.id && m.courses !== null,
+  );
 
   const toast = useToast();
   // Undo toasts of this editor: they make no sense once the editor is closed.
@@ -230,7 +241,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     setStartFrom(value);
     setConfirming(null);
     let next: CourseDraft[];
-    if (value === 'saved' && saved) next = toDrafts(saved.courses);
+    if (value === 'saved' && savedCourses) next = toDrafts(savedCourses);
     else if (value === 'empty') next = emptyMenu();
     else {
       const source = others.find((m) => String(m.slotId) === value);
@@ -261,13 +272,21 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     event.preventDefault();
     const menu = toCourses(courses);
     const found = menuErrors(menu);
+    if (Object.keys(found).length === 0) {
+      // The API stores the menu as one text, with its own limits (length above all).
+      const checked = defineMenuSchema.safeParse({ text: menuToText(cleanCourses(menu)) });
+      if (!checked.success) {
+        found.form = `${checked.error.issues[0]?.message ?? 'The menu cannot be saved'}: shorten some descriptions.`;
+      }
+    }
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     save.mutate(
-      { slot, courses: menu },
+      { slotId: slot.id, courses: menu },
       {
         onSuccess: () => onDone(`Menu saved for ${time}.`),
-        onError: () => setSaveError('The menu could not be saved. Please try again.'),
+        onError: (e) =>
+          setSaveError(apiErrorMessage(e, 'The menu could not be saved. Please try again.', [404])),
       },
     );
   }
@@ -292,7 +311,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
               else startWith(value);
             }}
           >
-            {saved && <option value="saved">This slot's menu</option>}
+            {savedCourses && <option value="saved">This slot's menu</option>}
             <option value="empty">Empty menu</option>
             {others.length > 0 && (
               <optgroup label="A previous menu">
@@ -305,7 +324,9 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
             )}
           </select>
           <p className="field__hint">
-            Pick a previous menu to reuse it, then change what you need.
+            {saved && !savedCourses
+              ? "This slot's menu is a free text written outside the editor: saving replaces it."
+              : 'Pick a previous menu to reuse it, then change what you need.'}
           </p>
         </div>
 

@@ -1,5 +1,6 @@
 // MH-10: the menu of a time slot. A few courses, a few dishes of quality: a mountain hut.
-// Web-only types for now; they move to packages/shared when the API lands.
+// The API stores a menu as one text (`@mountain-hut/shared`, `defineMenuSchema`); the web app
+// writes the courses into that text and reads them back (`lib/menuFormat.ts`).
 
 export type MenuMark = 'GLUTEN' | 'DAIRY' | 'EGG' | 'NUTS' | 'SOY' | 'VEGETARIAN' | 'VEGAN';
 
@@ -36,19 +37,19 @@ export interface MenuCourse {
 
 export interface SlotMenu {
   slotId: number;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-  courses: MenuCourse[];
+  // The text stored by the API.
+  text: string;
+  // The courses read from the text; null when the text was not written by the menu editor
+  // (for example sent straight to the API), so it is shown as formatted free text.
+  courses: MenuCourse[] | null;
   updatedAt: string; // ISO
 }
 
-// The slot a menu belongs to.
-export interface MenuSlot {
-  id: number;
-  date: string;
-  startTime: string;
-  endTime: string;
+// A menu already written, with its slot: the ones the staff can start from.
+export interface PastMenu extends SlotMenu {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
 }
 
 export const MAX_COURSES = 4;

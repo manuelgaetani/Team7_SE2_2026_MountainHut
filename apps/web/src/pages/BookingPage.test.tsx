@@ -64,6 +64,10 @@ function stubApi({
     if (url === '/api/auth/refresh') return Promise.resolve(json({}, 401));
     if (url === '/api/slots') return Promise.resolve(slots());
     if (url === '/api/bookings') return Promise.resolve(book());
+    // MH-10: the menu card of the chosen slot; these slots have no menu.
+    if (/^\/api\/slots\/\d+\/menu$/.test(url)) {
+      return Promise.resolve(json({ message: 'This slot has no menu' }, 404));
+    }
     return Promise.reject(new Error(`Unexpected request ${url}`));
   });
   vi.stubGlobal('fetch', fetchMock);
