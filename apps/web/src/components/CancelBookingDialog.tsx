@@ -1,30 +1,21 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { MyBooking } from '@mountain-hut/shared';
-import { useCancelBooking } from '../api/useBookings.ts';
 import { dateFull, fromIsoDate } from '../lib/dates.ts';
 import './CancelBookingDialog.css';
-import { apiErrorMessage } from '../lib/errors.ts';
-import { ErrorNotice } from './ErrorNotice.tsx';
-import { useToast } from './Toast.tsx';
 
 interface CancelBookingDialogProps {
   booking: MyBooking;
   onClose: () => void;
+  /** The hiker confirmed: the page cancels, with a toast that can still undo it. */
+  onConfirm: () => void;
 }
 
 const people = (n: number): string => (n === 1 ? '1 person' : `${n} people`);
 
-// Asks to confirm the cancellation; on success a toast says it is done and the dialog closes.
-export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogProps) {
-  const cancel = useCancelBooking();
-  const toast = useToast();
+// Asks to confirm the cancellation. The page sends it once the Undo toast that follows is gone.
+export function CancelBookingDialog({ booking, onClose, onConfirm }: CancelBookingDialogProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const pending = cancel.isPending;
-  // While the request is on its way the dialog stays open.
-  const close = () => {
-    if (!pending) onClose();
-  };
 
   // The focus goes to the safe button.
   useEffect(() => {
@@ -33,11 +24,11 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !pending) onClose();
+      if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose, pending]);
+  }, [onClose]);
 
   const recap = `${dateFull(fromIsoDate(booking.date))} · ${booking.startTime}–${booking.endTime} · ${people(booking.partySize)}`;
 
@@ -46,7 +37,7 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
       className="dialog-backdrop"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget) close();
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
@@ -55,7 +46,7 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
         aria-modal="true"
         aria-labelledby="cancel-dialog-title"
       >
-        <button type="button" className="dialog__close" aria-label="Close" onClick={close}>
+        <button type="button" className="dialog__close" aria-label="Close" onClick={onClose}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" />
           </svg>
@@ -72,41 +63,17 @@ export function CancelBookingDialog({ booking, onClose }: CancelBookingDialogPro
             <strong>{recap}</strong>
           </div>
 
-          {cancel.isError && (
-            <ErrorNotice
-              message={apiErrorMessage(
-                cancel.error,
-                'The booking could not be cancelled. Please try again.',
-                [403, 404, 409],
-              )}
-              className="cancel-dialog__error"
-            />
-          )}
-
           <div className="cancel-dialog__actions">
             <button
               ref={buttonRef}
               type="button"
               className="cancel-dialog__secondary"
-              disabled={pending}
               onClick={onClose}
             >
               Keep booking
             </button>
-            <button
-              type="button"
-              className="cancel-dialog__primary"
-              disabled={pending}
-              onClick={() =>
-                cancel.mutate(booking.id, {
-                  onSuccess: () => {
-                    toast.show({ message: 'Booking cancelled. Seats are free again.' });
-                    onClose();
-                  },
-                })
-              }
-            >
-              {pending ? 'Cancelling…' : 'Cancel booking'}
+            <button type="button" className="cancel-dialog__primary" onClick={onConfirm}>
+              Cancel booking
             </button>
           </div>
         </>

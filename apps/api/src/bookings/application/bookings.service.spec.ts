@@ -106,8 +106,8 @@ describe('BookingsService', () => {
 
     it('stores the requirements of the party and returns them', async () => {
       const requirements = [
-        { allergies: true, description: 'no nuts' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: 'no nuts' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ];
       const result = await service.create(1, { ...input, requirements });
       expect(repo.createBooking).toHaveBeenCalledWith(expect.objectContaining({ requirements }));
@@ -447,8 +447,8 @@ describe('BookingsService', () => {
       status: 'CONFIRMED' as const,
     };
     // The requirements are a list (MH-05), stored apart from the booking.
-    const currentNeeds = [{ allergies: false, description: 'vegan' }];
-    const noNuts = { allergies: true, description: 'no nuts' };
+    const currentNeeds = [{ restrictions: [], allergies: false, description: 'vegan' }];
+    const noNuts = { restrictions: [], allergies: true, description: 'no nuts' };
     const updated = { id: 9, slotId: 3, partySize: 3, status: 'CONFIRMED' as const };
 
     beforeEach(() => {

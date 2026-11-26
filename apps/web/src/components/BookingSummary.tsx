@@ -1,5 +1,6 @@
 import type { BookingResult } from '@mountain-hut/shared';
-import type { RequirementDraft } from './RequirementsEditor.tsx';
+import { RequirementLine } from './RequirementLine.tsx';
+import { toRequirement, type RequirementDraft } from '../lib/requirements.ts';
 
 interface BookingSummaryProps {
   dateLabel: string;
@@ -61,8 +62,7 @@ export function BookingSummary({
           <ul>
             {requirements.map((r) => (
               <li key={r.key}>
-                {r.description}
-                {r.allergies && ' (allergies)'}
+                <RequirementLine requirement={toRequirement(r)} />
               </li>
             ))}
           </ul>

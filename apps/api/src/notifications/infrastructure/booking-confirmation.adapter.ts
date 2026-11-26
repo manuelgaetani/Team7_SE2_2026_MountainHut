@@ -6,6 +6,7 @@ import { TransactionContext } from '../../infrastructure/prisma/transaction-cont
 import { NotificationService } from '../notification.service.js';
 import type { Recipient } from '../notification.service.js';
 import type { BookingConfirmationData } from '../templates/booking-confirmation.js';
+import type { PartyRequirement } from '@mountain-hut/shared';
 
 // Loads the recipient and the booking data itself, then sends the confirmation email.
 @Injectable()
@@ -42,7 +43,7 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
         partySize: true,
         // In the order the hiker entered them (ids follow the insert order), only what the email shows.
         requirements: {
-          select: { allergies: true, description: true },
+          select: { restrictions: true, allergies: true, description: true },
           orderBy: { id: 'asc' },
         },
         hiker: {
@@ -62,7 +63,8 @@ export class BookingConfirmationAdapter extends BookingConfirmationNotifier {
         startTime: fromDbTime(row.slot.startTime),
         endTime: fromDbTime(row.slot.endTime),
         partySize: row.partySize,
-        requirements: row.requirements,
+        // Only codes of DIETARY_OPTIONS are stored: the schema checks them before the insert.
+        requirements: row.requirements as PartyRequirement[],
       },
     };
   }

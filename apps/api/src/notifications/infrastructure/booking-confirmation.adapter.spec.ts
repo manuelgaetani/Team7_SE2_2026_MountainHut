@@ -12,7 +12,7 @@ describe('BookingConfirmationAdapter', () => {
   const row = {
     status: 'PENDING',
     partySize: 2,
-    requirements: [{ allergies: true, description: 'no nuts' }],
+    requirements: [{ restrictions: [], allergies: true, description: 'no nuts' }],
     hiker: { fullName: 'Anna Rossi', userId: 1, user: { email: 'anna@example.com' } },
     slot: {
       date: new Date('2026-11-14T00:00:00.000Z'),
@@ -42,7 +42,7 @@ describe('BookingConfirmationAdapter', () => {
         startTime: '12:30',
         endTime: '13:30',
         partySize: 2,
-        requirements: [{ allergies: true, description: 'no nuts' }],
+        requirements: [{ restrictions: [], allergies: true, description: 'no nuts' }],
       },
     );
   });
@@ -56,7 +56,7 @@ describe('BookingConfirmationAdapter', () => {
         where: { id: 9 },
         select: expect.objectContaining({
           requirements: {
-            select: { allergies: true, description: true },
+            select: { restrictions: true, allergies: true, description: true },
             orderBy: { id: 'asc' },
           },
         }) as unknown,

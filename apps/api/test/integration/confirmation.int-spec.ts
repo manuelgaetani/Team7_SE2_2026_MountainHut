@@ -107,7 +107,7 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 3,
-        requirements: [{ allergies: true, description: 'One nut allergy' }],
+        requirements: [{ restrictions: [], allergies: true, description: 'One nut allergy' }],
       });
       expect(booking.status).toBe('PENDING');
       await untilConfirmed(booking.id);
@@ -258,19 +258,19 @@ describe('Booking confirmation with PostgreSQL (integration)', () => {
         slotId,
         partySize: 2,
         requirements: [
-          { allergies: true, description: '1 shellfish allergy' },
-          { allergies: false, description: 'Vegetarian' },
+          { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+          { restrictions: [], allergies: false, description: 'Vegetarian' },
         ],
       });
 
       const stored = await prisma.partyRequirement.findMany({
         where: { bookingId: booking.id },
         orderBy: { id: 'asc' },
-        select: { allergies: true, description: true },
+        select: { restrictions: true, allergies: true, description: true },
       });
       expect(stored).toEqual([
-        { allergies: true, description: '1 shellfish allergy' },
-        { allergies: false, description: 'Vegetarian' },
+        { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: false, description: 'Vegetarian' },
       ]);
     });
 

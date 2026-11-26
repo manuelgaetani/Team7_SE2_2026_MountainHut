@@ -26,8 +26,16 @@ class FakeMailer extends Mailer {
   }
 }
 
-const SHELLFISH: PartyRequirement = { allergies: true, description: '1 shellfish allergy' };
-const VEGETARIANS: PartyRequirement = { allergies: false, description: '2 vegetarians' };
+const SHELLFISH: PartyRequirement = {
+  restrictions: [],
+  allergies: true,
+  description: '1 shellfish allergy',
+};
+const VEGETARIANS: PartyRequirement = {
+  restrictions: [],
+  allergies: false,
+  description: '2 vegetarians',
+};
 
 describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
   const config = loadAppConfig({ ...process.env, JWT_SECRET: 'int-test-secret' });
@@ -45,7 +53,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
     prisma.partyRequirement.findMany({
       where: { bookingId },
       orderBy: { id: 'asc' },
-      select: { allergies: true, description: true },
+      select: { restrictions: true, allergies: true, description: true },
     });
 
   // The confirmation email is sent after the commit: wait for it, so it does not run into the
@@ -76,7 +84,7 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
       const requirements: PartyRequirement[] = [
         VEGETARIANS,
         SHELLFISH,
-        { allergies: false, description: 'High chair for a child' },
+        { restrictions: [], allergies: false, description: 'High chair for a child' },
       ];
 
       const booking = await service.create(anna.userId, { slotId, partySize: 5, requirements });
@@ -86,10 +94,34 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
       expect(await storedFor(booking.id)).toEqual(requirements);
     });
 
+    it('stores the needs picked from the list of the hut, lists them and emails them', async () => {
+      const anna = await createHiker(prisma, 'anna@example.test');
+      const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [6]);
+      const requirements: PartyRequirement[] = [
+        { restrictions: ['GLUTEN_FREE', 'VEGAN'], allergies: false, description: '' },
+        { restrictions: ['VEGAN'], allergies: false, description: '' },
+      ];
+
+      const booking = await service.create(anna.userId, { slotId, partySize: 2, requirements });
+      const email = await untilEmailed(booking.id);
+
+      expect(await storedFor(booking.id)).toEqual(requirements);
+      const [mine] = await repo.findUpcomingBookingsOfHiker(
+        anna.hikerId,
+        'Europe/Rome',
+        new Date(2030, 0, 1),
+      );
+      expect(mine.requirements).toEqual(requirements);
+      // Gluten-free is an allergen: the kitchen is warned; vegan alone is not an allergy.
+      expect(email.text).toContain('Allergies (special care needed): Gluten-free, Vegan');
+      expect(email.text).toMatch(/\nVegan(\n|$)/);
+    });
+
     it(`stores the maximum of ${MAX_REQUIREMENTS_COUNT} requirements, in order`, async () => {
       const anna = await createHiker(prisma, 'anna@example.test');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [24]);
       const requirements = Array.from({ length: MAX_REQUIREMENTS_COUNT }, (_, i) => ({
+        restrictions: [],
         allergies: i % 2 === 0,
         description: `Need number ${i + 1}`,
       }));
@@ -104,8 +136,12 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
       const anna = await createHiker(prisma, 'anna@example.test');
       const slotId = await createSlot(prisma, '2031-07-01', '19:00', '21:00', [4]);
       const requirements: PartyRequirement[] = [
-        { allergies: false, description: 'x'.repeat(MAX_REQUIREMENTS_LENGTH) },
-        { allergies: true, description: 'Celiachia: niente glutine — 1 bambino 🍝' },
+        { restrictions: [], allergies: false, description: 'x'.repeat(MAX_REQUIREMENTS_LENGTH) },
+        {
+          restrictions: [],
+          allergies: true,
+          description: 'Celiachia: niente glutine — 1 bambino 🍝',
+        },
       ];
 
       const booking = await service.create(anna.userId, { slotId, partySize: 2, requirements });
@@ -280,7 +316,9 @@ describe('Party requirements with PostgreSQL (integration) - MH-05', () => {
       const booking = await service.create(anna.userId, {
         slotId,
         partySize: 2,
-        requirements: [{ allergies: false, description: '<b>No onions</b> & no garlic' }],
+        requirements: [
+          { restrictions: [], allergies: false, description: '<b>No onions</b> & no garlic' },
+        ],
       });
       const message = await untilEmailed(booking.id);
 

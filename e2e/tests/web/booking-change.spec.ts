@@ -65,9 +65,9 @@ test.afterEach(() => {
 async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
 }
 
 async function openBookingPage(page: Page, open: () => Promise<unknown>): Promise<ListedSlot[]> {
@@ -132,8 +132,10 @@ test.describe('MH-06 Black-Box Web UI: Change a booking', () => {
 
     // 4. Update dietary requirements
     await dialog.getByRole('button', { name: 'Add a requirement' }).click();
-    await dialog.getByLabel('Details').fill('1 severe nut allergy');
-    await dialog.getByRole('checkbox', { name: 'Allergies' }).check();
+    await dialog.getByRole('checkbox', { name: 'Nut-free' }).check();
+    await dialog.getByRole('checkbox', { name: 'Other', exact: true }).check();
+    await dialog.getByLabel('Other need').fill('1 severe nut allergy');
+    await dialog.getByRole('checkbox', { name: 'Allergy or intolerance' }).check();
 
     // 5. Submit the booking modification
     await dialog.getByRole('button', { name: 'Confirm changes' }).click();

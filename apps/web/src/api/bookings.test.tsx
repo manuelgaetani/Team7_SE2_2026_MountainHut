@@ -20,7 +20,7 @@ const sampleBookingResult: BookingResult = {
   id: 10,
   slotId: 3,
   partySize: 4,
-  requirements: [{ allergies: true, description: 'no nuts' }],
+  requirements: [{ restrictions: [], allergies: true, description: 'no nuts' }],
   status: 'CONFIRMED',
   tables: [{ tableNumber: 1, assignedSeats: 4 }],
 };
@@ -59,7 +59,7 @@ describe('Bookings API client', () => {
     const input = {
       slotId: 3,
       partySize: 4,
-      requirements: [{ allergies: true, description: 'no nuts' }],
+      requirements: [{ restrictions: [], allergies: true, description: 'no nuts' }],
     };
     const fetchMock = answer(json(sampleBookingResult, 201));
     await expect(createBooking(input)).resolves.toEqual(sampleBookingResult);

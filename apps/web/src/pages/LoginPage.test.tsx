@@ -31,7 +31,7 @@ describe('LoginPage', () => {
     );
     fill(user.email, 'secret');
     submit();
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Account menu' })).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(sentBody(fetchMock, '/api/auth/login')).toEqual({
       email: user.email,

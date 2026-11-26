@@ -75,9 +75,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
     prisma.partyRequirement.findMany({
       where: { bookingId },
       orderBy: { id: 'asc' },
-      select: { allergies: true, description: true },
+      select: { restrictions: true, allergies: true, description: true },
     });
-  const vegan = { allergies: false, description: 'vegan' };
+  const vegan = { restrictions: [], allergies: false, description: 'vegan' };
   const seatsTakenIn = async (slotId: number): Promise<number> =>
     (await prisma.bookingTable.aggregate({ where: { slotId }, _sum: { assignedSeats: true } }))._sum
       .assignedSeats ?? 0;
@@ -300,11 +300,11 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
 
       // Parsed like the controller does: the schema trims the text.
       const input = changeBookingSchema.parse({
-        requirements: [{ allergies: true, description: '  no nuts ' }],
+        requirements: [{ restrictions: [], allergies: true, description: '  no nuts ' }],
       });
       const result = await service.change(anna.userId, booking, input);
 
-      const noNuts = [{ allergies: true, description: 'no nuts' }];
+      const noNuts = [{ restrictions: [], allergies: true, description: 'no nuts' }];
       expect(result.requirements).toEqual(noNuts);
       expect(await needsOf(booking)).toEqual(noNuts);
       expect(await tablesOf(booking)).toEqual(['2:2']);
@@ -331,7 +331,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       const booking = await createBooking(prisma, anna.hikerId, lunch, 'CONFIRMED', [
         { tableNumber: 1, assignedSeats: 2 },
       ]);
-      const needs = [{ allergies: true, description: 'gluten' }, vegan];
+      const needs = [{ restrictions: [], allergies: true, description: 'gluten' }, vegan];
       await prisma.partyRequirement.createMany({
         data: needs.map((n) => ({ bookingId: booking, ...n })),
       });
@@ -350,9 +350,9 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       ]);
       await prisma.partyRequirement.create({ data: { bookingId: booking, ...vegan } });
       const sent = [
-        { allergies: false, description: 'vegetarian' },
-        { allergies: true, description: 'peanuts' },
-        { allergies: false, description: 'high chair' },
+        { restrictions: [], allergies: false, description: 'vegetarian' },
+        { restrictions: [], allergies: true, description: 'peanuts' },
+        { restrictions: [], allergies: false, description: 'high chair' },
       ];
 
       await service.change(anna.userId, booking, { requirements: sent });
@@ -665,7 +665,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       service.change(anna.userId, booking, {
         slotId: dinner,
         partySize: 3,
-        requirements: [{ allergies: true, description: 'peanuts' }],
+        requirements: [{ restrictions: [], allergies: true, description: 'peanuts' }],
       }),
     ).rejects.toThrow('database down');
 
@@ -686,7 +686,7 @@ describe('Change a booking with PostgreSQL (integration) - MH-06', () => {
       await createBooking(prisma, bruno.hikerId, slot, 'CONFIRMED', [
         { tableNumber: 2, assignedSeats: 2 },
       ]);
-      const needs = [{ allergies: true, description: 'gluten' }, vegan];
+      const needs = [{ restrictions: [], allergies: true, description: 'gluten' }, vegan];
       await prisma.partyRequirement.createMany({
         data: needs.map((n) => ({ bookingId: booking, ...n })),
       });

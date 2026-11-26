@@ -87,8 +87,8 @@ describe('MyBookingCard', () => {
     renderCard({
       ...baseBooking,
       requirements: [
-        { allergies: true, description: 'peanut allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: 'peanut allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ],
     });
 
@@ -113,7 +113,7 @@ describe('MyBookingCard', () => {
           booking={{
             ...baseBooking,
             status: 'PENDING',
-            requirements: [{ allergies: false, description: 'vegetarian' }],
+            requirements: [{ restrictions: [], allergies: false, description: 'vegetarian' }],
           }}
           onCancel={vi.fn()}
         />

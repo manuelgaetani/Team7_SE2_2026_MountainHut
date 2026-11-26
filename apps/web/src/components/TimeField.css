@@ -1,0 +1,108 @@
+/* A time field: types like the other inputs, and its clock opens the hours and minutes. */
+.time-field {
+  position: relative;
+}
+.time-field__box {
+  position: relative;
+}
+/* Room on the right for the clock button. */
+.field .time-field__box input {
+  width: 100%;
+  padding-right: 48px;
+}
+.time-field__toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.time-field__toggle:hover,
+.time-field__toggle[aria-expanded='true'] {
+  border-color: var(--line);
+  color: var(--green-dark);
+}
+.time-field__toggle:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 1px;
+}
+
+/* The panel: under the field, aligned to its right edge, so it stays inside the form. */
+.time-field .time-picker {
+  right: 0;
+  width: 240px;
+}
+.time-picker__shown {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.time-picker__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.time-picker__column {
+  display: grid;
+  gap: 4px;
+}
+.time-picker__head {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Each column scrolls on its own, like the wheels of a clock. */
+.time-picker__list {
+  display: grid;
+  gap: 2px;
+  max-height: 200px;
+  padding: 2px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  scroll-snap-type: y proximity;
+}
+.time-picker__option {
+  padding: 8px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  scroll-snap-align: center;
+}
+.time-picker__option:hover {
+  background: var(--tint);
+}
+.time-picker__option[aria-pressed='true'] {
+  background: var(--green);
+  color: #fff;
+}
+.time-picker__option:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: -2px;
+}
+@media (max-width: 600px) {
+  .time-field .time-picker {
+    left: 0;
+    width: auto;
+    max-width: none;
+  }
+}

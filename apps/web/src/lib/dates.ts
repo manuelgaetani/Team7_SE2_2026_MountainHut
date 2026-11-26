@@ -52,6 +52,9 @@ export function isIsoDate(value: unknown): value is string {
 /** "Saturday 21 November 2026": dateLong with the year. */
 export const dateFull = (d: Date): string => `${dateLong(d)} ${d.getFullYear()}`;
 
+/** The first day of the month of a YYYY-MM-DD date, as YYYY-MM-01. */
+export const monthOf = (iso: string): string => `${iso.slice(0, 7)}-01`;
+
 /** "Nov" */
 export const monthShort = (d: Date): string =>
   new Intl.DateTimeFormat(LOCALE, { month: 'short' }).format(d).replace('.', '');
