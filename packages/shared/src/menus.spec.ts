@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_MENU_LENGTH, defineMenuSchema } from './menus.js';
+import { MAX_MENU_LENGTH, MENU_ERRORS, defineMenuSchema } from './menus.js';
 
 // Spec MH-10: Define menus.
 // An employee writes the menu of a slot as free text. The text can use basic formatting
@@ -166,5 +166,28 @@ describe('defineMenuSchema (White-box)', () => {
     it('reports a single issue for a text within the limit with only a NUL problem', () => {
       expect(issuesOf(`${'a'.repeat(MAX_MENU_LENGTH - 1)}\u0000`)).toEqual(['Invalid character']);
     });
+  });
+});
+
+// MH-10: the messages the web app and the tests tell apart. They are part of the API contract,
+// so a change here is a change of the contract.
+describe('MENU_ERRORS', () => {
+  it('has the two 404 messages: wrong slot and slot without a menu', () => {
+    expect(MENU_ERRORS.slotNotFound).toBe('Slot not found');
+    expect(MENU_ERRORS.noMenu).toBe('This slot has no menu');
+  });
+
+  it('has the two 422 messages for a slot that has started: change and delete', () => {
+    expect(MENU_ERRORS.startedChange).toBe(
+      'The slot has already started: its menu cannot be changed',
+    );
+    expect(MENU_ERRORS.startedDelete).toBe(
+      'The slot has already started: its menu cannot be deleted',
+    );
+  });
+
+  it('has a different message for each case', () => {
+    const messages = Object.values(MENU_ERRORS);
+    expect(new Set(messages).size).toBe(messages.length);
   });
 });
