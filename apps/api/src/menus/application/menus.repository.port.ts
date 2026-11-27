@@ -22,6 +22,13 @@ export abstract class MenusRepository {
 
   abstract slotExists(slotId: number): Promise<boolean>;
 
+  // The instant the slot starts, its date and start time read in the given time zone (the hut's).
+  // null if the slot does not exist.
+  abstract findSlotStart(slotId: number, timeZone: string): Promise<Date | null>;
+
+  // Deletes the menu of the slot. False if the slot has no menu.
+  abstract delete(slotId: number): Promise<boolean>;
+
   // The different menu texts written so far, each with the latest slot that uses it: latest slot
   // first, at most `limit`.
   abstract findPrevious(limit: number): Promise<StoredMenuWithSlot[]>;

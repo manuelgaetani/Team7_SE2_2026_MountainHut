@@ -3,6 +3,9 @@ import { z } from 'zod';
 
 export const DEFAULT_MAIL_FROM = 'Mountain Hut <no-reply@mountain-hut.test>';
 
+// Time zone of the hut: slot dates and times are local times there.
+export const DEFAULT_BOOKING_TIMEZONE = 'Europe/Rome';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Injection token and type of the validated configuration. It is the only place that
@@ -75,7 +78,7 @@ export function loadAppConfig(env: Env): AppConfig {
     jwtExpiresIn: env.JWT_EXPIRES_IN ?? '15m',
     refreshTtlMs: Number(env.REFRESH_TOKEN_TTL_DAYS ?? '1') * DAY_MS,
     secureCookies: env.NODE_ENV === 'production',
-    bookingTimeZone: env.BOOKING_TIMEZONE ?? 'Europe/Rome',
+    bookingTimeZone: env.BOOKING_TIMEZONE ?? DEFAULT_BOOKING_TIMEZONE,
     databaseUrl: env.DATABASE_URL ?? '',
     mailFrom: env.MAIL_FROM || DEFAULT_MAIL_FROM,
     // The API serves the web app on the same address (docker compose up).

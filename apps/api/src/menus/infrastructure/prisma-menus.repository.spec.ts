@@ -6,8 +6,8 @@ import { TransactionContext } from '../../infrastructure/prisma/transaction-cont
 import { PrismaMenusRepository } from './prisma-menus.repository.js';
 
 // MH-10 white box: the Prisma queries of the menus (R8). One menu per slot, written with a single
-// upsert; a slot that does not exist is null; the previous menus are one raw query with bound
-// values. The client is a mock.
+// upsert and deleted with deleteMany; a slot that does not exist is null; the start of a slot and
+// the previous menus are raw queries with bound values. The client is a mock.
 
 const select = { slotId: true, text: true, updatedAt: true };
 const updatedAt = new Date('2026-11-26T09:30:00.000Z');
@@ -21,7 +21,7 @@ const invalidIds = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, MAX_DB_INT
 
 describe('PrismaMenusRepository', () => {
   const client = {
-    menu: { upsert: vi.fn(), findUnique: vi.fn() },
+    menu: { upsert: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
     slot: { count: vi.fn() },
     $queryRaw: vi.fn(),
   };
@@ -111,6 +111,66 @@ describe('PrismaMenusRepository', () => {
     it.each(invalidIds)('is false for the id %d without querying', async (id) => {
       await expect(repository.slotExists(id)).resolves.toBe(false);
       expect(client.slot.count).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findSlotStart', () => {
+    const startsAt = new Date('2026-12-05T11:00:00.000Z');
+
+    it('answers the start of the slot read by the database', async () => {
+      client.$queryRaw.mockResolvedValue([{ starts_at: startsAt }]);
+      await expect(repository.findSlotStart(12, 'Europe/Rome')).resolves.toBe(startsAt);
+    });
+
+    it('answers null when no slot has that id', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await expect(repository.findSlotStart(999, 'Europe/Rome')).resolves.toBeNull();
+    });
+
+    it('binds the time zone and the id as parameters, in this order', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotStart(12, 'Europe/Zurich');
+      expect(queryValues()).toEqual(['Europe/Zurich', 12]);
+      expect(queryText()).not.toContain('Europe/Zurich');
+    });
+
+    it('reads the date and start time of the slot as a local time of the given zone', async () => {
+      client.$queryRaw.mockResolvedValue([]);
+      await repository.findSlotStart(12, 'Europe/Rome');
+      const sql = queryText();
+      expect(sql).toContain('(s.date + s.start_time) AT TIME ZONE ?::text');
+      expect(sql).toContain('AS starts_at');
+      expect(sql).toMatch(/FROM slots s\s+WHERE s\.id = \?$/);
+    });
+
+    it.each(invalidIds)('answers null for the id %d without querying', async (id) => {
+      await expect(repository.findSlotStart(id, 'Europe/Rome')).resolves.toBeNull();
+      expect(client.$queryRaw).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('delete', () => {
+    it('deletes the menu of the slot and answers true', async () => {
+      client.menu.deleteMany.mockResolvedValue({ count: 1 });
+      await expect(repository.delete(12)).resolves.toBe(true);
+      expect(client.menu.deleteMany).toHaveBeenCalledTimes(1);
+      expect(client.menu.deleteMany).toHaveBeenCalledWith({ where: { slotId: 12 } });
+    });
+
+    it('answers false when the slot has no menu (or does not exist)', async () => {
+      client.menu.deleteMany.mockResolvedValue({ count: 0 });
+      await expect(repository.delete(12)).resolves.toBe(false);
+    });
+
+    it.each(invalidIds)('answers false for the id %d without querying', async (id) => {
+      await expect(repository.delete(id)).resolves.toBe(false);
+      expect(client.menu.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('lets a database failure through', async () => {
+      const error = new Error('connection lost');
+      client.menu.deleteMany.mockRejectedValue(error);
+      await expect(repository.delete(12)).rejects.toBe(error);
     });
   });
 

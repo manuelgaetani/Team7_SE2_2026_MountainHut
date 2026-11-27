@@ -48,6 +48,21 @@ export class PrismaMenusRepository extends MenusRepository {
     return (await this.db().slot.count({ where: { id: slotId } })) > 0;
   }
 
+  async findSlotStart(slotId: number, timeZone: string): Promise<Date | null> {
+    if (!isDbId(slotId)) return null;
+    const rows = await this.db().$queryRaw<{ starts_at: Date }[]>`
+      SELECT ((s.date + s.start_time) AT TIME ZONE ${timeZone}::text) AS starts_at
+      FROM slots s
+      WHERE s.id = ${slotId}`;
+    return rows[0]?.starts_at ?? null;
+  }
+
+  async delete(slotId: number): Promise<boolean> {
+    if (!isDbId(slotId)) return false;
+    const { count } = await this.db().menu.deleteMany({ where: { slotId } });
+    return count > 0;
+  }
+
   async findPrevious(limit: number): Promise<StoredMenuWithSlot[]> {
     const rows = await this.db().$queryRaw<
       {

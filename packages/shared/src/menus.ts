@@ -21,6 +21,17 @@ export const defineMenuSchema = z.object({
 });
 export type DefineMenuInput = z.infer<typeof defineMenuSchema>;
 
+// The messages of the menu endpoints that the web app and the tests tell apart.
+export const MENU_ERRORS = {
+  // 404: the slot does not exist.
+  slotNotFound: 'Slot not found',
+  // 404: the slot exists but has no menu.
+  noMenu: 'This slot has no menu',
+  // 422: from its start on, the menu of a slot stays as it is.
+  startedChange: 'The slot has already started: its menu cannot be changed',
+  startedDelete: 'The slot has already started: its menu cannot be deleted',
+} as const;
+
 // The menu of a slot.
 export interface SlotMenu {
   slotId: number;
