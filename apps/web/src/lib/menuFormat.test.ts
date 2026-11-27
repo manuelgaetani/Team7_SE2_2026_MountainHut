@@ -59,6 +59,17 @@ describe('textToCourses', () => {
     expect(textToCourses(menuToText(cleaned))).toEqual(cleaned);
   });
 
+  it('reads a dish that ends on its English name, without marks or description', () => {
+    expect(textToCourses('## Primi\n\n### Polenta · € 10\n*Polenta*')).toEqual([
+      {
+        name: 'Primi',
+        dishes: [
+          { name: 'Polenta', translation: 'Polenta', price: 10, description: '', marks: [] },
+        ],
+      },
+    ]);
+  });
+
   it('accepts Windows line endings', () => {
     const cleaned = cleanCourses(MENU);
     expect(textToCourses(menuToText(cleaned).replace(/\n/g, '\r\n'))).toEqual(cleaned);
@@ -72,6 +83,7 @@ describe('textToCourses', () => {
     ['a dish without a price', '## Primi\n\n### Polenta\n*Polenta*'],
     ['an unknown mark', '## Primi\n\n### Polenta · € 10\n*Polenta*\nMarks: Gluten, Fish'],
     ['an empty text', ''],
+    ['a dish heading as the last line', '## Primi\n\n### Polenta · € 10'],
   ])('gives null for %s', (_name, text) => {
     expect(textToCourses(text)).toBeNull();
   });
