@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMyHikes, fetchPredefinedHikes, fetchStaffHikes, registerHike } from './hikes.ts';
+import {
+  checkInHike,
+  fetchMyHikes,
+  fetchPredefinedHikes,
+  fetchStaffHikes,
+  registerHike,
+} from './hikes.ts';
 
 const PREDEFINED_HIKES_KEY = ['hikes', 'predefined'] as const;
 const MY_HIKES_KEY = ['hikes', 'mine'] as const;
@@ -33,5 +39,19 @@ export function useRegisterHike() {
   return useMutation({
     mutationFn: registerHike,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MY_HIKES_KEY }),
+  });
+}
+
+// MH-21: a check-in changes the state of the hike in both lists.
+export function useCheckInHike() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: checkInHike,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: MY_HIKES_KEY }),
+        queryClient.invalidateQueries({ queryKey: STAFF_HIKES_KEY }),
+      ]);
+    },
   });
 }

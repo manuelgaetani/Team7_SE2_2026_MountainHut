@@ -7,7 +7,7 @@ const TEXT = {
   title: 'Hikes',
   loading: 'Loading the hikes…',
   staffOnly: 'This page is for the hut staff.',
-  underWay: /Under way/,
+  active: /Active/,
   planned: /Planned/,
   past: /Past/,
   noneOut: 'No hiker is out right now.',
@@ -59,7 +59,7 @@ const soon = hike({
   departureDate: '2026-11-28',
   returnDate: '2026-11-28',
 });
-const out = hike({ id: 2 });
+const out = hike({ id: 2, checkedInAt: '2026-11-26T06:55:00.000Z' });
 const past = hike({
   id: 1,
   destination: 'Pizzo del Diavolo',
@@ -109,7 +109,7 @@ describe('StaffHikesPage (MH-20)', () => {
     renderAt('/staff/hikes');
     expect(await screen.findByRole('heading', { name: 'Monte Vettore' })).toBeVisible();
     expect(screen.getByRole('heading', { level: 1, name: TEXT.title })).toBeVisible();
-    expect(tab(TEXT.underWay)).toHaveAttribute('aria-selected', 'true');
+    expect(tab(TEXT.active)).toHaveAttribute('aria-selected', 'true');
     expect(titles()).toEqual(['Monte Vettore']);
   });
 
@@ -143,7 +143,7 @@ describe('StaffHikesPage (MH-20)', () => {
     asStaff(() => json([later, soon, out, past]));
     renderAt('/staff/hikes');
     await screen.findByRole('article', { name: 'Monte Vettore' });
-    expect(tab(TEXT.underWay)).toHaveTextContent('1');
+    expect(tab(TEXT.active)).toHaveTextContent('1');
     expect(tab(TEXT.planned)).toHaveTextContent('2');
     expect(tab(TEXT.past)).toHaveTextContent('1');
 
@@ -161,7 +161,7 @@ describe('StaffHikesPage (MH-20)', () => {
 
     fireEvent.change(screen.getByLabelText(TEXT.search), { target: { value: 'luca' } });
     expect(titles()).toEqual(['Monte Sibilla']);
-    expect(tab(TEXT.underWay)).toHaveTextContent('0');
+    expect(tab(TEXT.active)).toHaveTextContent('0');
 
     fireEvent.change(screen.getByLabelText(TEXT.search), { target: { value: 'PILATO' } });
     expect(titles()).toEqual(['Lago di Pilato']);

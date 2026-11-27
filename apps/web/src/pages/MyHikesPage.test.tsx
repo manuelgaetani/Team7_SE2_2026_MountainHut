@@ -50,6 +50,7 @@ const underWay = hike({
   departureTime: '07:00',
   returnDate: '2026-11-26',
   returnTime: '18:00',
+  checkedInAt: '2026-11-26T06:55:00.000Z',
 });
 const past = hike({
   id: 1,

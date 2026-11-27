@@ -5,6 +5,7 @@ import { useCurrentUser } from '../api/useAuth.ts';
 import { useMyHikes } from '../api/useHikes.ts';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 import { HikeCard } from '../components/HikeCard.tsx';
+import { useNow } from '../lib/useNow.ts';
 import { hikeState, nowMoment } from '../lib/hikeState.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
 import './MyBookingsPage.css';
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string; empty: string }[] = [
 
 function MyHikesList() {
   const hikesQuery = useMyHikes();
+  const now = nowMoment(useNow());
   const [tab, setTab] = useState<Tab>('upcoming');
 
   if (hikesQuery.isPending) return <p role="status">Loading your hikes…</p>;
@@ -34,7 +36,6 @@ function MyHikesList() {
     );
   }
 
-  const now = nowMoment(new Date());
   const withState = hikesQuery.data.map((hike) => ({ hike, state: hikeState(hike, now) }));
   // The API gives the latest departure first: upcoming hikes read better the soonest first.
   const shown =
@@ -70,7 +71,7 @@ function MyHikesList() {
         ) : (
           <div className="my-bookings__list">
             {shown.map(({ hike, state }) => (
-              <HikeCard key={hike.id} hike={hike} state={state} />
+              <HikeCard key={hike.id} hike={hike} state={state} canCheckIn />
             ))}
           </div>
         )}

@@ -25,3 +25,9 @@ export function registerHike(input: RegisterHikeInput): Promise<RegisteredHike> 
 export function fetchStaffHikes(): Promise<StaffHike[]> {
   return apiGet<StaffHike[]>('/staff/hikes');
 }
+
+// MH-21: the hiker (own hike) or the staff (any hike) confirm the hike has started.
+// The endpoint is not in the API yet: until then the call fails and the page says so.
+export function checkInHike(id: number): Promise<RegisteredHike> {
+  return apiPost<RegisteredHike>(`/hikes/${id}/check-in`);
+}
