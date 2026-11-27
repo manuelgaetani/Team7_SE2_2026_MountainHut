@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -28,7 +29,7 @@ import { MenusService } from '../application/menus.service.js';
 export class MenusController {
   constructor(private readonly menus: MenusService) {}
 
-  // Creates or replaces the menu of a slot.
+  // Creates or replaces the menu of a slot, before the slot starts.
   @Put('slots/:id/menu')
   @HttpCode(200)
   @ApiZodBody(defineMenuSchema)
@@ -44,6 +45,13 @@ export class MenusController {
   @Roles('HIKER', 'EMPLOYEE', 'WARDEN')
   findBySlot(@Param('id', ParseIntPipe) id: number): Promise<SlotMenu> {
     return this.menus.findBySlot(id);
+  }
+
+  // Deletes the menu of a slot that has not started yet.
+  @Delete('slots/:id/menu')
+  @HttpCode(204)
+  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.menus.remove(id);
   }
 
   // The menus already written, to reuse (and change) one of them for another slot.
