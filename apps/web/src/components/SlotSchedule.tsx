@@ -3,6 +3,7 @@ import type { SlotDetails } from '../api/slots.ts';
 import { useSlotMenu } from '../api/useMenus.ts';
 import { useFloorPlan } from '../api/useSlots.ts';
 import { coursesLabel } from '../lib/menu.ts';
+import { isMenuEditable } from '../lib/slotStart.ts';
 import { seatsLabel, tablesLabel } from '../lib/slotTables.ts';
 import { FILL_LABELS, LEGEND_LABELS, tableFill, takenLabel } from '../lib/tableFill.ts';
 
@@ -58,7 +59,7 @@ export function SlotSchedule({
               <div className="schedule__empty">
                 <ScheduleTables slot={slot} />
                 <div className="schedule__actions">
-                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} />
+                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} onShowMenu={onShowMenu} />
                   <FloorPlanLink slot={slot} />
                 </div>
               </div>
@@ -66,7 +67,7 @@ export function SlotSchedule({
               <div className="schedule__empty">
                 <p className="field__hint">No tables yet: hikers cannot book this slot.</p>
                 <div className="schedule__actions">
-                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} />
+                  <MenuAction slot={slot} onDefineMenu={onDefineMenu} onShowMenu={onShowMenu} />
                   <FloorPlanLink slot={slot} />
                   <button
                     type="button"
@@ -179,16 +180,34 @@ function MenuMeta({ slot }: { slot: SlotDetails }) {
 }
 
 // MH-10: write the menu of a slot, or change it. Same look as Floor plan.
+// From the start of the slot its menu stays as it is: the staff can only look at it.
 function MenuAction({
   slot,
   onDefineMenu,
+  onShowMenu,
 }: {
   slot: SlotDetails;
   onDefineMenu: (slot: SlotDetails) => void;
+  onShowMenu: (slot: SlotDetails) => void;
 }) {
   const menu = useSlotMenu(slot.id);
   const time = `${slot.startTime}–${slot.endTime}`;
   const written = menu.data != null;
+  if (!isMenuEditable(slot.date, slot.startTime)) {
+    if (!written) return null;
+    return (
+      <button
+        type="button"
+        className="cta schedule__floor"
+        aria-haspopup="dialog"
+        aria-label={`See the menu of ${time}`}
+        title="The slot has started: its menu cannot be changed"
+        onClick={() => onShowMenu(slot)}
+      >
+        See menu
+      </button>
+    );
+  }
   return (
     <button
       type="button"
