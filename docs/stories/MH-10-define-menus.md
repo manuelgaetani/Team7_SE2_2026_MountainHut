@@ -216,14 +216,23 @@ The editor shows the API message for `404`, _"The menu could not be saved. Pleas
 ## Testing
 
 ```bash
-npm run test -w @mountain-hut/web -- src/lib/menuFormat.test.ts
+npm run test -w @mountain-hut/shared -- src/menus.spec.ts
+npm run test -w @mountain-hut/api -- src/menus src/infrastructure/prisma/prisma-errors.spec.ts
+npm run test -w @mountain-hut/web -- src/lib/menu
 docker compose up --build -d --wait && npm run test:e2e -- tests/api/menus.spec.ts
 ```
 
-| Spec                                  | Covers                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `apps/web/src/lib/menuFormat.test.ts` | Layout of the text, round trip, escapes, CRLF, free texts read as `null`                   |
-| `e2e/tests/api/menus.spec.ts`         | RBAC 401/403, write and replace, concurrent writes, max length, 400s, 404s, previous menus |
+| Spec                                                                | Covers                                                                                                                                 |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/menus.spec.ts`                                 | `defineMenuSchema`: black box (EP, BVA on 5000 characters, wrong types) and white box (NUL, Unicode spaces, issues that fail together) |
+| `apps/api/src/menus/application/menus.service.spec.ts`              | Define, read, previous menus; ISO dates; the two `NOT_FOUND` messages; limit of 50                                                     |
+| `apps/api/src/menus/presentation/menus.controller.spec.ts`          | RBAC 403 (hiker on PUT and `GET /menus`), 400 body and id without calling the service, 200, 404 mapping                                |
+| `apps/api/src/menus/infrastructure/prisma-menus.repository.spec.ts` | Upsert, P2003 read as `null`, invalid ids without queries, bound `LIMIT`, `DISTINCT ON` and order of the previous menus                |
+| `apps/api/src/infrastructure/prisma/prisma-errors.spec.ts`          | `isForeignKeyViolation` (P2003)                                                                                                        |
+| `apps/web/src/lib/menu.test.ts`                                     | `menuErrors` (BVA on price and description), `parsePrice`, `formatPrice`, `sortMarks`, `cleanCourses`, labels                          |
+| `apps/web/src/lib/menuText.test.ts`                                 | Bold, italic, items, sub-items, unclosed markers, CRLF                                                                                 |
+| `apps/web/src/lib/menuFormat.test.ts`                               | Layout of the text, round trip, escapes, CRLF, free texts read as `null`, dish ending on its English name                              |
+| `e2e/tests/api/menus.spec.ts`                                       | RBAC 401/403, write and replace, concurrent writes, max length, 400s, 404s, previous menus                                             |
 
 ### Try it manually
 

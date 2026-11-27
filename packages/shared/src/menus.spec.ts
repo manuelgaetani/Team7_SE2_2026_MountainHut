@@ -8,8 +8,8 @@ import { MAX_MENU_LENGTH, defineMenuSchema } from './menus.js';
 // The schema checks only the text: it is kept exactly as written, so the formatting
 // (new lines, indentation, asterisks) reaches the database unchanged.
 // Contract: body { text: string }, at least one visible character, at most MAX_MENU_LENGTH (5000)
-// characters. Unknown fields are stripped.
-// TODO(MH-10-whitebox): add white-box unit tests once the schema is implemented
+// characters, no NUL character. Unknown fields are stripped.
+// TODO(MH-10-graybox): add gray-box unit tests for database state transitions and query constraints
 describe('defineMenuSchema (Black-box)', () => {
   const formatted = [
     '**Lunch menu**',
@@ -100,6 +100,71 @@ describe('defineMenuSchema (Black-box)', () => {
       // 4 asterisks + 4997 letters = 5001 characters.
       const text = `**${'a'.repeat(MAX_MENU_LENGTH - 3)}**`;
       expect(defineMenuSchema.safeParse({ text }).success).toBe(false);
+    });
+  });
+});
+
+// MH-10 white box: the checks of the schema one by one (max length, visible character, NUL),
+// including the texts that fail more than one of them.
+describe('defineMenuSchema (White-box)', () => {
+  const issuesOf = (text: string) => {
+    const res = defineMenuSchema.safeParse({ text });
+    return res.success ? [] : res.error.issues.map((i) => i.message);
+  };
+
+  describe('hasNoNulByte refinement', () => {
+    it.each([
+      ['alone', '\u0000'],
+      ['at the start', '\u0000Soup'],
+      ['in the middle', 'Polenta\u0000and stew'],
+      ['at the end', 'Soup\u0000'],
+    ])('rejects a NUL character %s', (_label, text) => {
+      expect(issuesOf(text)).toContain('Invalid character');
+    });
+
+    it('reports the NUL issue on the text field', () => {
+      const res = defineMenuSchema.safeParse({ text: 'Soup\u0000' });
+      expect(res.error?.issues).toEqual([
+        expect.objectContaining({ path: ['text'], message: 'Invalid character' }),
+      ]);
+    });
+
+    it('accepts other control characters, which PostgreSQL can store', () => {
+      expect(defineMenuSchema.safeParse({ text: 'Soup\u0001\u001f\u007f' }).success).toBe(true);
+    });
+  });
+
+  describe('hasVisibleCharacter refinement', () => {
+    it('accepts a single visible character among white space', () => {
+      expect(defineMenuSchema.safeParse({ text: ' \n\t.\r\n ' }).success).toBe(true);
+    });
+
+    it('treats non-breaking and other Unicode spaces as empty, like String.prototype.trim', () => {
+      expect(issuesOf('\u00a0\u2003\ufeff')).toEqual(['The menu cannot be empty']);
+    });
+
+    it('counts a NUL character alone as visible, then rejects it as invalid', () => {
+      expect(issuesOf('\u0000')).toEqual(['Invalid character']);
+    });
+  });
+
+  describe('Checks that fail together', () => {
+    it('reports both the length and the empty text for a long text of spaces', () => {
+      expect(issuesOf(' '.repeat(MAX_MENU_LENGTH + 1))).toEqual([
+        `The menu can have at most ${MAX_MENU_LENGTH} characters`,
+        'The menu cannot be empty',
+      ]);
+    });
+
+    it('reports both the length and the NUL character for a long text with a NUL', () => {
+      expect(issuesOf(`${'a'.repeat(MAX_MENU_LENGTH)}\u0000`)).toEqual([
+        `The menu can have at most ${MAX_MENU_LENGTH} characters`,
+        'Invalid character',
+      ]);
+    });
+
+    it('reports a single issue for a text within the limit with only a NUL problem', () => {
+      expect(issuesOf(`${'a'.repeat(MAX_MENU_LENGTH - 1)}\u0000`)).toEqual(['Invalid character']);
     });
   });
 });
