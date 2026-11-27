@@ -21,7 +21,7 @@ async function toApiError(response: Response, method: string, path: string): Pro
 }
 
 async function send<T>(
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -34,6 +34,8 @@ async function send<T>(
     ...(isGet ? {} : { body: body === undefined ? undefined : JSON.stringify(body) }),
   });
   if (!response.ok) throw await toApiError(response, method, path);
+  // 204 No Content: nothing to read.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -45,3 +47,5 @@ export const apiPut = <T>(path: string, body?: unknown): Promise<T> => send<T>('
 
 export const apiPatch = <T>(path: string, body: unknown): Promise<T> =>
   send<T>('PATCH', path, body);
+
+export const apiDelete = (path: string): Promise<void> => send<void>('DELETE', path);
