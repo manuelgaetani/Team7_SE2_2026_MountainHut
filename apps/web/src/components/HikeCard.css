@@ -7,7 +7,7 @@
 }
 .hike-card__times {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   margin: 18px 0 0;
   padding-top: 14px;
@@ -33,9 +33,24 @@
   background: #f6e7c8;
   color: #8a5a12;
 }
+.hike-badge--no_check_in {
+  background: #fbe0d6;
+  color: #9a3412;
+}
 .hike-badge--past {
   background: #ece9e1;
   color: var(--muted);
+}
+
+/* MH-21: the check-in of a hike started without one. */
+.hike-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.hike-card__actions .pill:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* The hiker and their contacts, for the staff. */

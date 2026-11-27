@@ -68,6 +68,9 @@ export interface RegisteredHike {
   returnDate: string;
   returnTime: string;
   predefinedHikeId: number | null;
+  // MH-21: when the hiker or the staff confirmed the departure (ISO timestamp). Missing or null
+  // while nobody checked in.
+  checkedInAt?: string | null;
 }
 
 // Who registered a hike, as the staff need it to reach them or their contact person.

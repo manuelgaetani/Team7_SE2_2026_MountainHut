@@ -1,7 +1,10 @@
 import type { HikeHiker, RegisteredHike } from '@mountain-hut/shared';
+import { useCheckInHike } from '../api/useHikes.ts';
 import { dateFull, fromIsoDate, monthShort } from '../lib/dates.ts';
+import { apiErrorMessage } from '../lib/errors.ts';
 import { HIKE_STATE_LABEL, type HikeState } from '../lib/hikeState.ts';
 import '../pages/MyBookingsPage.css';
+import { useToast } from './Toast.tsx';
 import './HikeCard.css';
 
 interface HikeCardProps {
@@ -9,12 +12,50 @@ interface HikeCardProps {
   state: HikeState;
   /** The hiker, shown to the staff; the hiker's own list leaves it out. */
   hiker?: HikeHiker;
+  /** MH-21: offer the check-in while the hike has started without one. */
+  canCheckIn?: boolean;
 }
+
+// MH-21: the check-in of one hike, with its own request: clicks on different cards do not share
+// the pending state, and each gets its toast.
+function CheckInButton({ hike }: { hike: RegisteredHike }) {
+  const checkIn = useCheckInHike();
+  const toast = useToast();
+  const onClick = () =>
+    checkIn.mutate(hike.id, {
+      onSuccess: () => toast.show({ message: `Check-in recorded: ${hike.destination}.` }),
+      onError: (e) =>
+        toast.show({
+          kind: 'error',
+          // No 404 passthrough: until the endpoint exists, the framework's text would show.
+          message: apiErrorMessage(
+            e,
+            'The check-in could not be recorded. Please try again.',
+            [403, 409],
+          ),
+        }),
+    });
+  return (
+    <div className="hike-card__actions">
+      <button
+        type="button"
+        className="pill pill--solid"
+        onClick={onClick}
+        disabled={checkIn.isPending}
+      >
+        {checkIn.isPending ? 'Checking in…' : 'Check in'}
+      </button>
+    </div>
+  );
+}
+
+const clockTime = (iso: string): string =>
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
 const moment = (date: string, time: string): string => `${dateFull(fromIsoDate(date))}, ${time}`;
 
 // MH-20: one registered hike, as a card like the bookings of the personal area.
-export function HikeCard({ hike, state, hiker }: HikeCardProps) {
+export function HikeCard({ hike, state, hiker, canCheckIn = false }: HikeCardProps) {
   const day = fromIsoDate(hike.departureDate);
   const titleId = `hike-${hike.id}-title`;
 
@@ -49,7 +90,14 @@ export function HikeCard({ hike, state, hiker }: HikeCardProps) {
           <dt>Expected return</dt>
           <dd>{moment(hike.returnDate, hike.returnTime)}</dd>
         </div>
+        {hike.checkedInAt && (
+          <div>
+            <dt>Checked in</dt>
+            <dd>{clockTime(hike.checkedInAt)}</dd>
+          </div>
+        )}
       </dl>
+      {state === 'NO_CHECK_IN' && canCheckIn && <CheckInButton hike={hike} />}
       {hiker && (
         <dl className="hike-card__hiker" role="group" aria-label="Hiker">
           <div>

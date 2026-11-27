@@ -1,22 +1,46 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import type { StaffHike } from '@mountain-hut/shared';
+import { hikeMoment, type StaffHike } from '@mountain-hut/shared';
 import { isStaff } from '../api/roles.ts';
 import { useCurrentUser } from '../api/useAuth.ts';
 import { useStaffHikes } from '../api/useHikes.ts';
 import { ErrorNotice } from '../components/ErrorNotice.tsx';
 import { HikeCard } from '../components/HikeCard.tsx';
 import { apiErrorMessage } from '../lib/errors.ts';
+import { useNow } from '../lib/useNow.ts';
 import { hikeState, nowMoment, type HikeState } from '../lib/hikeState.ts';
 import './MyBookingsPage.css';
 import './StaffBookingPage.css';
 import './StaffHikesPage.css';
 
-const TABS: { id: HikeState; label: string; empty: string }[] = [
-  { id: 'UNDER_WAY', label: 'Under way', empty: 'No hiker is out right now.' },
-  { id: 'PLANNED', label: 'Planned', empty: 'No hike is planned.' },
-  { id: 'PAST', label: 'Past', empty: 'No past hikes.' },
+type StaffTab = 'ACTIVE' | 'PLANNED' | 'PAST';
+
+// MH-21: the active hikes are the ones under way and the ones started without a check-in.
+const TABS: { id: StaffTab; label: string; empty: string; states: HikeState[] }[] = [
+  {
+    id: 'ACTIVE',
+    label: 'Active',
+    empty: 'No hiker is out right now.',
+    states: ['NO_CHECK_IN', 'UNDER_WAY'],
+  },
+  { id: 'PLANNED', label: 'Planned', empty: 'No hike is planned.', states: ['PLANNED'] },
+  { id: 'PAST', label: 'Past', empty: 'No past hikes.', states: ['PAST'] },
 ];
+
+type Row = { hike: StaffHike; state: HikeState };
+
+// Active: the hikes without a check-in first (the staff may have to call), then the soonest
+// expected return. Planned: the soonest departure. Past: the API order, the latest first.
+function order(tab: StaffTab, rows: Row[]): Row[] {
+  if (tab === 'PAST') return rows;
+  if (tab === 'PLANNED') return [...rows].reverse();
+  const returnOf = (r: Row) => hikeMoment(r.hike.returnDate, r.hike.returnTime);
+  return [...rows].sort(
+    (a, b) =>
+      Number(b.state === 'NO_CHECK_IN') - Number(a.state === 'NO_CHECK_IN') ||
+      returnOf(a).localeCompare(returnOf(b)),
+  );
+}
 
 // The search matches the hiker, the destination, the route and the passage points.
 function matches(hike: StaffHike, query: string): boolean {
@@ -29,7 +53,8 @@ function matches(hike: StaffHike, query: string): boolean {
 
 function StaffHikesList() {
   const hikesQuery = useStaffHikes();
-  const [tab, setTab] = useState<HikeState>('UNDER_WAY');
+  const now = nowMoment(useNow());
+  const [tab, setTab] = useState<StaffTab>('ACTIVE');
   const [query, setQuery] = useState('');
 
   if (hikesQuery.isPending) return <p role="status">Loading the hikes…</p>;
@@ -45,15 +70,12 @@ function StaffHikesList() {
     );
   }
 
-  const now = nowMoment(new Date());
   const all = hikesQuery.data
     .filter((hike) => matches(hike, query))
-    .map((hike) => ({ hike, state: hikeState(hike, now) }));
-  const count = (state: HikeState) => all.filter((h) => h.state === state).length;
-  // The API gives the latest departure first: hikes still to come read better the soonest first.
-  const inTab = all.filter((h) => h.state === tab);
-  const shown = tab === 'PAST' ? inTab : [...inTab].reverse();
+    .map((hike): Row => ({ hike, state: hikeState(hike, now) }));
+  const inTab = (t: (typeof TABS)[number]) => all.filter((h) => t.states.includes(h.state));
   const current = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const shown = order(current.id, inTab(current));
 
   return (
     <>
@@ -80,7 +102,7 @@ function StaffHikesList() {
             className="my-bookings__tab"
             onClick={() => setTab(t.id)}
           >
-            {t.label} <span className="staff-hikes__count">{count(t.id)}</span>
+            {t.label} <span className="staff-hikes__count">{inTab(t).length}</span>
           </button>
         ))}
       </div>
@@ -93,7 +115,7 @@ function StaffHikesList() {
         ) : (
           <div className="my-bookings__list">
             {shown.map(({ hike, state }) => (
-              <HikeCard key={hike.id} hike={hike} state={state} hiker={hike.hiker} />
+              <HikeCard key={hike.id} hike={hike} state={state} hiker={hike.hiker} canCheckIn />
             ))}
           </div>
         )}
@@ -103,6 +125,7 @@ function StaffHikesList() {
 }
 
 // MH-20: the hut staff see the hikes registered by the hikers, with whom to call.
+// MH-21: the active hikes first, with the check-in of the hikes started without one.
 export function StaffHikesPage() {
   const { data: user, isPending } = useCurrentUser();
 
@@ -129,7 +152,8 @@ export function StaffHikesPage() {
           <p className="staff-hero__breadcrumb">Staff area / Hikes</p>
           <h1 className="staff-hero__title">Hikes</h1>
           <p className="staff-hero__subtitle">
-            The hikes registered by the hikers: who is out, where, and when they are expected back.
+            Who is out now, where, and when they are expected back. Check in a hiker who left
+            without doing it.
           </p>
         </div>
       </header>
