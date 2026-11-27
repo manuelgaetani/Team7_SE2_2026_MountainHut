@@ -101,9 +101,23 @@ model Slot {
 
   tables   SlotTable[]
   bookings Booking[]
+  menu     Menu?
 
   @@unique([date, startTime, endTime])
   @@map("slots")
+}
+
+// MH-10: the menu of a slot, at most one. Free text with a small Markdown subset (bold, italic,
+// item lists with sub items), stored as written. Deleted with its slot.
+model Menu {
+  slotId    Int      @id @map("slot_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  @@map("menus")
 }
 
 model SlotTable {
@@ -119,16 +133,16 @@ model SlotTable {
 }
 
 model Booking {
-  id           Int           @id @default(autoincrement())
-  hikerId      Int           @map("hiker_id")
-  slotId       Int           @map("slot_id")
-  partySize    Int           @map("party_size")
+  id        Int @id @default(autoincrement())
+  hikerId   Int @map("hiker_id")
+  slotId    Int @map("slot_id")
+  partySize Int @map("party_size")
 
-  status       BookingStatus @default(PENDING)
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  status    BookingStatus @default(PENDING)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  hiker         Hiker          @relation(fields: [hikerId], references: [id])
-  slot          Slot           @relation(fields: [slotId], references: [id])
+  hiker         Hiker              @relation(fields: [hikerId], references: [id])
+  slot          Slot               @relation(fields: [slotId], references: [id])
   tables        BookingTable[]
   requirements  PartyRequirement[]
   notifications Notification[]
@@ -156,10 +170,12 @@ model BookingTable {
 
 // Needs of a subset of the party (e.g. "2 vegetarians"); a booking has zero or more.
 model PartyRequirement {
-  id          Int     @id @default(autoincrement())
-  bookingId   Int     @map("booking_id")
-  allergies   Boolean
-  description String
+  id           Int      @id @default(autoincrement())
+  bookingId    Int      @map("booking_id")
+  allergies    Boolean
+  description  String
+  // Needs picked from the list of the hut (DIETARY_OPTIONS in @mountain-hut/shared).
+  restrictions String[] @default([])
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 

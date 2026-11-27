@@ -10,6 +10,7 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { SlotsModule } from './slots/slots.module.js';
 import { HikersModule } from './hikers/hikers.module.js';
+import { MenusModule } from './menus/menus.module.js';
 import { DomainExceptionFilter } from './presentation/domain-exception.filter.js';
 
 // In production the API also serves the built SPA (same origin, no CORS).
@@ -29,6 +30,7 @@ const staticModules = existsSync(webDistPath)
     BookingsModule,
     SlotsModule,
     HikersModule,
+    MenusModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
 })

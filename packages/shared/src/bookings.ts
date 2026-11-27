@@ -9,13 +9,56 @@ const hasNoNulByte = (s: string): boolean => !s.includes('\u0000');
 // Only a limit against abuse: one entry can cover several people of the party.
 export const MAX_REQUIREMENTS_COUNT = 20;
 
-// Needs of a subset of the party, e.g. "2 vegetarians".
-export const partyRequirementSchema = z.object({
-  // True when special care is needed during the preparation, e.g. allergies.
-  allergies: z.boolean(),
-  description: z.string().trim().min(1).max(MAX_REQUIREMENTS_LENGTH).refine(hasNoNulByte),
-});
+// The needs the hut lists for the kitchen (issue from Team 16): the hiker picks them instead of
+// typing them, so the same need always has the same name. The order is the order on screen.
+// `allergen` marks an allergy or intolerance: the kitchen must take care during the preparation.
+export const DIETARY_OPTIONS = [
+  { code: 'GLUTEN_FREE', label: 'Gluten-free', allergen: true },
+  { code: 'LACTOSE_FREE', label: 'Lactose-free', allergen: true },
+  { code: 'EGG_FREE', label: 'Egg-free', allergen: true },
+  { code: 'NUT_FREE', label: 'Nut-free', allergen: true },
+  { code: 'SOY_FREE', label: 'Soy-free', allergen: true },
+  { code: 'VEGAN', label: 'Vegan', allergen: false },
+  { code: 'VEGETARIAN', label: 'Vegetarian', allergen: false },
+] as const;
+export type DietaryOption = (typeof DIETARY_OPTIONS)[number];
+export type DietaryCode = DietaryOption['code'];
+
+const DIETARY_CODES = DIETARY_OPTIONS.map((o) => o.code) as [DietaryCode, ...DietaryCode[]];
+export const dietaryCodeSchema = z.enum(DIETARY_CODES);
+
+export const dietaryOption = (code: DietaryCode): DietaryOption =>
+  DIETARY_OPTIONS.find((o) => o.code === code) as DietaryOption;
+
+// Needs of a subset of the party, e.g. "Gluten-free, Vegan" or "shellfish".
+export const partyRequirementSchema = z
+  .object({
+    // Needs picked from DIETARY_OPTIONS, each at most once. Missing in older clients.
+    restrictions: z
+      .array(dietaryCodeSchema)
+      .refine((codes) => new Set(codes).size === codes.length)
+      .default([]),
+    // True when the free text describes an allergy or intolerance.
+    allergies: z.boolean(),
+    // A need that is not in the list ("Other"); empty when only listed needs are picked.
+    description: z.string().trim().max(MAX_REQUIREMENTS_LENGTH).refine(hasNoNulByte),
+  })
+  .refine((r) => r.restrictions.length > 0 || r.description !== '', {
+    message: 'Pick at least one need or describe it',
+    path: ['description'],
+  });
 export type PartyRequirement = z.infer<typeof partyRequirementSchema>;
+
+// True when the kitchen must take care: a listed allergen, or free text marked as an allergy.
+export const hasAllergy = (r: PartyRequirement): boolean =>
+  (r.allergies && r.description !== '') ||
+  r.restrictions.some((code) => dietaryOption(code).allergen);
+
+// One line for a requirement, e.g. "Gluten-free, Vegan, shellfish": the listed needs first.
+export const requirementText = (r: PartyRequirement): string =>
+  [...r.restrictions.map((code) => dietaryOption(code).label), r.description]
+    .filter((part) => part !== '')
+    .join(', ');
 
 export const createBookingSchema = z.object({
   slotId: z.number().int().positive().max(MAX_DB_INT),

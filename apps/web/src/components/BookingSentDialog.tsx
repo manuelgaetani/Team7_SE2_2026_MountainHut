@@ -1,19 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { RequirementDraft } from './RequirementsEditor.tsx';
+import { RequirementLine } from './RequirementLine.tsx';
+import { toRequirement, type RequirementDraft } from '../lib/requirements.ts';
 
 interface BookingSentDialogProps {
   summary: string;
   requirements?: RequirementDraft[];
   onClose: () => void;
 }
-
-// Same label as the confirmation email, so the hiker sees the same warning in both.
-const ALLERGY_LABEL = 'Allergies (special care needed)';
-
-// One text per entry: the allergy label and the description stay in a single element.
-const requirementText = (r: RequirementDraft): string =>
-  r.allergies ? `${ALLERGY_LABEL}: ${r.description}` : r.description;
 
 export function BookingSentDialog({ summary, requirements = [], onClose }: BookingSentDialogProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -81,8 +75,8 @@ export function BookingSentDialog({ summary, requirements = [], onClose }: Booki
             <h3 className="dialog__subtitle">Dietary requirements</h3>
             <ul>
               {requirements.map((r) => (
-                <li key={r.key} className={r.allergies ? 'dialog__allergy' : undefined}>
-                  {requirementText(r)}
+                <li key={r.key}>
+                  <RequirementLine requirement={toRequirement(r)} />
                 </li>
               ))}
             </ul>

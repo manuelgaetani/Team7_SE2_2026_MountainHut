@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MAX_REQUIREMENTS_LENGTH } from '@mountain-hut/shared';
 import type {
   ChangeBookingInput,
   MyBooking,
   PartyRequirement,
   SlotSummary,
 } from '@mountain-hut/shared';
-import { useBookableSlots, useChangeBooking } from '../api/useBookings.ts';
+import { useBookableSlots, useChangeBooking, useSendBookingChange } from '../api/useBookings.ts';
 import { CHANGE_LEAD_HOURS, isChangeOpen } from '../lib/bookingChange.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
+import {
+  draftErrors,
+  sameRequirements,
+  toDraft,
+  toRequirement,
+  type RequirementDraft,
+} from '../lib/requirements.ts';
 import './ModifyBookingDialog.css';
 import { DayPicker } from './DayPicker.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { GuestStepper } from './GuestStepper.tsx';
-import { RequirementsEditor, type RequirementDraft } from './RequirementsEditor.tsx';
+import { RequirementsEditor } from './RequirementsEditor.tsx';
 import { TimeSlotPicker } from './TimeSlotPicker.tsx';
 import { useToast } from './Toast.tsx';
 
@@ -24,19 +30,18 @@ interface ModifyBookingDialogProps {
 }
 
 const toRows = (list: PartyRequirement[]): RequirementDraft[] =>
-  list.map((r, i) => ({ ...r, key: i + 1 }));
+  list.map((r, i) => toDraft(r, i + 1));
 
-// What the rows will be once saved: trimmed descriptions, without the keys.
-const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] =>
-  rows.map((r) => ({ allergies: r.allergies, description: r.description.trim() }));
+// What the rows will be once saved, without the keys.
+const toRequirements = (rows: RequirementDraft[]): PartyRequirement[] => rows.map(toRequirement);
 
-const sameRequirements = (a: PartyRequirement[], b: PartyRequirement[]): boolean =>
-  a.length === b.length &&
-  a.every((r, i) => r.allergies === b[i].allergies && r.description === b[i].description);
+const seatsLeft = (n: number): string =>
+  `${n} ${n === 1 ? 'seat' : 'seats'} available at this time`;
 
 export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogProps) {
   const slotsQuery = useBookableSlots();
   const change = useChangeBooking();
+  const sendChange = useSendBookingChange();
   const toast = useToast();
   const dialogRef = useRef<HTMLDivElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -100,10 +105,15 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
     (s.availability === 'AVAILABLE' && isChangeOpen(s.date, s.startTime));
   // Why a slot of the list cannot be chosen; null when it can.
   const reason = (s: SlotSummary): string | null => {
-    if (s.id === booking.slotId) return null;
+    const seats = maxFor(s);
+    if (s.id === booking.slotId) {
+      return seats < partySize ? `Only ${seats} ${seats === 1 ? 'seat' : 'seats'}` : null;
+    }
     if (s.availability === 'FULL') return 'Full';
     if (s.availability === 'TOO_LATE') return 'Closed';
-    return canChoose(s) ? null : `Within ${CHANGE_LEAD_HOURS} hours`;
+    if (!canChoose(s)) return `Within ${CHANGE_LEAD_HOURS} hours`;
+    // A smaller slot can be chosen, but the party is cut to its free seats: say how many.
+    return seats < partySize ? `Only ${seats} ${seats === 1 ? 'seat' : 'seats'}` : null;
   };
   function chooseSlot(id: number | null) {
     setSlotId(id);
@@ -118,14 +128,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const found: Partial<Record<number, string>> = {};
-    for (const row of rows) {
-      const length = row.description.trim().length;
-      if (length === 0) found[row.key] = 'Describe the requirement or remove it.';
-      if (length > MAX_REQUIREMENTS_LENGTH) {
-        found[row.key] = `A requirement can be at most ${MAX_REQUIREMENTS_LENGTH} characters.`;
-      }
-    }
+    const found = draftErrors(rows);
     setErrors(found);
     if (Object.keys(found).length > 0) {
       setFormError(null);
@@ -153,7 +156,31 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
       { id: booking.id, input },
       {
         onSuccess: () => {
-          toast.show({ message: "Booking updated. We'll email you the new details." });
+          // Undo puts back the details that were changed, as they were before.
+          const previous: ChangeBookingInput = {};
+          if (input.slotId !== undefined) previous.slotId = booking.slotId;
+          if (input.partySize !== undefined) previous.partySize = booking.partySize;
+          if (input.requirements !== undefined) previous.requirements = booking.requirements;
+          toast.show({
+            message: "Booking updated. We'll email you the new details.",
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                sendChange(booking.id, previous).then(
+                  () => toast.show({ message: 'Change undone: the booking is as before.' }),
+                  (err: unknown) =>
+                    toast.show({
+                      kind: 'error',
+                      message: apiErrorMessage(
+                        err,
+                        'The change could not be undone. Please modify the booking again.',
+                        [403, 404, 409, 422],
+                      ),
+                    }),
+                );
+              },
+            },
+          });
           onClose();
         },
         onError: (err) =>
@@ -233,7 +260,7 @@ export function ModifyBookingDialog({ booking, onClose }: ModifyBookingDialogPro
               setFormError(null);
             }}
             label="Number of people"
-            hint={null}
+            hint={chosen ? seatsLeft(maxFor(chosen)) : null}
           />
 
           <RequirementsEditor

@@ -1,0 +1,73 @@
+/* The one month view of the site (Book a table, Modify booking, Availability, staff pages).
+   Its box is a .popover (Popover.css): the page that holds it sets where (see .date-field). */
+.calendar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.calendar__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.calendar__nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--green-dark);
+  font-size: 18px;
+  line-height: 0;
+  cursor: pointer;
+}
+.calendar__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.calendar__weekday {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.calendar__day {
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.calendar__day:hover:not(:disabled) {
+  border-color: var(--green);
+}
+.calendar__day[aria-pressed='true'] {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+/* Days that cannot be chosen: visible for orientation, but disabled. */
+.calendar__day:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.calendar__day:focus-visible,
+.calendar__nav:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
+}

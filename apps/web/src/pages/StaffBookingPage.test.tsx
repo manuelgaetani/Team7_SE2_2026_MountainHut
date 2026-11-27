@@ -17,11 +17,10 @@ const TEXT = {
   full: 'Full profile',
   search: 'Search by name, phone or email',
   submit: 'Create booking',
-  time: 'Time *',
   people: 'Number of people',
   addRequirement: 'Add a requirement',
   addAnotherRequirement: 'Add another requirement',
-  emptyRequirement: 'Describe each requirement or remove it.',
+  emptyRequirement: 'Choose at least one need, or remove this requirement.',
   done: 'Booking created',
   selectHiker: 'Select a hiker, or add a new one with Quick entry or Full profile.',
   noSlots: 'No time slots can be booked on this day.',
@@ -142,19 +141,22 @@ const type = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 async function waitForSlots() {
-  await screen.findByRole('option', { name: '12:30–14:00' });
+  await screen.findByRole('radio', { name: '12:30–14:00' });
 }
 
-// Adds a requirement row of the MH-05 editor and fills it.
-function addRequirement(n: number, description: string, allergies: boolean) {
+// Adds a requirement row of the MH-05 editor, picks the needs of the list and writes the rest.
+function addRequirement(n: number, description: string, allergies: boolean, needs: string[] = []) {
   const add = screen.queryByRole('button', { name: TEXT.addRequirement });
   fireEvent.click(add ?? screen.getByRole('button', { name: TEXT.addAnotherRequirement }));
   // Each entry is a group named "Requirement n", with short names for its controls.
   const row = within(screen.getByRole('group', { name: `Requirement ${n}` }));
-  fireEvent.change(row.getByRole('textbox', { name: 'Details' }), {
+  for (const name of needs) fireEvent.click(row.getByRole('checkbox', { name }));
+  if (description === '') return;
+  fireEvent.click(row.getByRole('checkbox', { name: 'Other' }));
+  fireEvent.change(row.getByRole('textbox', { name: 'Other need' }), {
     target: { value: description },
   });
-  if (allergies) fireEvent.click(row.getByRole('checkbox', { name: 'Allergies' }));
+  if (allergies) fireEvent.click(row.getByRole('checkbox', { name: 'Allergy or intolerance' }));
 }
 
 async function selectLuca() {
@@ -201,7 +203,7 @@ describe('StaffBookingPage (MH-07)', () => {
     renderPage();
 
     expect(await screen.findByText(TEXT.noSlots)).toBeVisible();
-    expect(screen.getByLabelText(TEXT.time)).toBeDisabled();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
   it('does not offer the slots that have already started or have no tables', async () => {
@@ -210,26 +212,25 @@ describe('StaffBookingPage (MH-07)', () => {
     renderPage();
 
     expect(
-      await screen.findByRole('option', { name: '12:30–14:00 (already started)' }),
+      await screen.findByRole('radio', { name: '12:30–14:00 Already started' }),
     ).toBeDisabled();
-    expect(screen.getByRole('option', { name: '15:00–16:00 (no tables)' })).toBeDisabled();
-    expect(screen.getByLabelText(TEXT.time)).toHaveValue('2');
+    expect(screen.getByRole('radio', { name: '15:00–16:00 No tables' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: '19:00–21:00' })).toBeChecked();
   });
 
   it('shows the free seats of each slot and does not offer a full one', async () => {
     stubApi({ free: { 1: 0, 2: 6 } });
     renderPage();
 
-    expect(await screen.findByRole('option', { name: '12:30–14:00 (full)' })).toBeDisabled();
-    expect(screen.getByRole('option', { name: '19:00–21:00 · 6 free seats' })).toBeEnabled();
-    expect(screen.getByLabelText(TEXT.time)).toHaveValue('2');
+    expect(await screen.findByRole('radio', { name: '12:30–14:00 Full' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: '19:00–21:00 6 free seats' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: '19:00–21:00 6 free seats' })).toBeChecked();
   });
 
   it('stops the stepper at the free seats of the chosen slot', async () => {
     stubApi({ free: { 1: 3, 2: 8 } });
     renderPage();
-    await screen.findByRole('option', { name: '12:30–14:00 · 3 free seats' });
-    fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: '1' } });
+    fireEvent.click(await screen.findByRole('radio', { name: '12:30–14:00 3 free seats' }));
 
     const more = screen.getByRole('button', { name: 'More guests' });
     fireEvent.click(more);
@@ -357,9 +358,11 @@ describe('StaffBookingPage (MH-07)', () => {
     addRequirement(1, '1 vegan, peanut allergy', true);
     addRequirement(2, '1 shellfish allergy', true);
     addRequirement(3, '2 vegetarians', false);
+    addRequirement(4, '', false, ['Soy-free', 'Vegan']);
 
     const recap = screen.getByRole('list', { name: 'Requirements of the party' });
-    expect(within(recap).getAllByText('Allergies')).toHaveLength(2);
+    expect(within(recap).getAllByText('Allergies')).toHaveLength(3);
+    expect(within(recap).getByText('Soy-free')).toHaveClass('diet-tag');
 
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
@@ -369,9 +372,10 @@ describe('StaffBookingPage (MH-07)', () => {
       slotId: 1,
       partySize: 4,
       requirements: [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: true, description: '1 shellfish allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
+        { restrictions: ['SOY_FREE', 'VEGAN'], allergies: false, description: '' },
       ],
       hiker: { kind: 'EXISTING', hikerId: 7 },
     });
@@ -401,7 +405,7 @@ describe('StaffBookingPage (MH-07)', () => {
     fireEvent.click(screen.getByRole('button', { name: TEXT.quick }));
     expect(screen.getByText(TEXT.footerQuick)).toBeVisible();
     type('Full name *', 'Luca Bianchi');
-    fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('radio', { name: '19:00–21:00' }));
     fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
 
     await screen.findByRole('dialog', { name: TEXT.done });

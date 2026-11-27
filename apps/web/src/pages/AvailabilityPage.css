@@ -1,16 +1,71 @@
 /* Public availability check (MH-04). Builds on the classes of BookingPage.css and styles.css. */
 
-/* The page is a single narrow column, centered in the page; the text stays left-aligned */
-.availability-page .page__title,
-.availability-page .page__subtitle,
-.availability {
-  max-width: 640px;
+/* Like the home page: the photo of the mountain fills the page, the title on the left and the
+   check on the right, so the date, the time, the party and the answer are all in sight. */
+.availability-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: calc(100svh - 72px);
+  padding: 48px 0;
+  overflow: hidden;
+  background: #173d33;
+}
+.availability-hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.availability-hero__overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(8 32 25 / 70%), rgb(8 32 25 / 25%) 75%),
+    linear-gradient(0deg, rgb(8 32 25 / 55%), transparent 60%);
+}
+.availability-hero__content {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+  align-items: center;
+  gap: clamp(24px, 5vw, 72px);
+  width: min(100% - 40px, 1160px);
   margin-inline: auto;
 }
+.availability-hero__text {
+  color: #fff;
+}
+.availability-hero .eyebrow {
+  color: #e9ddc4;
+}
+.availability-hero .page__title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(44px, 6vw, 84px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+.availability-hero .page__subtitle {
+  max-width: 440px;
+  margin: 20px 0 0;
+  color: rgb(255 255 255 / 82%);
+  font-size: 17px;
+  line-height: 1.6;
+}
 
+/* The form and the answer: light cards over the photo. */
 .availability {
   display: grid;
   gap: 16px;
+}
+.availability .summary {
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.25);
+}
+.availability > [role='status'] {
+  margin: 0;
+  color: #fff;
 }
 
 .availability-form {
@@ -22,7 +77,8 @@
 }
 .availability-form__fields {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
+  /* The date shows its weekday and year ("Wed 25 Nov 2026"): it takes the wider column. */
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -77,6 +133,16 @@
   font-size: 11px;
 }
 
+/* Tablets and phones: the title above the check. */
+@media (max-width: 860px) {
+  .availability-hero {
+    align-items: flex-start;
+    padding: 32px 0;
+  }
+  .availability-hero__content {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 560px) {
   .availability-form__fields {
     grid-template-columns: 1fr;

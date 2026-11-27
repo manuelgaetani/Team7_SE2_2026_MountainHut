@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AvailabilityResult } from '@mountain-hut/shared';
 import { authPath, bookingPath } from '../lib/bookingRedirect.ts';
 import { json, renderAt, stubApi, user } from '../test/app.tsx';
+import { chooseDate, shownDate } from '../test/dates.ts';
 
 const TEXT = {
   title: 'Check availability',
@@ -76,8 +77,7 @@ function fillAndSubmit({
   time?: string;
   partySize?: number;
 } = {}) {
-  if (date !== undefined)
-    fireEvent.change(screen.getByLabelText(TEXT.date), { target: { value: date } });
+  if (date !== undefined) chooseDate(TEXT.date, date);
   fireEvent.change(screen.getByLabelText(TEXT.time), { target: { value: time } });
   if (partySize !== undefined) setParty(partySize);
   fireEvent.click(screen.getByRole('button', { name: new RegExp(TEXT.submit) }));
@@ -99,10 +99,14 @@ describe('AvailabilityPage', () => {
     renderAt('/availability');
 
     expect(screen.getByRole('heading', { name: TEXT.title })).toBeVisible();
-    expect(screen.getByLabelText(TEXT.date)).toHaveValue('2026-11-14');
+    expect(screen.getByLabelText(TEXT.date)).toHaveTextContent(shownDate('2026-11-14'));
     expect(screen.getByLabelText(TEXT.time)).toHaveValue('');
     expect(partyValue()).toHaveTextContent('2');
-    expect(screen.getByLabelText(TEXT.date)).toHaveAttribute('min', '2026-11-14');
+    // The calendar of the site: no day before today can be chosen.
+    fireEvent.click(screen.getByLabelText(TEXT.date));
+    expect(screen.getByRole('button', { name: 'Fri 13 Nov' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Sat 14 Nov' })).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Sat 14 Nov' }), { key: 'Escape' });
     expect(availabilityCalls(fetchMock)).toHaveLength(0);
   });
 
@@ -110,10 +114,10 @@ describe('AvailabilityPage', () => {
     const fetchMock = stubAvailability();
     renderAt('/availability');
 
-    fillAndSubmit({ date: '', time: '' });
-    expect(screen.getByText(TEXT.dateError)).toHaveAttribute('role', 'alert');
+    // The date always holds a day (today by default): only the time can be missing.
+    fillAndSubmit({ time: '' });
+    expect(screen.queryByText(TEXT.dateError)).not.toBeInTheDocument();
     expect(screen.getByText(TEXT.timeError)).toHaveAttribute('role', 'alert');
-    expect(screen.getByLabelText(TEXT.date)).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText(TEXT.time)).toHaveAttribute('aria-invalid', 'true');
     expect(availabilityCalls(fetchMock)).toHaveLength(0);
   });
@@ -269,7 +273,7 @@ describe('AvailabilityPage', () => {
     fillAndSubmit({ time: '12:30' });
     expect(await screen.findByText(TEXT.available)).toBeVisible();
 
-    fireEvent.change(screen.getByLabelText(TEXT.date), { target: { value: '2026-11-15' } });
+    chooseDate(TEXT.date, '2026-11-15');
     expect(screen.queryByText(TEXT.available)).not.toBeInTheDocument();
 
     fillAndSubmit({ time: '12:30' });

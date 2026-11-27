@@ -1,0 +1,56 @@
+/* A date field: looks like the other inputs, opens the calendar of the site under it. */
+.date-field {
+  position: relative;
+}
+.field .date-field__button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  /* Same box as ".field input" (styles.css), so it sits in line with the other fields. */
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.field .date-field__button:hover,
+.field .date-field__button[aria-expanded='true'] {
+  border-color: var(--green);
+}
+.field .date-field__button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.field .date-field__button[aria-invalid='true'] {
+  border-color: var(--error);
+}
+/* The day stays on one line. */
+.date-field__button > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.date-field__button svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.date-field__placeholder {
+  color: var(--muted);
+}
+/* Under the field, aligned to its left edge; inside the screen on phones. */
+.date-field .calendar {
+  left: 0;
+}
+@media (max-width: 600px) {
+  .date-field .calendar {
+    right: 0;
+    width: auto;
+    max-width: none;
+  }
+}

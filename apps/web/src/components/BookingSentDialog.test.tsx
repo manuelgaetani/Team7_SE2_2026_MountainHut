@@ -26,18 +26,24 @@ describe('BookingSentDialog', () => {
       <BookingSentDialog
         summary="Test"
         requirements={[
-          { key: 1, allergies: true, description: '1 vegan, peanut allergy' },
-          { key: 2, allergies: false, description: '2 vegetarians' },
+          {
+            key: 1,
+            restrictions: [],
+            other: true,
+            allergies: true,
+            description: '1 vegan, peanut allergy',
+          },
+          { key: 2, restrictions: [], other: true, allergies: false, description: '2 vegetarians' },
         ]}
         onClose={vi.fn()}
       />,
     );
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      'Allergies (special care needed): 1 vegan, peanut allergy',
+      'Allergies1 vegan, peanut allergy',
       '2 vegetarians',
     ]);
-    expect(screen.getAllByText(/special care/i)).toHaveLength(1);
+    expect(screen.getAllByText('Allergies')).toHaveLength(1);
   });
 
   it('calls onClose when close button or Done button is clicked', () => {

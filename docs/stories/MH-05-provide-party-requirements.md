@@ -51,6 +51,7 @@ In case of allergies a flag must be checked to notify that special care is neede
 - **Existing data.** The migration turns each old free-text requirement into one entry and flags it as an allergy: the old text does not say whether it was one, and a wrong warning is safer for the kitchen than a missing one. The old `bookings.requirements` column is then dropped.
 - **Email.** One line per entry, in the order entered; no requirements line when there are none. Descriptions are HTML-escaped in the HTML version.
 - **Language.** All user interface labels, alerts, and API error messages are in English.
+- **Needs of the hut (suggestion from Team 16).** The common needs are picked, not typed: `DIETARY_OPTIONS` in `@mountain-hut/shared` lists them (`GLUTEN_FREE` "Gluten-free", `LACTOSE_FREE` "Lactose-free", `EGG_FREE` "Egg-free", `NUT_FREE` "Nut-free", `SOY_FREE` "Soy-free", `VEGAN` "Vegan", `VEGETARIAN` "Vegetarian"), so the same need always has the same name for the kitchen. Each entry stores the picked codes in `restrictions`; `description` keeps only what is not in the list ("Other"), and `allergies` flags that free text. `hasAllergy` marks an entry when a picked need is an allergen (all but Vegan and Vegetarian, which are choices) or the free text is flagged. The list is one constant shared by API and web: a hut-specific list editable by the warden is an open point.
 
 ## How it works
 
@@ -66,13 +67,14 @@ In case of allergies a flag must be checked to notify that special care is neede
 
 Protected endpoint, requires session cookie of an authenticated `HIKER`.
 
-| Body Field                   | Type    | Rules                                                                              |
-| ---------------------------- | ------- | ---------------------------------------------------------------------------------- |
-| `slotId`                     | integer | Positive integer, existing future time slot                                        |
-| `partySize`                  | integer | Positive integer, must fit in free slot seats                                      |
-| `requirements`               | array   | Optional list of requirement objects (maximum 20 items)                            |
-| `requirements[].allergies`   | boolean | Required boolean (`true` if allergies require special care)                        |
-| `requirements[].description` | string  | Required non-empty string, trimmed, 1–500 characters, no NUL (`\u0000`) characters |
+| Body Field                    | Type    | Rules                                                                                                       |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `slotId`                      | integer | Positive integer, existing future time slot                                                                 |
+| `partySize`                   | integer | Positive integer, must fit in free slot seats                                                               |
+| `requirements`                | array   | Optional list of requirement objects (maximum 20 items)                                                     |
+| `requirements[].restrictions` | array   | Optional, default `[]`: codes of `DIETARY_OPTIONS`, each at most once                                       |
+| `requirements[].allergies`    | boolean | Required boolean (`true` if the free text is an allergy that requires special care)                         |
+| `requirements[].description`  | string  | Required string, trimmed, 0–500 characters, no NUL (`\u0000`); may be empty only when `restrictions` is not |
 
 #### Example Request: Booking with multiple requirements for party subsets
 
@@ -123,6 +125,7 @@ Response `201 Created`:
 ## Web app
 
 - **Route:** `/book` (`BookingPage`), only for a signed-in hiker: a signed-out visitor sees the "Log in to book a table" notice and no requirement controls.
+- **Needs of the hut (Team 16):** each row shows one toggle tile per need of `DIETARY_OPTIONS`, with its icon (`DietaryIcons.tsx`) and its name under it, then an "Other" tile. Several tiles can be picked; a picked tile is filled and shows a tick. "Other" opens the "Other need" text field (focused) with an "Allergy or intolerance" checkbox, so a need that is not in the list can always be written. The tiles are checkboxes, so they work with Tab and Space. Wherever requirements are listed (summary, booking sent dialog, My bookings card, staff recap) `RequirementLine` shows the allergy badge, the picked needs as small tags with their icon, then the free text. A row with nothing picked shows "Choose at least one need, or remove this requirement."; Other with no text shows "Describe the other need, or untick Other."
 - **Party requirements controls (`RequirementsEditor`):** the "Add a requirement" button (then "Add another requirement") appends a row; it is disabled at 20 rows (`MAX_REQUIREMENTS_COUNT`). Each row is a group named "Requirement n" with a "Details" text field (e.g. `2 vegetarians`), an "Allergies" checkbox for special care and a "Remove" button. No row is shown by default: a booking without needs sends no `requirements`.
 - **Validation before sending:** an empty row shows the alert "Describe each requirement or remove it."; a description longer than 500 characters (`MAX_REQUIREMENTS_LENGTH`) shows "Each requirement can be at most 500 characters long." The field does not cut the text, so the hiker sees why the booking is refused. In both cases no request is sent.
 - **Side summary (`BookingSummary`):** when there are filled rows, a green box "Requirements:" lists them, the allergy ones followed by "(allergies)".
@@ -131,18 +134,20 @@ Response `201 Created`:
 
 ## Data model
 
-| Table                | Column        | Type      | Description                                              |
-| -------------------- | ------------- | --------- | -------------------------------------------------------- |
-| `party_requirements` | `id`          | `SERIAL`  | Primary key; follows the order the hiker entered         |
-| `party_requirements` | `booking_id`  | `INTEGER` | Foreign key referencing `bookings(id)` on delete cascade |
-| `party_requirements` | `allergies`   | `BOOLEAN` | Whether special care is needed for allergens             |
-| `party_requirements` | `description` | `TEXT`    | Dietary / allergy description for the subset             |
+| Table                | Column         | Type      | Description                                                  |
+| -------------------- | -------------- | --------- | ------------------------------------------------------------ |
+| `party_requirements` | `id`           | `SERIAL`  | Primary key; follows the order the hiker entered             |
+| `party_requirements` | `booking_id`   | `INTEGER` | Foreign key referencing `bookings(id)` on delete cascade     |
+| `party_requirements` | `allergies`    | `BOOLEAN` | Whether special care is needed for allergens                 |
+| `party_requirements` | `description`  | `TEXT`    | Dietary / allergy description for the subset                 |
+| `party_requirements` | `restrictions` | `TEXT[]`  | Codes of `DIETARY_OPTIONS` picked by the hiker; default `{}` |
 
 The column `bookings.requirements` (free text, MH-03) is removed; its non-empty values are moved to `party_requirements` with `allergies = true`.
 
 Migrations:
 
 - `20261111095430_party_requirements`
+- `20261125100000_party_requirement_restrictions` (existing rows get `restrictions = {}`)
 
 ## Configuration
 
@@ -225,6 +230,8 @@ npm run e2e:web -w @mountain-hut/e2e -- tests/web/party-requirements.spec.ts
 7. Add a row and leave it empty, then book: the alert asks to describe it or remove it and no booking is created.
 
 ## Open points
+
+- **Needs of the hut:** the list is a shared constant; letting the warden edit it would need a table and an endpoint.
 
 - **Web app, future scenarios:** keyboard flow, live announcement of the allergy flag, character counter, warning before leaving the page: still skipped in `e2e/tests/web/party-requirements.spec.ts`.
 - **MH-06 (change a booking):** the change of a booking must accept the same list (the MH-06 frontend already sends it); `changeBookingSchema` still takes a single text.

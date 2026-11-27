@@ -63,7 +63,7 @@ describe('bookingConfirmationEmail', () => {
   it('shows the requirements of the party', () => {
     const { text, html } = bookingConfirmationEmail({
       ...booking,
-      requirements: [{ allergies: false, description: '2 vegetarians' }],
+      requirements: [{ restrictions: [], allergies: false, description: '2 vegetarians' }],
     });
     expect(text).toContain('Requirements: 2 vegetarians');
     expect(withoutStyles(html)).toContain('<td>2 vegetarians</td>');
@@ -73,8 +73,8 @@ describe('bookingConfirmationEmail', () => {
     const { text, html } = bookingConfirmationEmail({
       ...booking,
       requirements: [
-        { allergies: true, description: '1 peanut allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 peanut allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ],
     });
     expect(text).toContain(
@@ -90,9 +90,9 @@ describe('bookingConfirmationEmail', () => {
     const { text, html } = bookingConfirmationEmail({
       ...booking,
       requirements: [
-        { allergies: true, description: '1 vegan, peanut allergy' },
-        { allergies: true, description: '1 shellfish allergy' },
-        { allergies: false, description: '2 vegetarians' },
+        { restrictions: [], allergies: true, description: '1 vegan, peanut allergy' },
+        { restrictions: [], allergies: true, description: '1 shellfish allergy' },
+        { restrictions: [], allergies: false, description: '2 vegetarians' },
       ],
     });
     expect(text).toContain(
@@ -108,7 +108,7 @@ describe('bookingConfirmationEmail', () => {
   it('escapes the description of a requirement with allergies in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: [{ allergies: true, description: '<i>nuts</i> & "milk"' }],
+      requirements: [{ restrictions: [], allergies: true, description: '<i>nuts</i> & "milk"' }],
     });
     expect(withoutStyles(html)).toContain(
       '<td>Allergies (special care needed): &lt;i&gt;nuts&lt;/i&gt; &amp; &quot;milk&quot;</td>',
@@ -118,7 +118,9 @@ describe('bookingConfirmationEmail', () => {
   it('escapes the requirements and keeps their line breaks in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: [{ allergies: false, description: 'Celiac\n<b>Nuts</b> & "lactose"' }],
+      requirements: [
+        { restrictions: [], allergies: false, description: 'Celiac\n<b>Nuts</b> & "lactose"' },
+      ],
     });
     expect(withoutStyles(html)).toContain(
       '<td>Celiac<br>&lt;b&gt;Nuts&lt;/b&gt; &amp; &quot;lactose&quot;</td>',
@@ -172,7 +174,7 @@ describe('bookingConfirmationEmail', () => {
   it('keeps the line breaks of Windows-style requirements in the HTML version', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: [{ allergies: false, description: 'Celiac\r\nNuts' }],
+      requirements: [{ restrictions: [], allergies: false, description: 'Celiac\r\nNuts' }],
     });
     expect(withoutStyles(html)).toContain('<td>Celiac<br>Nuts</td>');
   });
@@ -180,7 +182,7 @@ describe('bookingConfirmationEmail', () => {
   it('does not escape twice the requirements', () => {
     const { html } = bookingConfirmationEmail({
       ...booking,
-      requirements: [{ allergies: false, description: '&lt;' }],
+      requirements: [{ restrictions: [], allergies: false, description: '&lt;' }],
     });
     expect(withoutStyles(html)).toContain('<td>&amp;lt;</td>');
   });
@@ -212,7 +214,7 @@ describe('bookingChangeEmail', () => {
       startTime: '19:00',
       endTime: '21:00',
       partySize: 6,
-      requirements: [{ allergies: false, description: '2 vegans' }],
+      requirements: [{ restrictions: [], allergies: false, description: '2 vegans' }],
     });
     expect(text).toContain('Saturday, 5 December 2026');
     expect(text).toContain('19:00 - 21:00');
@@ -227,7 +229,7 @@ describe('bookingChangeEmail', () => {
   it('escapes the new requirements in the HTML version', () => {
     const { html } = bookingChangeEmail({
       ...booking,
-      requirements: [{ allergies: false, description: '<b>nuts</b>' }],
+      requirements: [{ restrictions: [], allergies: false, description: '<b>nuts</b>' }],
     });
     expect(html).toContain('&lt;b&gt;nuts&lt;/b&gt;');
     expect(html).not.toContain('<b>nuts</b>');
