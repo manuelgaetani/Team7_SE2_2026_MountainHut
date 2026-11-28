@@ -157,7 +157,6 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   const [confirming, setConfirming] = useState<
     { kind: 'close' } | { kind: 'start'; value: string } | { kind: 'delete' } | null
   >(null);
-  const keepRef = useRef<HTMLButtonElement>(null);
   // A course or a dish that waits for the answer to "Remove this course/dish?".
   const [removing, setRemoving] = useState<
     | { kind: 'course'; course: CourseDraft; index: number }
@@ -165,15 +164,12 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     | null
   >(null);
 
-  // Stable, so the question does not register its Escape key again on every render.
+  // Stable, so a question does not register its Escape key again on every render.
   const keepRemoving = useCallback(() => setRemoving(null), []);
+  const keepConfirming = useCallback(() => setConfirming(null), []);
 
   // Edits reverted to the original values do not count.
   const dirty = JSON.stringify(toCourses(courses)) !== JSON.stringify(toCourses(original));
-
-  useEffect(() => {
-    if (confirming) keepRef.current?.focus();
-  }, [confirming]);
 
   // Previous menus written with the editor; free texts cannot be opened in it.
   const others = (past.data ?? []).filter(
@@ -269,12 +265,12 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     else onClose();
   };
 
-  // Escape answers the question first, then asks to close.
+  // Escape asks to close. While a question is open, Escape answers it instead (ConfirmDialog) and
+  // never gets here.
   useEffect(() => {
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape' || busy) return;
-      if (confirming) setConfirming(null);
-      else if (dirty) setConfirming({ kind: 'close' });
+      if (e.key !== 'Escape' || busy || confirming) return;
+      if (dirty) setConfirming({ kind: 'close' });
       else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
@@ -512,65 +508,44 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
 
         {/* Always in sight at the bottom of the dialog, also while scrolling the dishes. */}
         <div className="menu-editor__footer">
-          {confirming?.kind === 'delete' ? (
-            <div className="modify-dialog__discard">
-              <p className="modify-dialog__discard-title">Delete this menu?</p>
-              <p className="field__hint">Hikers will no longer see a menu for {time}.</p>
-              <div className="modify-dialog__actions">
-                <button
-                  ref={keepRef}
-                  type="button"
-                  className="modify-dialog__secondary"
-                  disabled={busy}
-                  onClick={() => setConfirming(null)}
-                >
-                  Keep menu
-                </button>
-                <button
-                  type="button"
-                  className="modify-dialog__danger"
-                  disabled={busy}
-                  onClick={deleteMenu}
-                >
-                  {remove.isPending ? 'Deleting menu…' : 'Delete menu'}
-                </button>
-              </div>
-            </div>
-          ) : confirming ? (
-            <div className="modify-dialog__discard">
-              <p className="modify-dialog__discard-title">Discard your changes?</p>
-              <div className="modify-dialog__actions">
-                <button
-                  ref={keepRef}
-                  type="button"
-                  className="modify-dialog__secondary"
-                  onClick={() => setConfirming(null)}
-                >
-                  Keep editing
-                </button>
-                <button
-                  type="button"
-                  className="modify-dialog__danger"
-                  onClick={() =>
-                    confirming.kind === 'close' ? onClose() : startWith(confirming.value)
-                  }
-                >
-                  Discard
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="modify-dialog__actions">
-              <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
-                Close
-              </button>
-              <button type="submit" className="modify-dialog__primary" disabled={busy}>
-                {save.isPending ? 'Saving menu…' : 'Save menu'}
-              </button>
-            </div>
-          )}
+          <div className="modify-dialog__actions">
+            <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
+              Close
+            </button>
+            <button type="submit" className="modify-dialog__primary" disabled={busy}>
+              {save.isPending ? 'Saving menu…' : 'Save menu'}
+            </button>
+          </div>
         </div>
       </form>
+
+      {/* The questions open above the editor, which cannot be used until they are answered. */}
+      {confirming?.kind === 'delete' && (
+        <ConfirmDialog
+          title="Delete this menu?"
+          text={`Hikers will no longer see a menu for ${time}.`}
+          keepLabel="Keep menu"
+          confirmLabel="Delete menu"
+          busy={remove.isPending}
+          busyLabel="Deleting menu…"
+          onKeep={keepConfirming}
+          onConfirm={deleteMenu}
+        />
+      )}
+      {(confirming?.kind === 'close' || confirming?.kind === 'start') && (
+        <ConfirmDialog
+          title="Discard your changes?"
+          text={
+            confirming.kind === 'close'
+              ? 'The changes you made to this menu will be lost.'
+              : 'The changes you made will be replaced by the menu you picked.'
+          }
+          keepLabel="Keep editing"
+          confirmLabel="Discard"
+          onKeep={keepConfirming}
+          onConfirm={() => (confirming.kind === 'close' ? onClose() : startWith(confirming.value))}
+        />
+      )}
 
       {removing?.kind === 'course' && (
         <ConfirmDialog

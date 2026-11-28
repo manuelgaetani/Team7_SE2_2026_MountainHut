@@ -90,6 +90,34 @@ describe('ConfirmDialog', () => {
     expect(onPageKey).not.toHaveBeenCalled();
   });
 
+  it('cannot be answered again while the action is on its way', () => {
+    const onKeep = vi.fn();
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDialog
+        title={TEXT.title}
+        text={TEXT.text}
+        keepLabel={TEXT.keep}
+        confirmLabel={TEXT.confirm}
+        busy
+        busyLabel="Removing dish…"
+        onKeep={onKeep}
+        onConfirm={onConfirm}
+      />,
+    );
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: TEXT.keep })).toBeDisabled();
+    expect(screen.getByRole('button', { name: TEXT.close })).toBeDisabled();
+    const confirm = screen.getByRole('button', { name: 'Removing dish…' });
+    expect(confirm).toBeDisabled();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('alertdialog').parentElement as HTMLElement);
+    fireEvent.click(confirm);
+    expect(onKeep).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('makes the rest of the page unusable while it is open, and gives the focus back', () => {
     const { container } = render(<Page onConfirm={vi.fn()} />);
     const opener = screen.getByRole('button', { name: TEXT.open });

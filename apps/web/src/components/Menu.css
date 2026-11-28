@@ -408,9 +408,6 @@
 .menu-editor__delete {
   justify-self: start;
 }
-.menu-editor__footer .field__hint {
-  margin: 4px 0 10px;
-}
 @media (max-width: 600px) {
   .menu-editor__footer {
     bottom: -20px;

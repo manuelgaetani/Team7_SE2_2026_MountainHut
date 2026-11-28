@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './ModifyBookingDialog.css';
 import './ConfirmDialog.css';
@@ -10,6 +10,10 @@ interface ConfirmDialogProps {
   keepLabel: string;
   // The destructive answer: "Remove dish".
   confirmLabel: string;
+  // While the action is on its way: the question stays, with no way to answer it again.
+  busy?: boolean;
+  // The destructive answer while busy: "Deleting menu…".
+  busyLabel?: string;
   onKeep: () => void;
   onConfirm: () => void;
 }
@@ -22,6 +26,8 @@ export function ConfirmDialog({
   text,
   keepLabel,
   confirmLabel,
+  busy = false,
+  busyLabel,
   onKeep,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -29,11 +35,15 @@ export function ConfirmDialog({
   const textId = useId();
   const backdropRef = useRef<HTMLDivElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
+  const keep = () => {
+    if (!busy) onKeep();
+  };
 
   // Everything outside the question stops working (mouse, keyboard and screen readers) until it
   // is answered; then the focus goes back to where it was or, when that is gone (the removed dish
-  // and its button), to the dialog it was in.
-  useEffect(() => {
+  // and its button), to the dialog it was in. A layout effect, so the page works again before
+  // the dialog below (closed by the same answer) gives the focus back to its own opener.
+  useLayoutEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     const openerDialog = opener?.closest<HTMLElement>('[role="dialog"]');
     const others = Array.from(document.body.children).filter(
@@ -54,11 +64,11 @@ export function ConfirmDialog({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
-      onKeep();
+      if (!busy) onKeep();
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [onKeep]);
+  }, [onKeep, busy]);
 
   return createPortal(
     <div
@@ -66,7 +76,7 @@ export function ConfirmDialog({
       className="dialog-backdrop confirm-backdrop"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onKeep();
+        if (e.target === e.currentTarget) keep();
       }}
     >
       <div
@@ -75,8 +85,15 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={textId}
+        aria-busy={busy}
       >
-        <button type="button" className="dialog__close" aria-label="Close" onClick={onKeep}>
+        <button
+          type="button"
+          className="dialog__close"
+          aria-label="Close"
+          disabled={busy}
+          onClick={keep}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" />
           </svg>
@@ -88,11 +105,22 @@ export function ConfirmDialog({
           {text}
         </p>
         <div className="confirm-dialog__actions">
-          <button ref={keepRef} type="button" className="modify-dialog__secondary" onClick={onKeep}>
+          <button
+            ref={keepRef}
+            type="button"
+            className="modify-dialog__secondary"
+            disabled={busy}
+            onClick={keep}
+          >
             {keepLabel}
           </button>
-          <button type="button" className="modify-dialog__danger" onClick={onConfirm}>
-            {confirmLabel}
+          <button
+            type="button"
+            className="modify-dialog__danger"
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {busy && busyLabel ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>
