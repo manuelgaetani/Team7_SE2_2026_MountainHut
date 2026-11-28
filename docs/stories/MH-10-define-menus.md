@@ -1,9 +1,9 @@
 # MH-10 — Define menus
 
-|                |                                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| **Status**     | API complete with the new clarifications; web app: delete and the lock of started slots to come |
-| **Depends on** | MH-02 (define slot capacity and tables), MH-01 (book a table), MH-05 (dietary needs)            |
+|                |                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------ |
+| **Status**     | Done: API and web app, with the new clarifications                                   |
+| **Depends on** | MH-02 (define slot capacity and tables), MH-01 (book a table), MH-05 (dietary needs) |
 
 ## User story
 
@@ -31,20 +31,21 @@ Team assumptions:
 
 ## Requirements
 
-| #   | Requirement                                                                                                                        | Status                | Implemented in                                                                                  |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
-| R1  | The staff define or edit the menu of a slot from its card on `/staff/slots`                                                        | Done                  | `SlotSchedule` (`MenuAction`), `SlotsPage`                                                      |
-| R2  | A menu has courses and dishes: Italian name, English name, price, marks, description                                               | Done                  | `lib/menu.ts`, `MenuEditor`                                                                     |
-| R3  | Descriptions support bold, italic, list items and sub-items, from a toolbar                                                        | Done                  | `MenuTextField`, `lib/menuText.ts`, `MenuText`                                                  |
-| R4  | A previous menu can be reused as the start of a new one, then changed                                                              | Done                  | `MenuEditor` ("Start from"), `usePastMenus`                                                     |
-| R5  | Invalid menus are not saved: empty names, price not above 0, description over 280 characters, no dishes, text over 5000 characters | Done                  | `menuErrors`, `defineMenuSchema` (web and API)                                                  |
-| R6  | Leaving the editor with unsaved changes asks first                                                                                 | Done                  | `MenuEditor`                                                                                    |
-| R7  | Hikers see the menu of the chosen slot on Book a table, with the marks and a legend                                                | Done                  | `SlotMenuCard`, `MenuLegend`, `BookingPage`                                                     |
-| R9  | The staff see the menu of a slot as hikers see it, from the time on the slot card                                                  | Done                  | `MenuPreviewDialog`, `SlotSchedule`                                                             |
-| R8  | The menus are stored by the API                                                                                                    | Done                  | `MenusController`, `MenusService`, `PrismaMenusRepository`, `api/menus.ts`, `lib/menuFormat.ts` |
-| R10 | A menu can be written or changed only before its slot starts                                                                       | API done; web pending | `isMenuEditable`, `MenusService.define` (`422`)                                                 |
-| R11 | Changing a menu reused on several slots changes only the menu of that slot                                                         | Done                  | One row of `menus` per slot, `MenusService.define`                                              |
-| R12 | The menu of a future slot can be deleted; the menus of slots that have started stay fixed                                          | API done; web pending | `DELETE /api/slots/:id/menu`, `MenusService.remove` (`422`)                                     |
+| #   | Requirement                                                                                                                        | Status | Implemented in                                                                                                             |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| R1  | The staff define or edit the menu of a slot from its card on `/staff/slots`                                                        | Done   | `SlotSchedule` (`MenuAction`), `SlotsPage`                                                                                 |
+| R2  | A menu has courses and dishes: Italian name, English name, price, marks, description                                               | Done   | `lib/menu.ts`, `MenuEditor`                                                                                                |
+| R3  | Descriptions support bold, italic, list items and sub-items, from a toolbar                                                        | Done   | `MenuTextField`, `lib/menuText.ts`, `MenuText`                                                                             |
+| R4  | A previous menu can be reused as the start of a new one, then changed                                                              | Done   | `MenuEditor` ("Start from"), `usePastMenus`                                                                                |
+| R5  | Invalid menus are not saved: empty names, price not above 0, description over 280 characters, no dishes, text over 5000 characters | Done   | `menuErrors`, `defineMenuSchema` (web and API)                                                                             |
+| R6  | Leaving the editor with unsaved changes asks first                                                                                 | Done   | `MenuEditor`, `ConfirmDialog`                                                                                              |
+| R7  | Hikers see the menu of the chosen slot on Book a table, with the marks and a legend                                                | Done   | `SlotMenuCard`, `MenuLegend`, `BookingPage`                                                                                |
+| R8  | The menus are stored by the API                                                                                                    | Done   | `MenusController`, `MenusService`, `PrismaMenusRepository`, `api/menus.ts`, `lib/menuFormat.ts`                            |
+| R9  | The staff see the menu of a slot as hikers see it, from the time on the slot card                                                  | Done   | `MenuPreviewDialog`, `SlotSchedule`                                                                                        |
+| R10 | A menu can be written or changed only before its slot starts                                                                       | Done   | API: `isMenuEditable`, `MenusService.define` (`422`); web: `lib/slotStart.ts`, `SlotSchedule` (**See menu**)               |
+| R11 | Changing a menu reused on several slots changes only the menu of that slot                                                         | Done   | One row of `menus` per slot, `MenusService.define`                                                                         |
+| R12 | The menu of a future slot can be deleted; the menus of slots that have started stay fixed                                          | Done   | API: `DELETE /api/slots/:id/menu`, `MenusService.remove` (`422`); web: `MenuEditor` (**Delete menu**), `useDeleteSlotMenu` |
+| R13 | Removing a course or a dish, discarding changes and deleting a menu ask first, in a popup that blocks the editor                   | Done   | `ConfirmDialog`, `MenuEditor`                                                                                              |
 
 ### Decisions
 
@@ -57,6 +58,9 @@ Team assumptions:
 - **Only before the slot.** `PUT` and `DELETE` read the start of the slot in the hut time zone and answer `422` from that instant on (`isMenuEditable`: allowed while `now < start`). Reading a menu is always allowed.
 - **Delete.** `DELETE /api/slots/:id/menu` removes the menu of a slot that has not started: `204`, then `GET` answers `This slot has no menu`. Deleting a menu that does not exist is a `404`, not a silent success, so the web app knows its view was out of date.
 - **Shared messages.** The `404` and `422` messages are in `MENU_ERRORS` (`packages/shared/src/menus.ts`), so the web app and the tests compare the same texts.
+- **The start rule in the web app.** `isMenuEditable` in `lib/slotStart.ts` applies the same rule as the API (`now < start`) with the time of the browser, which is the hut's for the staff. It only spares a request the API would refuse: the API stays the one that decides, and its `422` message is shown if a slot starts while the editor is open.
+- **Confirmations in a popup.** Removing a course or a dish, discarding changes (on Close, `Escape` or a new "Start from") and deleting the menu ask in a popup above the editor (`ConfirmDialog`). Until it is answered the editor is dimmed and cannot be used (`inert`), so nothing can change behind the question. Guide 08 (section 6) asks for the unsaved-changes prompt inline in the same surface; the team chose the popup for all four questions, so they look and behave the same.
+- **Undo kept.** After a confirmed removal the toast with **Undo** still puts the course or dish back.
 - **Language.** All UI labels and API messages are in English; dish names are in Italian with an English name.
 
 ## How it works
@@ -65,7 +69,8 @@ Team assumptions:
 2. On **Save menu**, `menuErrors` checks the fields, `cleanCourses` trims them, `menuToText` writes the text and `defineMenuSchema` checks it.
 3. `PUT /api/slots/:id/menu` reads the start of the slot (`404` if it does not exist, `422` if it has started), then upserts the row of the slot in one statement (two writes at once: the last one wins).
 4. The web app invalidates the `['menus']` queries: the card shows _"Menu · N courses"_ and hikers see the new menu on Book a table.
-5. `DELETE /api/slots/:id/menu` does the same start check, then deletes the row (`404` if the slot had no menu).
+5. **Delete menu** asks first, then sends `DELETE /api/slots/:id/menu`, which does the same start check and deletes the row (`404` if the slot had no menu). The web app invalidates the `['menus']` queries again: the card goes back to **Define menu** and the menu leaves the "Start from" list.
+6. On a slot that has started, the card shows **See menu** (the preview) instead of **Define menu** or **Edit menu**, or nothing when the slot has no menu.
 
 ### Menu text layout
 
@@ -90,8 +95,12 @@ One `## ` line per course, then each dish: `### name · € price`, the English 
 
 ## Web app
 
-- **Time slots** (`/staff/slots`). Every slot card has a **Define menu** button, or **Edit menu** with _"Menu · 3 courses"_ once a menu is saved. The button opens the menu editor in a dialog, in the style of Modify booking.
-- **Menu editor** (`MenuEditor`). _Start from_ lists this slot's menu, an empty menu (the four default courses) and every previous menu (_"Sun 22 Nov · 12:00–14:00"_). Each course has a name and its dishes; each dish has _Name (Italian)_, _Name (English)_, _Price (€)_ (a comma is accepted), the marks as toggle tiles and a _Description_ with the toolbar **Bold**, _Italic_, _List item_, _Sub-item_. Removing a dish or a course shows a toast (_"Dish removed: Canederli in brodo."_) with **Undo**, which puts it back in its place. **Save menu** shows the errors next to the fields, or saves and closes with the toast _"Menu saved for 12:00–14:00."_. **Close** or `Escape` with changes asks _"Discard your changes?"_ (**Keep editing** / **Discard**).
+- **Time slots** (`/staff/slots`). Every slot card that has not started has a **Define menu** button, or **Edit menu** with _"Menu · 3 courses"_ once a menu is saved. The button opens the menu editor in a dialog, in the style of Modify booking. From the start of the slot the card shows **See menu** instead (the preview, nothing to change), or no menu button when the slot has no menu.
+- **Menu editor** (`MenuEditor`). _Start from_ lists this slot's menu, an empty menu (the four default courses) and every previous menu (_"Sun 22 Nov · 12:00–14:00"_). Each course has a name and its dishes; each dish has _Name (Italian)_, _Name (English)_, _Price (€)_ (a comma is accepted), the marks as toggle tiles and a _Description_ with the toolbar **Bold**, _Italic_, _List item_, _Sub-item_. **Save menu** shows the errors next to the fields, or saves and closes with the toast _"Menu saved for 12:00–14:00."_.
+- **Questions** (`ConfirmDialog`). Each opens in a popup above the dimmed editor, with the safe answer first and focused; `Escape`, the × and a click outside give the safe answer:
+  - **Remove** a course: _"Remove this course?"_, _"Primi and its 2 dishes will be removed from the menu."_ (**Keep course** / **Remove course**). **Remove dish**: _"Remove this dish?"_, _"Canederli will be removed from Primi."_ (**Keep dish** / **Remove dish**). Once removed, a toast (_"Dish removed: Canederli."_) offers **Undo**, which puts it back in its place.
+  - **Close**, `Escape` or a new _Start from_ with changes: _"Discard your changes?"_ (**Keep editing** / **Discard**).
+  - **Delete menu** (only when the slot has a menu): _"Delete this menu?"_, _"Hikers will no longer see a menu for 12:00–14:00."_ (**Keep menu** / **Delete menu**). While the request is on its way the popup says _"Deleting menu…"_ and cannot be closed; then the editor closes with the toast _"Menu deleted for 12:00–14:00."_.
 - **Preview** (`MenuPreviewDialog`). On `/staff/slots` the time of a slot card (_12:00–14:00_) is a button: it opens a dialog with the menu exactly as hikers see it on Book a table.
 - **Table numbers.** Table numbers go from 1 to 50 (`MAX_TABLE_NUMBER` in `lib/slotTables.ts`): a bigger number shows _"Table numbers go from 1 to 50."_ and **Add a table** stops at 50 rows. The API keeps its own limit until the shared schema gets this one.
 - **Book a table** (`/book`). Once a time is chosen, the menu of that slot is shown under the form: the courses in two columns, the dish name in Italian with its marks and price, the English name in small italics, the description, and the legend at the bottom. Without a menu: _"The menu of this slot is not out yet."_. A menu written outside the editor is shown as formatted free text, and its slot card says _"Menu · free text"_.
@@ -213,7 +222,7 @@ The menus already written, each different text once with its latest slot, latest
 | `422`  | `PUT`: the slot has already started                  | `The slot has already started: its menu cannot be changed` |
 | `422`  | `DELETE`: the slot has already started               | `The slot has already started: its menu cannot be deleted` |
 
-The editor shows the API message for `404`, _"The menu could not be saved. Please try again."_ for the rest, and the session notice for `401`.
+The editor shows the API message for `404` and `422` (for example when the slot starts while the editor is open), _"The menu could not be saved. Please try again."_ or _"The menu could not be deleted. Please try again."_ for the rest, and the session notice for `401`.
 
 ## Code map
 
@@ -228,15 +237,18 @@ The editor shows the API message for `404`, _"The menu could not be saved. Pleas
 | `apps/api/prisma/schema.prisma` (`Menu`)                       | Table `menus`                                                                                 |
 | `apps/web/src/lib/menu.ts`                                     | Types, marks, limits, price format, validation                                                |
 | `apps/web/src/lib/menuText.ts`                                 | Parser of the description formatting                                                          |
-| `apps/web/src/api/menus.ts`                                    | Requests to the API, 404 "no menu" read as `null`                                             |
+| `apps/web/src/api/client.ts`                                   | `apiDelete`; a `204` answer is read as nothing                                                |
+| `apps/web/src/api/menus.ts`                                    | Requests to the API, 404 "no menu" read as `null`, delete                                     |
 | `apps/web/src/lib/menuFormat.ts`                               | Courses written into the menu text and read back                                              |
-| `apps/web/src/api/useMenus.ts`                                 | `useSlotMenu`, `usePastMenus`, `useSaveSlotMenu`                                              |
+| `apps/web/src/lib/slotStart.ts`                                | `isMenuEditable`: the start rule in the time of the browser                                   |
+| `apps/web/src/api/useMenus.ts`                                 | `useSlotMenu`, `usePastMenus`, `useSaveSlotMenu`, `useDeleteSlotMenu`                         |
 | `apps/web/src/components/MenuIcons.tsx`                        | Mark icons, `MenuMarks`, `MenuLegend`                                                         |
 | `apps/web/src/components/MenuText.tsx`                         | Formatted description                                                                         |
 | `apps/web/src/components/MenuTextField.tsx`                    | Description field with its toolbar                                                            |
-| `apps/web/src/components/MenuDialog.tsx`                       | Dialog shell of the editor and the preview                                                    |
+| `apps/web/src/components/FormDialog.tsx`                       | Dialog shell of the editor and the preview                                                    |
+| `apps/web/src/components/ConfirmDialog.tsx`                    | Popup for a destructive question, above the editor                                            |
 | `apps/web/src/components/MenuPreviewDialog.tsx`                | Staff preview of the hiker card                                                               |
-| `apps/web/src/components/MenuEditor.tsx`                       | Staff editor                                                                                  |
+| `apps/web/src/components/MenuEditor.tsx`                       | Staff editor, delete                                                                          |
 | `apps/web/src/components/SlotMenuCard.tsx`                     | Hiker card on Book a table                                                                    |
 | `apps/web/src/components/Menu.css`                             | Styles of the card, the marks and the editor                                                  |
 
@@ -245,21 +257,29 @@ The editor shows the API message for `404`, _"The menu could not be saved. Pleas
 ```bash
 npm run test -w @mountain-hut/shared -- src/menus.spec.ts
 npm run test -w @mountain-hut/api -- src/menus src/infrastructure/prisma/prisma-errors.spec.ts
-npm run test -w @mountain-hut/web -- src/lib/menu
-docker compose up --build -d --wait && npm run test:e2e -- tests/api/menus.spec.ts
+npm run test -w @mountain-hut/web -- src/lib/menu src/lib/slotStart src/components/MenuEditor src/components/ConfirmDialog
+npm run test:int -w @mountain-hut/api -- test/menus.int-spec.ts
+docker compose up --build -d --wait && npm run test:e2e -- tests/api/menus.spec.ts tests/web/menus.spec.ts
 ```
 
-| Spec                                                                | Covers                                                                                                                                 |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared/src/menus.spec.ts`                                 | `defineMenuSchema`: black box (EP, BVA on 5000 characters, wrong types) and white box (NUL, Unicode spaces, issues that fail together) |
-| `apps/api/src/menus/application/menus.service.spec.ts`              | Define, read, previous menus; ISO dates; the two `NOT_FOUND` messages; limit of 50                                                     |
-| `apps/api/src/menus/presentation/menus.controller.spec.ts`          | RBAC 403 (hiker on PUT and `GET /menus`), 400 body and id without calling the service, 200, 404 mapping                                |
-| `apps/api/src/menus/infrastructure/prisma-menus.repository.spec.ts` | Upsert, P2003 read as `null`, invalid ids without queries, bound `LIMIT`, `DISTINCT ON` and order of the previous menus                |
-| `apps/api/src/infrastructure/prisma/prisma-errors.spec.ts`          | `isForeignKeyViolation` (P2003)                                                                                                        |
-| `apps/web/src/lib/menu.test.ts`                                     | `menuErrors` (BVA on price and description), `parsePrice`, `formatPrice`, `sortMarks`, `cleanCourses`, labels                          |
-| `apps/web/src/lib/menuText.test.ts`                                 | Bold, italic, items, sub-items, unclosed markers, CRLF                                                                                 |
-| `apps/web/src/lib/menuFormat.test.ts`                               | Layout of the text, round trip, escapes, CRLF, free texts read as `null`, dish ending on its English name                              |
-| `e2e/tests/api/menus.spec.ts`                                       | RBAC 401/403, write and replace, concurrent writes, max length, 400s, 404s, previous menus                                             |
+| Spec                                                                | Covers                                                                                                                                       |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/menus.spec.ts`                                 | `defineMenuSchema`: black box (EP, BVA on 5000 characters, wrong types) and white box (NUL, Unicode spaces, issues that fail together)       |
+| `apps/api/src/menus/domain/menu-policy.spec.ts`                     | `isMenuEditable` around the start of the slot                                                                                                |
+| `apps/api/src/menus/application/menus.service.spec.ts`              | Define, read, delete, previous menus; time zone of the slot start; ISO dates; the `NOT_FOUND` and `UNPROCESSABLE` messages; limit of 50      |
+| `apps/api/src/menus/presentation/menus.controller.spec.ts`          | RBAC 403 (hiker on PUT, DELETE and `GET /menus`), 400 body and id without calling the service, 200, 204, 404 and 422 mapping                 |
+| `apps/api/src/menus/infrastructure/prisma-menus.repository.spec.ts` | Upsert, delete, start of the slot, P2003 read as `null`, invalid ids without queries, bound `LIMIT`, `DISTINCT ON` and order of the previous |
+| `apps/api/src/infrastructure/prisma/prisma-errors.spec.ts`          | `isForeignKeyViolation` (P2003)                                                                                                              |
+| `apps/api/test/menus.int-spec.ts`                                   | With PostgreSQL: storage, missing slots, constraints, changes only before the start, delete, concurrent writes, previous menus               |
+| `apps/web/src/lib/menu.test.ts`                                     | `menuErrors` (BVA on price and description), `parsePrice`, `formatPrice`, `sortMarks`, `cleanCourses`, labels                                |
+| `apps/web/src/lib/menuText.test.ts`                                 | Bold, italic, items, sub-items, unclosed markers, CRLF                                                                                       |
+| `apps/web/src/lib/menuFormat.test.ts`                               | Layout of the text, round trip, escapes, CRLF, free texts read as `null`, dish ending on its English name                                    |
+| `apps/web/src/lib/slotStart.test.ts`                                | `isMenuEditable` in the browser: one minute before, at the start, after, across the year                                                     |
+| `apps/web/src/api/client.test.ts`                                   | `apiDelete` and its `204` answer                                                                                                             |
+| `apps/web/src/components/ConfirmDialog.test.tsx`                    | Safe answer focused, Escape/×/backdrop, Escape kept from the dialog below, busy state, page unusable while open                              |
+| `apps/web/src/components/MenuEditor.test.tsx`                       | The editor through the page: save, errors, Start from, remove and Undo, the questions, delete, started slots                                 |
+| `e2e/tests/api/menus.spec.ts`                                       | RBAC 401/403, write and replace, concurrent writes, max length, 400s, 404s, 422 on started slots, delete, previous menus                     |
+| `e2e/tests/web/menus.spec.ts`                                       | Write, format, errors, discard, reuse, preview, free text, delete, slots over or started, the hiker card                                     |
 
 ### Try it manually
 
@@ -268,12 +288,13 @@ docker compose up --build -d --wait && npm run test:e2e -- tests/api/menus.spec.
 3. On another slot press **Define menu**, in _Start from_ pick the first menu, change a price and save.
 4. Sign in as a hiker, open **Book a table**, choose the same day and time: the menu appears under the form.
 5. Free text: `curl -b cookies.txt -X PUT -H 'Content-Type: application/json' http://localhost:3000/api/slots/<id>/menu -d '{"text":"- **Polenta**\n  - with cheese"}'`, then open Book a table for that slot: the text is shown formatted; on Time slots the card says _"Menu · free text"_.
-6. Delete: `curl -b cookies.txt -X DELETE http://localhost:3000/api/slots/<id>/menu` on a future slot answers `204`; Book a table then says _"The menu of this slot is not out yet."_.
-7. Past slot: the same `PUT` or `DELETE` on a slot of yesterday answers `422` and its menu stays as it was.
+6. Questions: in the editor press **Remove** on a course and **Remove dish** on a dish, then change a field and press **Close**: each asks in a popup, and the editor behind it cannot be clicked or reached with `Tab` until you answer.
+7. Delete: open **Edit menu** on a future slot, press **Delete menu**, then **Delete menu** in the popup: the toast confirms, the card goes back to **Define menu**, and Book a table says _"The menu of this slot is not out yet."_.
+8. Started slot: create a slot that starts in a few minutes and give it a menu. Open its editor and wait for the start, then press **Save menu**: the editor shows _"The slot has already started: its menu cannot be changed"_. Reload: the card shows only **See menu**. A day in the past shows **See menu** on the slots with a menu and no menu button on the others.
+9. API: the same `PUT` or `DELETE` with `curl` on a slot of yesterday answers `422` and its menu stays as it was.
 
 ## Open points
 
 - No example menus in the API seed: "Start from" lists only the menus written so far.
-- **Web app and the new clarifications (R10, R12).** The editor still opens on slots that have started (the API refuses the save with `422`), and there is no way to delete a menu yet. To do: no **Edit menu** on started slots (only the preview), and **Delete menu** with a confirmation on future slots (guide 08).
-- **Tests of the new rules.** Unit (start check with its boundary, `DELETE` route, `remove`, `findSlotStart`, `delete`), integration (time zone at the start, delete, a reused menu changed on one slot only) and E2E (`422` on started slots, delete) are with the testers. The `define` tests of `menus.service.spec.ts` need `findSlotStart` in their repository mock.
-- Web component tests (`MenuEditor`, `SlotMenuCard`, `api/menus.ts`) and integration tests of `PrismaMenusRepository` are handled by other team members (`test/MH-10-*` branches).
+- **A slot that starts while the page is open** keeps its **Edit menu** button until the page renders again; a save or delete then gets the API's `422` message in the editor.
+- **Guide 08, section 6** asks for the unsaved-changes prompt inline; this story uses the popup (see Decisions). The guide may need a line about it.
