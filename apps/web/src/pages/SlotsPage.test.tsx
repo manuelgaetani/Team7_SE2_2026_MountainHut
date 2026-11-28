@@ -771,3 +771,47 @@ describe('SlotsPage', () => {
     );
   });
 });
+
+describe('SlotsPage on a narrow screen', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date(2026, 10, 4, 12, 0, 0));
+    // Below 820px the side panel becomes a dialog opened from a bar.
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('opens the new slot form from the bar and closes it with Escape', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    await screen.findByText('12:00–13:00');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create slots' }));
+
+    expect(screen.getByRole('dialog', { name: 'New slot on Wed 4 Nov' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens the tables of a slot in the dialog, and shows the new slot form once closed', async () => {
+    stubSlotsApi();
+    renderSlotsPage();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Define the tables of 19:30–21:00' }),
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Tables for 19:30–21:00, Wed 4 Nov' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create slots' }));
+    expect(screen.getByRole('dialog', { name: 'New slot on Wed 4 Nov' })).toBeInTheDocument();
+  });
+});

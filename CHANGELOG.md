@@ -7,6 +7,12 @@ Detailed notes for each release are in [docs/release-notes](docs/release-notes/)
 
 ## [Unreleased]
 
+### Added
+
+- Menus of the slots (MH-10): `PUT /api/slots/:id/menu` (staff only) creates or replaces the menu of a slot, a free text of 1 to 5000 characters with basic formatting as a small Markdown subset (`**bold**`, `*italic*`, `- item`, `  - sub item`), stored as written. `GET /api/slots/:id/menu` (any logged-in role) returns it, `404` if the slot has no menu. `GET /api/menus` (staff only) lists the menus already written, each text once with its latest slot, to reuse and change one. New table `menus` (migration `slot_menus`): one menu per slot, deleted with its slot.
+- Menu changes only before the slot (MH-10, new clarifications): `PUT /api/slots/:id/menu` answers `422` once the slot has started (its date and start time in the hut time zone), so the menus of past slots stay fixed. New `DELETE /api/slots/:id/menu` (staff only) deletes the menu of a slot that has not started (`204`; `422` once started; `404` if the slot has no menu). Each slot keeps its own copy of a reused menu, so changing or deleting it affects only that slot. The messages are in `MENU_ERRORS` of the shared package.
+- Web app (MH-10): the menu editor on Time slots and the menu card on Book a table use the menu endpoints instead of the browser storage. The courses and dishes are written into the menu text in a fixed Markdown layout (`## course`, `### dish · € price`, English name, `Marks:`, description) and read back; any other text is shown as formatted free text. The editor checks the 5000-character limit before saving.
+
 ## [release-1] - 2026-11-23
 
 Details in [docs/release-notes/release-1.md](docs/release-notes/release-1.md).

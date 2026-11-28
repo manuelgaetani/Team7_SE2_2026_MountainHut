@@ -101,9 +101,23 @@ model Slot {
 
   tables   SlotTable[]
   bookings Booking[]
+  menu     Menu?
 
   @@unique([date, startTime, endTime])
   @@map("slots")
+}
+
+// MH-10: the menu of a slot, at most one. Free text with a small Markdown subset (bold, italic,
+// item lists with sub items), stored as written. Deleted with its slot.
+model Menu {
+  slotId    Int      @id @map("slot_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  @@map("menus")
 }
 
 model SlotTable {

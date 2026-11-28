@@ -10,6 +10,30 @@
 .modify-dialog:focus {
   outline: none;
 }
+/* A thin scrollbar in the colours of the site, kept off the rounded corners. Chrome and Safari
+   use the ::-webkit-scrollbar rules (they ignore them once scrollbar-width is set); Firefox,
+   which has no such rules, the standard properties. */
+@supports not selector(::-webkit-scrollbar) {
+  .modify-dialog {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+}
+.modify-dialog::-webkit-scrollbar {
+  width: 10px;
+}
+.modify-dialog::-webkit-scrollbar-track {
+  margin: 18px 0;
+  background: transparent;
+}
+.modify-dialog::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--line) padding-box;
+}
+.modify-dialog::-webkit-scrollbar-thumb:hover {
+  background: var(--muted) padding-box;
+}
 .modify-dialog__eyebrow {
   margin: 0 0 8px;
   color: var(--muted);

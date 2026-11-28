@@ -101,3 +101,13 @@
     transition: none;
   }
 }
+
+/* Remove stays red inside the requirements, where every .pill gets the green border. */
+.requirements .pill.pill--remove {
+  border: 1.5px solid #e7b9b5;
+}
+.requirements .pill.pill--remove:hover:not(:disabled) {
+  border-color: var(--error);
+  background: var(--error);
+  color: #fff;
+}

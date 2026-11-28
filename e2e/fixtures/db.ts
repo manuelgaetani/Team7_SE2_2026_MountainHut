@@ -42,6 +42,13 @@ export function createSlot(seats: number[]): number {
   return insertSlot(date, `TIME '19:00'`, `TIME '21:00'`, seats);
 }
 
+// A slot for the menu tests (MH-10). The list of previous menus keeps only the slots with the
+// latest dates, so these slots get their own years (2900-2999), later than every other suite.
+export function createMenuSlot(): number {
+  const date = `DATE '2900-01-01' + ${randomInt(36_500)}`;
+  return insertSlot(date, `TIME '12:00'`, `TIME '14:00'`, [4]);
+}
+
 // A slot that starts in about one hour, too soon to book.
 // The start is a whole minute, like the slots created through the API (HH:MM): the API looks a
 // slot up by its start time (MH-04), which would never match a start with seconds. Tests run in
@@ -50,6 +57,22 @@ export function createImminentSlot(seats: number[]): number {
   const start = `date_trunc('minute', now() AT TIME ZONE 'Europe/Rome' + interval '1 hour' + ${randomInt(30)} * interval '1 minute')`;
   const end = `TIME '23:59' + ${randomInt(60)} * interval '1 second'`;
   return insertSlot(`${start}::date`, `${start}::time(0)`, end, seats);
+}
+
+// A slot that started about an hour ago, hut time, and is not over yet (MH-10: from its start
+// on, its menu stays as it is). The end is random to the second, as for createImminentSlot.
+export function createStartedSlot(seats: number[]): number {
+  const start = `date_trunc('minute', now() AT TIME ZONE 'Europe/Rome' - interval '1 hour' - ${randomInt(30)} * interval '1 minute')`;
+  const end = `TIME '23:59' + ${randomInt(60)} * interval '1 second'`;
+  return insertSlot(`${start}::date`, `${start}::time(0)`, end, seats);
+}
+
+// Writes the menu of a slot straight in the database: the API refuses it once the slot has
+// started (MH-10), but such slots can still have the menu written before.
+export function setMenu(slotId: number, text: string): void {
+  const quoted = text.replaceAll("'", "''");
+  sql(`INSERT INTO menus (slot_id, text, updated_at) VALUES (${Number(slotId)}, '${quoted}', now())
+       ON CONFLICT (slot_id) DO UPDATE SET text = EXCLUDED.text, updated_at = now();`);
 }
 
 // A slot that is already over.

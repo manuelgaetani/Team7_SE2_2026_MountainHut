@@ -10,6 +10,7 @@ import { GuestStepper, MIN_GUESTS } from '../components/GuestStepper.tsx';
 import { HutHero } from '../components/HutHero.tsx';
 import { isBookable, TimeSlotPicker } from '../components/TimeSlotPicker.tsx';
 import { RequirementsEditor } from '../components/RequirementsEditor.tsx';
+import { SlotMenuCard } from '../components/SlotMenuCard.tsx';
 import {
   draftErrors,
   isFilled,
@@ -122,57 +123,60 @@ function BookingFlow() {
   }
 
   return (
-    <div className="layout">
-      <div className="layout__form">
-        <DayPicker dates={dates} value={date} onChange={handle(setChosenDate)} />
-        <GuestStepper value={guests} max={maxGuests} onChange={handle(setRequestedGuests)} />
-        <TimeSlotPicker
-          slots={daySlots}
-          guests={guests}
-          value={slot?.id ?? null}
-          onChange={handle(setChosenSlotId)}
-        />
-        <RequirementsEditor
-          value={requirements}
-          onChange={handle(setRequirements)}
-          errors={requirementErrors}
-        />
+    <>
+      <div className="layout">
+        <div className="layout__form">
+          <DayPicker dates={dates} value={date} onChange={handle(setChosenDate)} />
+          <GuestStepper value={guests} max={maxGuests} onChange={handle(setRequestedGuests)} />
+          <TimeSlotPicker
+            slots={daySlots}
+            guests={guests}
+            value={slot?.id ?? null}
+            onChange={handle(setChosenSlotId)}
+          />
+          <RequirementsEditor
+            value={requirements}
+            onChange={handle(setRequirements)}
+            errors={requirementErrors}
+          />
 
-        {error && <ErrorNotice message={error} />}
+          {error && <ErrorNotice message={error} />}
 
-        <button
-          type="button"
-          className="cta"
-          disabled={!slot || book.isPending}
-          onClick={handleSubmit}
-        >
-          {book.isPending ? 'Booking in progress…' : 'Book your table'}
-          <span aria-hidden="true">→</span>
-        </button>
+          <button
+            type="button"
+            className="cta"
+            disabled={!slot || book.isPending}
+            onClick={handleSubmit}
+          >
+            {book.isPending ? 'Booking in progress…' : 'Book your table'}
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div className="layout__side">
+          <BookingSummary
+            dateLabel={dateShort(fromIsoDate(date))}
+            time={slot?.startTime ?? null}
+            guests={guests}
+            tables={book.isSuccess ? book.data.tables : null}
+            requirements={filledRequirements(requirements)}
+          />
+        </div>
+
+        {sent && (
+          <BookingSentDialog
+            summary={sent.summary}
+            requirements={sent.requirements}
+            onClose={() => {
+              setSent(null);
+              setChosenSlotId(null);
+              setRequirements([]);
+            }}
+          />
+        )}
       </div>
-
-      <div className="layout__side">
-        <BookingSummary
-          dateLabel={dateShort(fromIsoDate(date))}
-          time={slot?.startTime ?? null}
-          guests={guests}
-          tables={book.isSuccess ? book.data.tables : null}
-          requirements={filledRequirements(requirements)}
-        />
-      </div>
-
-      {sent && (
-        <BookingSentDialog
-          summary={sent.summary}
-          requirements={sent.requirements}
-          onClose={() => {
-            setSent(null);
-            setChosenSlotId(null);
-            setRequirements([]);
-          }}
-        />
-      )}
-    </div>
+      {slot && <SlotMenuCard slotId={slot.id} time={`${slot.startTime}–${slot.endTime}`} />}
+    </>
   );
 }
 

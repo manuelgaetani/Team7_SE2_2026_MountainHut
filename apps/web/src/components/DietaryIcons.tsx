@@ -1,24 +1,8 @@
-import type { ComponentType, SVGProps } from 'react';
+import type { ComponentType } from 'react';
 import type { DietaryCode } from '@mountain-hut/shared';
+import { base, type IconProps } from '../lib/iconBase.ts';
 
-type IconProps = SVGProps<SVGSVGElement>;
-
-// Line icons of the needs of the hut. They are decoration: the label next to them names the need.
-const base = {
-  xmlns: 'http://www.w3.org/2000/svg',
-  width: 24,
-  height: 24,
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  strokeWidth: 2,
-  'aria-hidden': true,
-  focusable: false,
-} as const;
-
-const VeganIcon = (props: IconProps) => (
+export const VeganIcon = (props: IconProps) => (
   <svg {...base} {...props}>
     <path d="M16 8q6 0 6-6q-6 0-6 6" />
     <path d="M17.41 3.59a10 10 0 1 0 3 3" />
@@ -60,7 +44,7 @@ const WheatOffIcon = (props: IconProps) => (
   </svg>
 );
 
-const SaladIcon = (props: IconProps) => (
+export const SaladIcon = (props: IconProps) => (
   <svg {...base} {...props}>
     <path d="M7 21h10m-5 0a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9" />
     <path d="M11.38 12a2.4 2.4 0 0 1-.4-4.77a2.4 2.4 0 0 1 3.2-2.77a2.4 2.4 0 0 1 3.47-.63a2.4 2.4 0 0 1 3.37 3.37a2.4 2.4 0 0 1-1.1 3.7a2.5 2.5 0 0 1 .03 1.1M13 12l4-4" />

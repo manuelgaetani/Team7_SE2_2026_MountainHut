@@ -51,9 +51,16 @@ export function DayPicker({
   }, [open]);
 
   // The chosen day stays in sight in the strip, also when it was picked in the calendar.
+  // Only the strip scrolls, sideways: scrollIntoView also scrolled the page, so on a phone the
+  // page opened halfway down, with the header over the picture.
   useEffect(() => {
-    const chip = stripRef.current?.querySelector<HTMLElement>('[aria-checked="true"]');
-    chip?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    const strip = stripRef.current;
+    const chip = strip?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!strip || !chip) return;
+    const s = strip.getBoundingClientRect();
+    const c = chip.getBoundingClientRect();
+    if (c.left < s.left) strip.scrollLeft -= s.left - c.left;
+    else if (c.right > s.right) strip.scrollLeft += c.right - s.right;
   }, [value]);
 
   function pick(iso: string) {
