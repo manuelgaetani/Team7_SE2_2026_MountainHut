@@ -1,9 +1,9 @@
 # MH-20 — Register a hike
 
-|                |                                                                               |
-| -------------- | ----------------------------------------------------------------------------- |
-| **Status**     | API and web complete; unit, integration and web tests done, E2E tests pending |
-| **Depends on** | MH-58 (authentication and `RolesGuard`), hiker profiles (`hikers` table)      |
+|                |                                                                          |
+| -------------- | ------------------------------------------------------------------------ |
+| **Status**     | API and web complete; unit, integration, web and E2E tests done          |
+| **Depends on** | MH-58 (authentication and `RolesGuard`), hiker profiles (`hikers` table) |
 
 ## User story
 
@@ -308,7 +308,18 @@ No new variables. The hut's time zone is `BOOKING_TIMEZONE` (default `Europe/Rom
 | `apps/api/src/hikes/presentation/hikes.controller.spec.ts`          | R1, R7, R10: guards; `POST /hikes` `201` with the session user and the current time, parsed body, hiker in the body ignored; `403` for employee and warden; `400` for invalid bodies (with `issues`); `403`/`404`/`409`/`422` mapping; `GET /hikes/predefined` and `GET /hikes/mine` `200` and `403`                                                                                                                                                                                                                                                                                                                                                                                            |
 | `apps/api/src/hikes/infrastructure/prisma-hikes.repository.spec.ts` | White box of the Prisma queries: hiker by user, `SELECT ... FOR UPDATE` with a bound id, strict overlap condition, predefined hike count, local time stored as UTC wall clock (winter and summer), hikes of a hiker and staff list order, temporary hiker without email, invalid ids without queries                                                                                                                                                                                                                                                                                                                                                                                            |
 
-E2E tests are still to write (`TODO(MH-20-e2e)` in the unit specs).
+E2E tests (Playwright, against the running stack):
+
+| Spec                          | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `e2e/tests/api/hikes.spec.ts` | R1–R8, R10, R11 over HTTP: `401` on every endpoint; `403` for the staff, for a hiker on the staff list and without a hiker profile; `201` and its shape, trimmed text, ordered and optional passage points, several days; 15 invalid bodies (`400` with `issues`, nothing stored), hiker in the body ignored; `422` for a departure come; `409` message, touching hikes, the same plan of two hikers, two identical registrations together (`201` + `409`); predefined hikes listed, linked with changes, `404`; my hikes order; staff list with the hiker's contacts for employee and warden |
+| `e2e/tests/web/hikes.spec.ts` | R9–R11 in the browser (time zone of the hut): visitor and staff on `/hikes/new`; a hike registered from scratch (passage points, recap, toast, empty form, **View my hikes** and its card); a popular hike chosen, **Start from scratch**, then changed; inline errors with nothing stored; the overlap message; a past hike under **Past** and the empty **Upcoming** tab; staff without hikes; staff page **Planned**, search and the hiker's contacts; a hiker kept out of the staff page                                                                                                  |
+
+The E2E tests add their own predefined hikes and write past hikes straight in the database (`createPredefinedHike`, `insertHike` in `e2e/fixtures/db.ts`), so they do not depend on the seed. They leave out the _Under way_ state, which MH-21 changes.
+
+```bash
+docker compose up --build -d --wait && npm run test:e2e -- tests/api/hikes.spec.ts tests/web/hikes.spec.ts
+```
 
 ### Try it manually
 
@@ -329,6 +340,6 @@ Checked by hand on 2026-11-25 against a throwaway database: the migration matche
 - **Report to the staff:** the decision of [#53](https://github.com/SE2-Polito/AY26-27-Mountain-Hut/issues/53) (a hike starts at its departure time; not leaving is handled by MH-22) is not in the Clarifications of MH-21, which still says "No approved clarifications yet".
 - **Predefined hikes only from the seed.** An installation without demo data has an empty list; the staff cannot manage the list yet. To decide whether to load the list in a migration or add a staff page.
 - **MH-22.** When a hike can be declared finished, decide whether a finished hike still blocks an overlapping registration (today every hike does).
-- **Tests.** E2E tests are still to write; the integration cases for my hikes and the staff list were not run yet.
+- **Tests.** The integration cases for my hikes and the staff list were not run yet. The `TODO(MH-20-e2e)` comments in the unit specs can go: the E2E tests are in `e2e/tests/{api,web}/hikes.spec.ts`.
 - **MH-21.** The staff page is read-only; overdue alerts and the monitoring of MH-21/MH-24 will build on it.
 - **Time zone on the web.** The page checks the departure with the browser clock; a hiker in another time zone may pass it and get the hut's `422`, shown above the button.
