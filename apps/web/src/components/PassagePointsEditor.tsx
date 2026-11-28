@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MAX_HIKE_PASSAGE_POINT_LENGTH, MAX_HIKE_PASSAGE_POINTS } from '@mountain-hut/shared';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { useToast } from './Toast.tsx';
 
 // One row of the editor: the key stays the same while the text and the order change.
@@ -43,7 +44,13 @@ export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePoi
 
   const full = value.length >= MAX_HIKE_PASSAGE_POINTS;
 
-  // Same as the requirements of a booking: the row goes, a toast offers to put it back.
+  // A row that waits for the answer to "Remove this passage point?".
+  const [removing, setRemoving] = useState<{ row: PassagePointDraft; index: number } | null>(null);
+  // Stable, so the question does not register its Escape key again on every render.
+  const keep = useCallback(() => setRemoving(null), []);
+
+  // Once confirmed, as for the requirements of a booking: the row goes, a toast offers to put
+  // it back.
   function remove(row: PassagePointDraft, index: number) {
     onChange(value.filter((r) => r.key !== row.key));
     const id = toast.show({
@@ -112,7 +119,7 @@ export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePoi
                   type="button"
                   className="pill pill--remove"
                   aria-label={`Remove passage point ${index + 1}`}
-                  onClick={() => remove(row, index)}
+                  onClick={() => setRemoving({ row, index })}
                 >
                   Remove
                 </button>
@@ -130,6 +137,19 @@ export function PassagePointsEditor({ value, onChange, errors = {} }: PassagePoi
       >
         {value.length === 0 ? 'Add a passage point' : 'Add another passage point'}
       </button>
+      {removing && (
+        <ConfirmDialog
+          title="Remove this passage point?"
+          text={`${removing.row.value.trim() || `Passage point ${removing.index + 1}`} will be removed from the hike.`}
+          keepLabel="Keep passage point"
+          confirmLabel="Remove"
+          onKeep={keep}
+          onConfirm={() => {
+            setRemoving(null);
+            remove(removing.row, removing.index);
+          }}
+        />
+      )}
     </fieldset>
   );
 }

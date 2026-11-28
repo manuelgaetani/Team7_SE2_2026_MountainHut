@@ -217,6 +217,11 @@
 .hike-summary__error {
   margin-bottom: 12px;
 }
+/* MH-20: the fields to fix are named next to the button, which would look dead otherwise. */
+.hike-summary__fix {
+  margin: 10px 0 0;
+  text-align: center;
+}
 .hike-summary__note {
   margin-top: 10px;
   text-align: center;

@@ -44,6 +44,10 @@ const TEXT = {
   sessionExpired: /The session has expired/,
   overlap: 'This hike overlaps your hike to Monte Vettore (2026-11-27 08:00 – 2026-11-27 17:00)',
   failed: 'The hike could not be registered. Please try again.',
+  removeTitle: 'Remove this passage point?',
+  keepPoint: 'Keep passage point',
+  remove: 'Remove',
+  fixFields: 'Some fields need a fix: see the messages in the form.',
 } as const;
 
 const HIKES_URL = '/api/hikes';
@@ -128,6 +132,13 @@ function fillWhere(destination = 'Monte Vettore', route = 'From Forca di Presta'
 }
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
+
+// Removing a passage point asks first, in a popup above the page.
+const removeQuestion = () => screen.getByRole('alertdialog', { name: TEXT.removeTitle });
+function removePoint(n: number) {
+  fireEvent.click(screen.getByRole('button', { name: `Remove passage point ${n}` }));
+  fireEvent.click(within(removeQuestion()).getByRole('button', { name: TEXT.remove }));
+}
 const posts = (fetchMock: ReturnType<typeof stub>) =>
   fetchMock.mock.calls.filter(([url, init]) => url === HIKES_URL && init?.method === 'POST');
 
@@ -301,7 +312,7 @@ describe('RegisterHikePage (MH-20)', () => {
       stub();
       await openPage();
       fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
-      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 1' }));
+      removePoint(1);
       expect(screen.getByLabelText('Passage point 1')).toHaveValue('Rifugio Tito Zilioli');
       expect(screen.queryByLabelText('Passage point 2')).not.toBeInTheDocument();
     });
@@ -309,7 +320,7 @@ describe('RegisterHikePage (MH-20)', () => {
       stub();
       await openPage();
       fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
-      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 1' }));
+      removePoint(1);
       expect(screen.getByRole('status')).toHaveTextContent(TEXT.pointRemoved);
 
       fireEvent.click(screen.getByRole('button', { name: TEXT.undo }));
@@ -323,7 +334,8 @@ describe('RegisterHikePage (MH-20)', () => {
       stub();
       await openPage();
       fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
-      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 2' }));
+      removePoint(2);
+      expect(screen.getByRole('button', { name: TEXT.undo })).toBeInTheDocument();
       fillWhen();
       submit();
       expect(await screen.findByText(TEXT.registered)).toBeVisible();
@@ -621,6 +633,118 @@ describe('RegisterHikePage (MH-20)', () => {
       fillWhen();
       submit();
       expect(await screen.findByRole('alert')).toHaveTextContent(TEXT.failed);
+    });
+  });
+
+  describe('removing a passage point asks first', () => {
+    it('names the place in the question and keeps it with Keep, Escape or the backdrop', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      const remove = () =>
+        fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 1' }));
+
+      remove();
+      expect(removeQuestion()).toHaveAccessibleDescription(
+        'Forca di Presta will be removed from the hike.',
+      );
+      expect(within(removeQuestion()).getByRole('button', { name: TEXT.keepPoint })).toHaveFocus();
+      fireEvent.click(within(removeQuestion()).getByRole('button', { name: TEXT.keepPoint }));
+      remove();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      remove();
+      fireEvent.click(removeQuestion().parentElement!);
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Passage point 1')).toHaveValue('Forca di Presta');
+      expect(screen.getByLabelText('Passage point 2')).toHaveValue('Rifugio Tito Zilioli');
+      expect(screen.queryByText(TEXT.pointRemoved)).not.toBeInTheDocument();
+    });
+
+    it('names an empty row by its number', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove passage point 1' }));
+
+      expect(removeQuestion()).toHaveAccessibleDescription(
+        'Passage point 1 will be removed from the hike.',
+      );
+      fireEvent.click(within(removeQuestion()).getByRole('button', { name: TEXT.remove }));
+      expect(screen.queryByLabelText('Passage point 1')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('fields to fix, under the button', () => {
+    it('says so only after Register the hike, and brings the first field into focus', async () => {
+      const fetchMock = stub();
+      await openPage();
+      expect(screen.queryByText(TEXT.fixFields)).not.toBeInTheDocument();
+
+      submit();
+
+      const line = screen.getByText(TEXT.fixFields);
+      expect(line).toHaveAttribute('role', 'alert');
+      // Under the button, not above it.
+      expect(
+        screen.getByRole('button', { name: TEXT.submit }).compareDocumentPosition(line) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      await waitFor(() => expect(screen.getByLabelText(TEXT.destination)).toHaveFocus());
+      expect(posts(fetchMock)).toHaveLength(0);
+    });
+
+    it('does not appear when a popular hike is chosen on a fresh form', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      expect(screen.queryByText(TEXT.fixFields)).not.toBeInTheDocument();
+    });
+
+    it('stays while other fields still need a fix after a popular hike is chosen', async () => {
+      stub();
+      await openPage();
+      submit();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+
+      expect(screen.queryByText(TEXT.destinationRequired)).not.toBeInTheDocument();
+      expect(screen.getByText(TEXT.departureDateRequired)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.fixFields)).toBeInTheDocument();
+    });
+
+    it('focuses the return time when the return is not after the departure', async () => {
+      stub();
+      await openPage();
+      fillWhere();
+      fillWhen({ departureTime: '17:00', returnTime: '08:00' });
+      submit();
+
+      expect(screen.getByText(TEXT.returnBeforeDeparture)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText(TEXT.returnTime)).toHaveFocus());
+    });
+
+    it('focuses an empty passage point before the dates', async () => {
+      stub();
+      await openPage();
+      fillWhere();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      submit();
+
+      await waitFor(() => expect(screen.getByLabelText('Passage point 1')).toHaveFocus());
+    });
+
+    it('goes away once the form is right', async () => {
+      stub();
+      await openPage();
+      submit();
+      expect(screen.getByText(TEXT.fixFields)).toBeInTheDocument();
+
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      fillWhen();
+      submit();
+
+      expect(await screen.findByText(TEXT.registered)).toBeVisible();
+      expect(screen.queryByText(TEXT.fixFields)).not.toBeInTheDocument();
     });
   });
 });

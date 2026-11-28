@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   hikeMoment,
@@ -43,6 +43,18 @@ const TOO_LONG: Partial<Record<Field, string>> = {
 const RETURN_BEFORE_DEPARTURE = 'The expected return must be after the planned departure.';
 const DEPARTURE_PAST = 'The planned departure must be in the future.';
 const POINT_EMPTY = 'Enter the name of the place, or remove this passage point.';
+// Next to the button: the red fields may be out of sight, and the button must not look dead.
+const FIX_FIELDS = 'Some fields need a fix: see the messages in the form.';
+
+// The fields in the order of the form, to bring the first one with an error into view.
+const FIELD_IDS: Record<Field, string> = {
+  destination: 'hike-destination',
+  route: 'hike-route',
+  departureDate: 'hike-departure-date',
+  departureTime: 'hike-departure-time',
+  returnDate: 'hike-return-date',
+  returnTime: 'hike-return-time',
+};
 const POINT_TOO_LONG = `Use at most ${MAX_HIKE_PASSAGE_POINT_LENGTH} characters.`;
 
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -133,6 +145,15 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pointErrors, setPointErrors] = useState<Partial<Record<number, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // The field to focus once the errors are on screen.
+  const focusAfterRender = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusAfterRender.current === null) return;
+    document.getElementById(focusAfterRender.current)?.focus();
+    focusAfterRender.current = null;
+  });
+  // Only messages on screen count: choosing a popular hike clears some errors to undefined.
+  const needsFix = Object.values(errors).some(Boolean) || Object.values(pointErrors).some(Boolean);
 
   function choose(hike: PredefinedHike) {
     setPredefinedHikeId(hike.id);
@@ -193,6 +214,15 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
     if (Object.keys(found).length > 0 || Object.keys(foundPoints).length > 0 || !parsed.success) {
       setErrors(found);
       setPointErrors(foundPoints);
+      // The focus goes to the first field to fix, which also scrolls it into view.
+      const order: string[] = [
+        ...(['destination', 'route'] as const).filter((f) => found[f]).map((f) => FIELD_IDS[f]),
+        ...points.filter((p) => foundPoints[p.key]).map((p) => `passage-point-${p.key}`),
+        ...(['departureDate', 'departureTime', 'returnDate', 'returnTime'] as const)
+          .filter((f) => found[f])
+          .map((f) => FIELD_IDS[f]),
+      ];
+      focusAfterRender.current = order[0] ?? null;
       return;
     }
 
@@ -345,6 +375,11 @@ function RegisterHikeForm({ onReset }: { onReset: () => void }) {
           <button type="submit" className="cta cta--center" disabled={registerHike.isPending}>
             {registerHike.isPending ? 'Registering…' : 'Register the hike'}
           </button>
+          {needsFix && (
+            <p role="alert" className="field-error hike-summary__fix">
+              {FIX_FIELDS}
+            </p>
+          )}
           <p className="field__hint hike-summary__note">
             The hut uses these details only if you do not return as expected. * Required fields
           </p>
