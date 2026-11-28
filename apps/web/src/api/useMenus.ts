@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MenuCourse } from '../lib/menu.ts';
-import { fetchPastMenus, fetchSlotMenu, saveSlotMenu } from './menus.ts';
+import { deleteSlotMenu, fetchPastMenus, fetchSlotMenu, saveSlotMenu } from './menus.ts';
 
 const MENUS_KEY = ['menus'] as const;
 
@@ -23,6 +23,15 @@ export function useSaveSlotMenu() {
   return useMutation({
     mutationFn: ({ slotId, courses }: { slotId: number; courses: MenuCourse[] }) =>
       saveSlotMenu(slotId, courses),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: MENUS_KEY }),
+  });
+}
+
+// The deleted menu also leaves the list of previous menus, so every menu query is asked again.
+export function useDeleteSlotMenu() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (slotId: number) => deleteSlotMenu(slotId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MENUS_KEY }),
   });
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { defineMenuSchema } from '@mountain-hut/shared';
 import type { SlotDetails } from '../api/slots.ts';
-import { usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
+import { useDeleteSlotMenu, usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
 import {
@@ -95,7 +95,7 @@ const toggle = (marks: MenuMark[], mark: MenuMark): MenuMark[] =>
 
 interface MenuEditorProps {
   slot: SlotDetails;
-  // Called with a short confirmation once the menu is saved.
+  // Called with a short confirmation once the menu is saved or deleted.
   onDone: (message: string) => void;
   onClose: () => void;
 }
@@ -139,6 +139,9 @@ export function MenuEditor(props: MenuEditorProps) {
 
 function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: SlotMenu | null }) {
   const save = useSaveSlotMenu();
+  const remove = useDeleteSlotMenu();
+  // While a request is on its way the dialog stays open and the menu as it is.
+  const busy = save.isPending || remove.isPending;
   const past = usePastMenus();
   const time = `${slot.startTime}–${slot.endTime}`;
   // The courses of this slot's menu; null without a menu, or for a free text sent straight to
@@ -149,9 +152,9 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   const [startFrom, setStartFrom] = useState(savedCourses ? 'saved' : 'empty');
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
-  // A pending choice that waits for the answer to "Discard your changes?".
+  // A pending choice that waits for the answer to "Discard your changes?" or "Delete this menu?".
   const [confirming, setConfirming] = useState<
-    { kind: 'close' } | { kind: 'start'; value: string } | null
+    { kind: 'close' } | { kind: 'start'; value: string } | { kind: 'delete' } | null
   >(null);
   const keepRef = useRef<HTMLButtonElement>(null);
 
@@ -251,7 +254,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   }
 
   const requestClose = () => {
-    if (save.isPending) return;
+    if (busy) return;
     if (dirty) setConfirming({ kind: 'close' });
     else onClose();
   };
@@ -259,14 +262,29 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   // Escape answers the question first, then asks to close.
   useEffect(() => {
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape' || save.isPending) return;
+      if (e.key !== 'Escape' || busy) return;
       if (confirming) setConfirming(null);
       else if (dirty) setConfirming({ kind: 'close' });
       else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [confirming, dirty, onClose, save.isPending]);
+  }, [confirming, dirty, onClose, busy]);
+
+  // The staff confirmed: the menu of this slot is deleted, hikers no longer see it.
+  function deleteMenu() {
+    setSaveError(null);
+    remove.mutate(slot.id, {
+      onSuccess: () => onDone(`Menu deleted for ${time}.`),
+      onError: (e) => {
+        setConfirming(null);
+        // 422: the slot has started meanwhile; 404: the menu or the slot is already gone.
+        setSaveError(
+          apiErrorMessage(e, 'The menu could not be deleted. Please try again.', [404, 422]),
+        );
+      },
+    });
+  }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -285,8 +303,11 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
       { slotId: slot.id, courses: menu },
       {
         onSuccess: () => onDone(`Menu saved for ${time}.`),
+        // 422: the slot has started meanwhile, its menu stays as it is.
         onError: (e) =>
-          setSaveError(apiErrorMessage(e, 'The menu could not be saved. Please try again.', [404])),
+          setSaveError(
+            apiErrorMessage(e, 'The menu could not be saved. Please try again.', [404, 422]),
+          ),
       },
     );
   }
@@ -468,9 +489,44 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
         )}
         {saveError && <ErrorNotice message={saveError} />}
 
+        {saved && (
+          <button
+            type="button"
+            className="pill pill--remove menu-editor__delete"
+            disabled={busy}
+            onClick={() => setConfirming({ kind: 'delete' })}
+          >
+            Delete menu
+          </button>
+        )}
+
         {/* Always in sight at the bottom of the dialog, also while scrolling the dishes. */}
         <div className="menu-editor__footer">
-          {confirming ? (
+          {confirming?.kind === 'delete' ? (
+            <div className="modify-dialog__discard">
+              <p className="modify-dialog__discard-title">Delete this menu?</p>
+              <p className="field__hint">Hikers will no longer see a menu for {time}.</p>
+              <div className="modify-dialog__actions">
+                <button
+                  ref={keepRef}
+                  type="button"
+                  className="modify-dialog__secondary"
+                  disabled={busy}
+                  onClick={() => setConfirming(null)}
+                >
+                  Keep menu
+                </button>
+                <button
+                  type="button"
+                  className="modify-dialog__danger"
+                  disabled={busy}
+                  onClick={deleteMenu}
+                >
+                  {remove.isPending ? 'Deleting menu…' : 'Delete menu'}
+                </button>
+              </div>
+            </div>
+          ) : confirming ? (
             <div className="modify-dialog__discard">
               <p className="modify-dialog__discard-title">Discard your changes?</p>
               <div className="modify-dialog__actions">
@@ -498,7 +554,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
               <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
                 Close
               </button>
-              <button type="submit" className="modify-dialog__primary" disabled={save.isPending}>
+              <button type="submit" className="modify-dialog__primary" disabled={busy}>
                 {save.isPending ? 'Saving menu…' : 'Save menu'}
               </button>
             </div>
