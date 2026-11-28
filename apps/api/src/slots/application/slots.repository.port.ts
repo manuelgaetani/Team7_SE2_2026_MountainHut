@@ -19,8 +19,8 @@ export abstract class SlotsRepository {
   // even when the day has no slots yet.
   abstract lockDay(date: string): Promise<void>;
 
-  // A slot of the same day that overlaps the given times, if any. Slots that only touch
-  // (one ends when the other starts) do not overlap.
+  // A slot of the same day that overlaps the given times, if any (the earliest one). Slots that
+  // only touch (one ends when the other starts) do not overlap.
   abstract findOverlapping(slot: NewSlot): Promise<Slot | null>;
 
   // Locks the slots from one date to another, both included, until the end of the transaction,
@@ -47,7 +47,7 @@ export abstract class SlotsRepository {
 
   abstract createTables(slotId: number, tables: SlotTable[]): Promise<void>;
 
-  // Seats taken at the tables of the slot, by the active bookings of every overlapping slot
-  // (tables are shared). Empty if the slot does not exist.
+  // Seats taken at each table of the slot by the active (confirmed or pending) bookings of every
+  // slot of the same day that overlaps it, since tables are shared. Empty if the slot does not exist.
   abstract findFloorAllocations(slotId: number): Promise<FloorAllocation[]>;
 }

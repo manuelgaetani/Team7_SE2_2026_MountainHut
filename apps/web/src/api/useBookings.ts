@@ -13,7 +13,7 @@ export const MY_BOOKINGS_KEY = ['bookings', 'me'] as const;
 // The booking page and the change dialog read the same list of slots.
 export const SLOTS_KEY = ['slots'] as const;
 
-// The slots a hiker can book.
+// The slots a hiker can book or move a booking to.
 export function useBookableSlots() {
   return useQuery({ queryKey: SLOTS_KEY, queryFn: fetchSlots });
 }

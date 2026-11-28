@@ -30,8 +30,8 @@ export class SlotsService {
 
   // Creates a slot, optionally with its tables (a list, or a copy of another slot's tables).
   // 404 if copyTablesFromSlotId does not exist; 409 if the slot overlaps another slot of the same
-  // day (issue #31: contiguous slots are allowed) or (raised by the repository) has the same
-  // date, start and end. Slots in the past are still accepted: the story does not say otherwise.
+  // day (issue #31: contiguous slots are allowed) or (raised by the repository) has the same date,
+  // start and end. Slots in the past are still accepted: the story does not say otherwise.
   async create(input: CreateSlotInput): Promise<SlotDetails> {
     const slot = { date: input.date, startTime: input.startTime, endTime: input.endTime };
     const id = await this.uow.run(async () => {

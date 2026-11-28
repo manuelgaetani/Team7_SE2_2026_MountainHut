@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { SlotSummary } from '@mountain-hut/shared';
 import { TimeList } from './TimeList.tsx';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const isBookable = (slot: SlotSummary, guests: number): boolean =>
   slot.availability === 'AVAILABLE' && slot.freeSeats >= guests;
 

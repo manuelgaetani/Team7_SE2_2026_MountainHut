@@ -52,6 +52,16 @@ const TEXT = {
   sessionExpired: 'The session has expired. Please sign in again.',
   preview: 'As hikers see it',
   notOut: 'The menu of this slot is not out yet.',
+  seeMenu: 'See the menu of 19:00–21:00',
+  deleteMenu: 'Delete menu',
+  deleting: 'Deleting menu…',
+  deleteTitle: 'Delete this menu?',
+  deleteText: 'Hikers will no longer see a menu for 19:00–21:00.',
+  keepMenu: 'Keep menu',
+  deleted: 'Menu deleted for 19:00–21:00.',
+  deleteFailed: 'The menu could not be deleted. Please try again.',
+  removeDishTitle: 'Remove this dish?',
+  keepDish: 'Keep dish',
 } as const;
 
 const employeeUser = { id: 2, email: 'employee@hut.test', role: 'EMPLOYEE' };
@@ -103,12 +113,17 @@ interface MockOptions {
   menu?: () => Response | Promise<Response>;
   past?: () => Response;
   put?: (body: { text: string }) => Response | Promise<Response>;
+  // DELETE of the slot menu; by default it succeeds with 204.
+  del?: () => Response | Promise<Response>;
 }
 
+const noMenu = () => json({ message: MENU_ERRORS.noMenu }, 404);
+
 function stubMenuApi({
-  menu = () => json({ message: MENU_ERRORS.noMenu }, 404),
+  menu = noMenu,
   past = () => json([]),
   put = (body) => savedMenu(body.text),
+  del = () => new Response(null, { status: 204 }),
 }: MockOptions = {}) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (url === '/api/auth/me') return Promise.resolve(json(employeeUser));
@@ -118,6 +133,7 @@ function stubMenuApi({
     if (url === MENU_URL && init?.method === 'PUT') {
       return Promise.resolve(put(JSON.parse(init.body as string) as { text: string }));
     }
+    if (url === MENU_URL && init?.method === 'DELETE') return Promise.resolve(del());
     if (url === MENU_URL) return Promise.resolve(menu());
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
@@ -127,6 +143,8 @@ function stubMenuApi({
 
 const putCalls = (fetchMock: ReturnType<typeof stubMenuApi>) =>
   fetchMock.mock.calls.filter(([url, init]) => url === MENU_URL && init?.method === 'PUT');
+const deleteCalls = (fetchMock: ReturnType<typeof stubMenuApi>) =>
+  fetchMock.mock.calls.filter(([url, init]) => url === MENU_URL && init?.method === 'DELETE');
 
 function renderSlotsPage() {
   const router = createMemoryRouter(routes, { initialEntries: ['/staff/slots'] });
@@ -145,6 +163,11 @@ async function openEditor(name: string = TEXT.define) {
   fireEvent.click(button);
   return screen.findByRole('dialog', { name: TEXT.title });
 }
+
+// The questions (discard, delete, remove) open in a popup above the editor, outside of it.
+const question = (name: string) => screen.getByRole('alertdialog', { name });
+const answer = (title: string, button: string) =>
+  fireEvent.click(within(question(title)).getByRole('button', { name: button }));
 
 const dishGroup = (dialog: HTMLElement, name = 'Antipasti · dish 1') =>
   within(dialog).getByRole('group', { name });
@@ -412,8 +435,7 @@ describe('MenuEditor (MH-10)', () => {
 
       // The empty menu is a change from the saved one: going back to it asks first.
       fireEvent.change(startFrom, { target: { value: 'saved' } });
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.discard }));
+      answer(TEXT.discardTitle, TEXT.discard);
       expect(within(dialog).getByLabelText('Course 1')).toHaveValue('Primi');
       expect(startFrom).toHaveValue('saved');
     });
@@ -455,7 +477,8 @@ describe('MenuEditor (MH-10)', () => {
     it.each([
       [404, MENU_ERRORS.slotNotFound, MENU_ERRORS.slotNotFound],
       [409, 'Conflict', TEXT.saveFailed],
-      [422, MENU_ERRORS.startedChange, TEXT.saveFailed],
+      // The slot started while the editor was open: the API says so.
+      [422, MENU_ERRORS.startedChange, MENU_ERRORS.startedChange],
     ])(
       'shows the error of a %i answer and keeps the editor open',
       async (status, message, shown) => {
@@ -488,6 +511,10 @@ describe('MenuEditor (MH-10)', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: TEXT.addDish }));
       fillDish(dishGroup(dialog), { name: 'Canederli in brodo' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Canederli in brodo' }));
+      expect(question('Remove this dish?')).toHaveAccessibleDescription(
+        'Canederli in brodo will be removed from Antipasti.',
+      );
+      answer('Remove this dish?', 'Remove dish');
 
       expect(within(dialog).queryByRole('group', { name: 'Antipasti · dish 1' })).toBeNull();
       expect(await screen.findByText('Dish removed: Canederli in brodo.')).toBeInTheDocument();
@@ -503,6 +530,10 @@ describe('MenuEditor (MH-10)', () => {
       const dialog = await openEditor();
       fireEvent.click(within(dialog).getByRole('button', { name: TEXT.addDish }));
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove dish 1' }));
+      expect(question('Remove this dish?')).toHaveAccessibleDescription(
+        'This dish will be removed from Antipasti.',
+      );
+      answer('Remove this dish?', 'Remove dish');
 
       expect(await screen.findByText('Dish removed.')).toBeInTheDocument();
     });
@@ -513,6 +544,10 @@ describe('MenuEditor (MH-10)', () => {
 
       const dialog = await openEditor();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the course Antipasti' }));
+      expect(question('Remove this course?')).toHaveAccessibleDescription(
+        'Antipasti will be removed from the menu.',
+      );
+      answer('Remove this course?', 'Remove course');
 
       expect(within(dialog).getByLabelText('Course 1')).toHaveValue('Primi');
       expect(await screen.findByText('Course removed: Antipasti.')).toBeInTheDocument();
@@ -522,6 +557,10 @@ describe('MenuEditor (MH-10)', () => {
       // A course without a name: removed, then a new empty one is added in its place.
       fireEvent.change(within(dialog).getByLabelText('Course 4'), { target: { value: '' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the course 4' }));
+      expect(question('Remove this course?')).toHaveAccessibleDescription(
+        'This course will be removed from the menu.',
+      );
+      answer('Remove this course?', 'Remove course');
       expect(await screen.findByText('Course removed.')).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole('button', { name: TEXT.addCourse }));
       expect(within(dialog).getByLabelText('Course 4')).toHaveValue('');
@@ -534,6 +573,7 @@ describe('MenuEditor (MH-10)', () => {
 
       const dialog = await openEditor();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove the course Dolci' }));
+      answer('Remove this course?', 'Remove course');
       await screen.findByText('Course removed: Dolci.');
       fireEvent.click(within(dialog).getByRole('button', { name: TEXT.addCourse }));
       fireEvent.click(screen.getByRole('button', { name: TEXT.undo }));
@@ -567,16 +607,19 @@ describe('MenuEditor (MH-10)', () => {
       });
       fireEvent.click(within(dialog).getAllByRole('button', { name: TEXT.close })[1]!);
 
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
-      const keep = within(dialog).getByRole('button', { name: TEXT.keep });
+      expect(question(TEXT.discardTitle)).toHaveAccessibleDescription(
+        'The changes you made to this menu will be lost.',
+      );
+      const keep = within(question(TEXT.discardTitle)).getByRole('button', { name: TEXT.keep });
       await waitFor(() => expect(keep).toHaveFocus());
       fireEvent.click(keep);
-      expect(within(dialog).queryByText(TEXT.discardTitle)).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       expect(within(dialog).getByLabelText('Course 1')).toHaveValue('Taglieri');
 
       fireEvent.click(within(dialog).getAllByRole('button', { name: TEXT.close })[1]!);
-      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.discard }));
+      answer(TEXT.discardTitle, TEXT.discard);
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
 
     it('asks on Escape, and a second Escape answers "keep editing"', async () => {
@@ -588,15 +631,16 @@ describe('MenuEditor (MH-10)', () => {
         target: { value: 'Taglieri' },
       });
       fireEvent.keyDown(document, { key: 'Escape' });
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
+      expect(question(TEXT.discardTitle)).toBeInTheDocument();
 
       fireEvent.keyDown(document, { key: 'Escape' });
-      expect(within(dialog).queryByText(TEXT.discardTitle)).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       expect(screen.getByRole('dialog', { name: TEXT.title })).toBeInTheDocument();
+      expect(within(dialog).getByLabelText('Course 1')).toHaveValue('Taglieri');
 
       // Other keys do nothing.
       fireEvent.keyDown(document, { key: 'Enter' });
-      expect(within(dialog).queryByText(TEXT.discardTitle)).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
 
     it('asks from the × button and from the backdrop, not from a click inside', async () => {
@@ -609,14 +653,13 @@ describe('MenuEditor (MH-10)', () => {
       });
 
       fireEvent.click(dialog);
-      expect(within(dialog).queryByText(TEXT.discardTitle)).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 
       fireEvent.click(dialog.parentElement!);
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.keep }));
+      answer(TEXT.discardTitle, TEXT.keep);
 
       fireEvent.click(within(dialog).getAllByRole('button', { name: TEXT.close })[0]!);
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
+      expect(question(TEXT.discardTitle)).toBeInTheDocument();
     });
 
     it('does not count edits that put back the original values', async () => {
@@ -645,9 +688,163 @@ describe('MenuEditor (MH-10)', () => {
       });
       fireEvent.change(within(dialog).getByLabelText(TEXT.startFrom), { target: { value: '7' } });
 
-      expect(within(dialog).getByText(TEXT.discardTitle)).toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.discard }));
+      expect(question(TEXT.discardTitle)).toHaveAccessibleDescription(
+        'The changes you made will be replaced by the menu you picked.',
+      );
+      answer(TEXT.discardTitle, TEXT.discard);
       expect(within(dialog).getByLabelText('Course 1')).toHaveValue('Dolci');
+    });
+  });
+
+  describe('removing needs a confirmation', () => {
+    it('keeps the dish with Keep dish, Escape or the backdrop', async () => {
+      stubMenuApi();
+      renderSlotsPage();
+
+      const dialog = await openEditor();
+      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.addDish }));
+      fillDish(dishGroup(dialog), { name: 'Canederli' });
+      const remove = () =>
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Canederli' }));
+
+      remove();
+      answer(TEXT.removeDishTitle, TEXT.keepDish);
+      remove();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      remove();
+      fireEvent.click(question(TEXT.removeDishTitle).parentElement!);
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(within(dishGroup(dialog)).getByLabelText(TEXT.name)).toHaveValue('Canederli');
+      // Escape answered the question only: the editor is still open.
+      expect(screen.getByRole('dialog', { name: TEXT.title })).toBeInTheDocument();
+    });
+  });
+
+  describe('deleting the menu of a future slot (R12)', () => {
+    it('deletes the menu after asking, says so and offers to define it again', async () => {
+      let stored = true;
+      const fetchMock = stubMenuApi({
+        menu: () => (stored ? savedMenu(polentaText) : noMenu()),
+        del: () => {
+          stored = false;
+          return new Response(null, { status: 204 });
+        },
+      });
+      renderSlotsPage();
+
+      const dialog = await openEditor(TEXT.edit);
+      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.deleteMenu }));
+      expect(question(TEXT.deleteTitle)).toHaveAccessibleDescription(TEXT.deleteText);
+      await waitFor(() =>
+        expect(
+          within(question(TEXT.deleteTitle)).getByRole('button', { name: TEXT.keepMenu }),
+        ).toHaveFocus(),
+      );
+      answer(TEXT.deleteTitle, TEXT.deleteMenu);
+
+      expect(await screen.findByText(TEXT.deleted)).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: TEXT.title })).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(deleteCalls(fetchMock)).toHaveLength(1);
+      expect(await screen.findByRole('button', { name: TEXT.define })).toBeInTheDocument();
+    });
+
+    it('keeps the menu with Keep menu or Escape', async () => {
+      const fetchMock = stubMenuApi({ menu: () => savedMenu(polentaText) });
+      renderSlotsPage();
+
+      const dialog = await openEditor(TEXT.edit);
+      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.deleteMenu }));
+      answer(TEXT.deleteTitle, TEXT.keepMenu);
+      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.deleteMenu }));
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: TEXT.title })).toBeInTheDocument();
+      expect(deleteCalls(fetchMock)).toHaveLength(0);
+    });
+
+    it('cannot be answered again or closed while the menu is being deleted', async () => {
+      stubMenuApi({ menu: () => savedMenu(polentaText), del: () => new Promise(() => {}) });
+      renderSlotsPage();
+
+      const dialog = await openEditor(TEXT.edit);
+      fireEvent.click(within(dialog).getByRole('button', { name: TEXT.deleteMenu }));
+      answer(TEXT.deleteTitle, TEXT.deleteMenu);
+
+      const busy = within(question(TEXT.deleteTitle));
+      expect(await busy.findByRole('button', { name: TEXT.deleting })).toBeDisabled();
+      expect(busy.getByRole('button', { name: TEXT.keepMenu })).toBeDisabled();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(question(TEXT.deleteTitle)).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: TEXT.title })).toBeInTheDocument();
+    });
+
+    it.each([
+      [404, MENU_ERRORS.noMenu, MENU_ERRORS.noMenu],
+      // The slot started while the editor was open.
+      [422, MENU_ERRORS.startedDelete, MENU_ERRORS.startedDelete],
+      [500, 'Internal server error', TEXT.deleteFailed],
+    ])(
+      'shows why a %i answer left the menu, in the open editor',
+      async (status, message, shown) => {
+        stubMenuApi({ menu: () => savedMenu(polentaText), del: () => json({ message }, status) });
+        renderSlotsPage();
+
+        const dialog = await openEditor(TEXT.edit);
+        fireEvent.click(within(dialog).getByRole('button', { name: TEXT.deleteMenu }));
+        answer(TEXT.deleteTitle, TEXT.deleteMenu);
+
+        expect(await within(dialog).findByText(shown)).toBeInTheDocument();
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: TEXT.title })).toBeInTheDocument();
+      },
+    );
+
+    it('offers to delete only a menu that exists', async () => {
+      stubMenuApi();
+      renderSlotsPage();
+
+      const dialog = await openEditor();
+      expect(within(dialog).queryByRole('button', { name: TEXT.deleteMenu })).toBeNull();
+    });
+  });
+
+  describe('once the slot has started (R10, R12)', () => {
+    it('only shows the menu: no editing, no deleting', async () => {
+      // The slot of 19:00 has just started.
+      vi.setSystemTime(new Date(2026, 10, 4, 19, 0, 0));
+      stubMenuApi({ menu: () => savedMenu(polentaText) });
+      renderSlotsPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: TEXT.seeMenu }));
+      const preview = await screen.findByRole('dialog', { name: '19:00–21:00, Wed 4 Nov' });
+      expect(await within(preview).findByText('Polenta concia')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: TEXT.edit })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: TEXT.title })).not.toBeInTheDocument();
+    });
+
+    it('offers nothing to a slot without a menu', async () => {
+      vi.setSystemTime(new Date(2026, 10, 4, 20, 0, 0));
+      const fetchMock = stubMenuApi();
+      renderSlotsPage();
+
+      // Once the menu answer has arrived, no menu button is left.
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.some(([url]) => url === MENU_URL)).toBe(true),
+      );
+      await screen.findByRole('link', { name: 'Floor plan of 19:00–21:00' });
+      expect(screen.queryByRole('button', { name: TEXT.define })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: TEXT.seeMenu })).not.toBeInTheDocument();
+    });
+
+    it('can still be changed one minute before the start', async () => {
+      vi.setSystemTime(new Date(2026, 10, 4, 18, 59, 0));
+      stubMenuApi({ menu: () => savedMenu(polentaText) });
+      renderSlotsPage();
+
+      expect(await openEditor(TEXT.edit)).toBeInTheDocument();
     });
   });
 

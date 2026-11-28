@@ -45,6 +45,7 @@ describe('SlotsController', () => {
       })
       .compile();
     app = module.createNestApplication();
+    // Registered globally by AppModule (APP_FILTER): maps DomainError to its HTTP status.
     app.useGlobalFilters(new DomainExceptionFilter());
     await app.init();
   });

@@ -1,13 +1,11 @@
+import { MENU_ERRORS } from '@mountain-hut/shared';
 import type {
   PreviousMenu as ApiPreviousMenu,
   SlotMenu as ApiSlotMenu,
 } from '@mountain-hut/shared';
 import { cleanCourses, type MenuCourse, type PastMenu, type SlotMenu } from '../lib/menu.ts';
 import { menuToText, textToCourses } from '../lib/menuFormat.ts';
-import { ApiError, apiGet, apiPut } from './client.ts';
-
-// The answer of GET /slots/:id/menu for a slot that exists but has no menu yet.
-const NO_MENU = 'This slot has no menu';
+import { ApiError, apiDelete, apiGet, apiPut } from './client.ts';
 
 const toSlotMenu = (menu: ApiSlotMenu): SlotMenu => ({
   slotId: menu.slotId,
@@ -21,7 +19,8 @@ export async function fetchSlotMenu(slotId: number): Promise<SlotMenu | null> {
   try {
     return toSlotMenu(await apiGet<ApiSlotMenu>(`/slots/${slotId}/menu`));
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404 && e.message === NO_MENU) return null;
+    // The slot exists but the staff have not written its menu yet.
+    if (e instanceof ApiError && e.status === 404 && e.message === MENU_ERRORS.noMenu) return null;
     throw e;
   }
 }
@@ -42,4 +41,9 @@ export async function fetchPastMenus(): Promise<PastMenu[]> {
 export async function saveSlotMenu(slotId: number, courses: MenuCourse[]): Promise<SlotMenu> {
   const text = menuToText(cleanCourses(courses));
   return toSlotMenu(await apiPut<ApiSlotMenu>(`/slots/${slotId}/menu`, { text }));
+}
+
+// Deletes the menu of a slot that has not started yet. Staff only.
+export async function deleteSlotMenu(slotId: number): Promise<void> {
+  await apiDelete(`/slots/${slotId}/menu`);
 }

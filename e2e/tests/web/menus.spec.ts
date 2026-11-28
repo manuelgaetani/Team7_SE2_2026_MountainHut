@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import { expect, test } from '../../fixtures/auth.js';
 import type { TestUser } from '../../fixtures/auth.js';
-import { createMenuSlot, deleteSlot, slotStart } from '../../fixtures/db.js';
+import {
+  createMenuSlot,
+  createPastSlot,
+  createStartedSlot,
+  deleteSlot,
+  setMenu,
+  slotStart,
+} from '../../fixtures/db.js';
 import { SLOT } from '../../fixtures/slots.js';
 
 interface ListedSlot {
@@ -50,9 +57,9 @@ async function signIn(page: Page, user: TestUser): Promise<void> {
 }
 
 // The card of the slot on the staff page, opened on its day.
-async function openSlotCard(page: Page, slotId: number): Promise<Locator> {
+async function openSlotCard(page: Page, slotId: number, time: string = TIME): Promise<Locator> {
   await page.goto(`/staff/slots?date=${slotStart(slotId).date}`);
-  const card = page.locator('.schedule__slot', { hasText: TIME });
+  const card = page.locator('.schedule__slot', { hasText: time });
   await expect(card).toBeVisible();
   return card;
 }
@@ -181,13 +188,16 @@ test.describe('MH-10 UI: Define menus', () => {
     await dialog.getByRole('button', { name: 'Add a dish to Dolci' }).click();
     await dialog.getByLabel('Name (Italian)').fill('Strudel');
 
+    // The question opens in a popup above the editor.
+    const question = page.getByRole('alertdialog', { name: 'Discard your changes?' });
     await closeButton(dialog).click();
-    await expect(dialog.getByText('Discard your changes?')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(question).toBeVisible();
+    await question.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(question).toHaveCount(0);
     await expect(dialog.getByLabel('Name (Italian)')).toHaveValue('Strudel');
 
     await closeButton(dialog).click();
-    await dialog.getByRole('button', { name: 'Discard' }).click();
+    await question.getByRole('button', { name: 'Discard' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(card.getByRole('button', { name: `Define the menu of ${TIME}` })).toBeVisible();
     expect(await savedText(page.request, slotId)).toBeNull();
@@ -292,6 +302,75 @@ test.describe('MH-10 UI: Define menus', () => {
         "This slot's menu is a free text written outside the editor: saving replaces it.",
       ),
     ).toBeVisible();
+  });
+});
+
+test.describe('MH-10 UI: Menus only before the slot starts', () => {
+  // The web app reads the start of a slot in the time of the browser: the hut's.
+  test.use({ timezoneId: 'Europe/Rome' });
+
+  test('deletes the menu of a future slot after asking', async ({
+    page,
+    employeeUser,
+    employeeRequest,
+  }) => {
+    const slotId = newSlot();
+    await writeMenu(employeeRequest, slotId, editorMenu());
+
+    await signIn(page, employeeUser);
+    const card = await openSlotCard(page, slotId);
+    const dialog = await openEditor(page, card, 'Edit');
+    const question = page.getByRole('alertdialog', { name: 'Delete this menu?' });
+
+    // Keep menu: nothing is deleted.
+    await dialog.getByRole('button', { name: 'Delete menu' }).click();
+    await expect(question).toContainText(`Hikers will no longer see a menu for ${TIME}.`);
+    await question.getByRole('button', { name: 'Keep menu' }).click();
+    await expect(question).toHaveCount(0);
+    expect(await savedText(page.request, slotId)).not.toBeNull();
+
+    await dialog.getByRole('button', { name: 'Delete menu' }).click();
+    await question.getByRole('button', { name: 'Delete menu' }).click();
+    await expect(page.getByText(`Menu deleted for ${TIME}.`)).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByRole('button', { name: `Define the menu of ${TIME}` })).toBeVisible();
+    await expect(card).not.toContainText('Menu ·');
+    expect(await savedText(page.request, slotId)).toBeNull();
+  });
+
+  test('a slot that is over only shows its menu', async ({ page, employeeUser }) => {
+    const slotId = createPastSlot([4]);
+    slotIds.push(slotId);
+    setMenu(slotId, editorMenu());
+    const time = '19:00–21:00';
+
+    await signIn(page, employeeUser);
+    const card = await openSlotCard(page, slotId, time);
+    await expect(card).toContainText('Menu · 1 course');
+    await expect(card.getByRole('button', { name: `Edit the menu of ${time}` })).toHaveCount(0);
+
+    await card.getByRole('button', { name: `See the menu of ${time}` }).click();
+    const preview = page.getByRole('dialog').filter({ hasText: 'As hikers see it' });
+    await expect(preview).toContainText('Polenta concia');
+    await expect(page.getByRole('dialog', { name: `Menu for ${time}` })).toHaveCount(0);
+  });
+
+  test('a started slot without a menu offers no menu button', async ({ page, employeeUser }) => {
+    const slotId = createStartedSlot([4]);
+    slotIds.push(slotId);
+    const start = slotStart(slotId).time;
+
+    await signIn(page, employeeUser);
+    // The buttons depend on the menu of the slot: wait for its answer (404, no menu).
+    const menuAnswer = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === `/api/slots/${slotId}/menu`,
+    );
+    const card = await openSlotCard(page, slotId, `${start}–23:59`);
+    expect((await menuAnswer).status()).toBe(404);
+    await expect(card.getByRole('link', { name: /^Floor plan of / })).toBeVisible();
+    await expect(card.getByRole('button', { name: /^(Define|Edit|See) the menu of / })).toHaveCount(
+      0,
+    );
   });
 });
 

@@ -5,6 +5,7 @@ import { checkAvailabilityQuerySchema } from '@mountain-hut/shared';
 import { ZodValidationPipe } from '../../presentation/zod-validation.pipe.js';
 import { AvailabilityService } from '../application/availability.service.js';
 
+// MH-04: public, no login needed.
 @ApiTags('bookings')
 @Controller('availability')
 export class AvailabilityController {

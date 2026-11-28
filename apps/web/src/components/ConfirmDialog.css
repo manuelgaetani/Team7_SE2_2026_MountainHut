@@ -1,0 +1,23 @@
+/* Builds on .dialog-backdrop, .dialog, .dialog__close, .dialog__title and .dialog__text of the
+   booking page. Above another dialog (z-index 10), below the toasts (z-index 30). */
+.dialog-backdrop.confirm-backdrop {
+  z-index: 20;
+  /* Over a dialog's own backdrop, so a lighter shade is enough to dim what is behind. */
+  background: rgb(20 28 22 / 0.35);
+}
+.confirm-dialog {
+  width: min(100%, 420px);
+}
+.confirm-dialog .dialog__title {
+  padding-right: 32px;
+}
+.confirm-dialog__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 420px) {
+  .confirm-dialog__actions {
+    grid-template-columns: 1fr;
+  }
+}

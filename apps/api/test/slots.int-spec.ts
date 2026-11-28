@@ -443,8 +443,8 @@ describe('Slots with PostgreSQL (integration) - MH-02', () => {
           tables: [{ tableNumber: 2, seats: 6 }],
         }),
       ).rejects.toMatchObject({
+        // MH-02 (issue #31): the overlap check runs first, and an identical slot overlaps.
         code: 'CONFLICT',
-        // An identical slot overlaps the existing one, so the overlap check refuses it (MH-02).
         message: 'This slot overlaps the slot 12:00–14:00 of the same day',
       });
     });

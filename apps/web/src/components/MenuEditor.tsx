@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { defineMenuSchema } from '@mountain-hut/shared';
 import type { SlotDetails } from '../api/slots.ts';
-import { usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
+import { useDeleteSlotMenu, usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
 import { dateShort, fromIsoDate } from '../lib/dates.ts';
 import { apiErrorMessage } from '../lib/errors.ts';
 import {
@@ -20,6 +20,7 @@ import {
   type SlotMenu,
 } from '../lib/menu.ts';
 import { menuToText } from '../lib/menuFormat.ts';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
 import { FormDialog } from './FormDialog.tsx';
@@ -95,7 +96,7 @@ const toggle = (marks: MenuMark[], mark: MenuMark): MenuMark[] =>
 
 interface MenuEditorProps {
   slot: SlotDetails;
-  // Called with a short confirmation once the menu is saved.
+  // Called with a short confirmation once the menu is saved or deleted.
   onDone: (message: string) => void;
   onClose: () => void;
 }
@@ -139,6 +140,9 @@ export function MenuEditor(props: MenuEditorProps) {
 
 function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: SlotMenu | null }) {
   const save = useSaveSlotMenu();
+  const remove = useDeleteSlotMenu();
+  // While a request is on its way the dialog stays open and the menu as it is.
+  const busy = save.isPending || remove.isPending;
   const past = usePastMenus();
   const time = `${slot.startTime}–${slot.endTime}`;
   // The courses of this slot's menu; null without a menu, or for a free text sent straight to
@@ -149,18 +153,23 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   const [startFrom, setStartFrom] = useState(savedCourses ? 'saved' : 'empty');
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
-  // A pending choice that waits for the answer to "Discard your changes?".
+  // A pending choice that waits for the answer to "Discard your changes?" or "Delete this menu?".
   const [confirming, setConfirming] = useState<
-    { kind: 'close' } | { kind: 'start'; value: string } | null
+    { kind: 'close' } | { kind: 'start'; value: string } | { kind: 'delete' } | null
   >(null);
-  const keepRef = useRef<HTMLButtonElement>(null);
+  // A course or a dish that waits for the answer to "Remove this course/dish?".
+  const [removing, setRemoving] = useState<
+    | { kind: 'course'; course: CourseDraft; index: number }
+    | { kind: 'dish'; course: CourseDraft; dish: DishDraft; index: number }
+    | null
+  >(null);
+
+  // Stable, so a question does not register its Escape key again on every render.
+  const keepRemoving = useCallback(() => setRemoving(null), []);
+  const keepConfirming = useCallback(() => setConfirming(null), []);
 
   // Edits reverted to the original values do not count.
   const dirty = JSON.stringify(toCourses(courses)) !== JSON.stringify(toCourses(original));
-
-  useEffect(() => {
-    if (confirming) keepRef.current?.focus();
-  }, [confirming]);
 
   // Previous menus written with the editor; free texts cannot be opened in it.
   const others = (past.data ?? []).filter(
@@ -251,22 +260,37 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
   }
 
   const requestClose = () => {
-    if (save.isPending) return;
+    if (busy) return;
     if (dirty) setConfirming({ kind: 'close' });
     else onClose();
   };
 
-  // Escape answers the question first, then asks to close.
+  // Escape asks to close. While a question is open, Escape answers it instead (ConfirmDialog) and
+  // never gets here.
   useEffect(() => {
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape' || save.isPending) return;
-      if (confirming) setConfirming(null);
-      else if (dirty) setConfirming({ kind: 'close' });
+      if (e.key !== 'Escape' || busy || confirming) return;
+      if (dirty) setConfirming({ kind: 'close' });
       else onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [confirming, dirty, onClose, save.isPending]);
+  }, [confirming, dirty, onClose, busy]);
+
+  // The staff confirmed: the menu of this slot is deleted, hikers no longer see it.
+  function deleteMenu() {
+    setSaveError(null);
+    remove.mutate(slot.id, {
+      onSuccess: () => onDone(`Menu deleted for ${time}.`),
+      onError: (e) => {
+        setConfirming(null);
+        // 422: the slot has started meanwhile; 404: the menu or the slot is already gone.
+        setSaveError(
+          apiErrorMessage(e, 'The menu could not be deleted. Please try again.', [404, 422]),
+        );
+      },
+    });
+  }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -285,8 +309,11 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
       { slotId: slot.id, courses: menu },
       {
         onSuccess: () => onDone(`Menu saved for ${time}.`),
+        // 422: the slot has started meanwhile, its menu stays as it is.
         onError: (e) =>
-          setSaveError(apiErrorMessage(e, 'The menu could not be saved. Please try again.', [404])),
+          setSaveError(
+            apiErrorMessage(e, 'The menu could not be saved. Please try again.', [404, 422]),
+          ),
       },
     );
   }
@@ -345,7 +372,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
                 type="button"
                 className="pill pill--remove"
                 aria-label={`Remove the course ${course.name || c + 1}`}
-                onClick={() => removeCourse(course, c)}
+                onClick={() => setRemoving({ kind: 'course', course, index: c })}
               >
                 Remove
               </button>
@@ -424,7 +451,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
                     type="button"
                     className="pill pill--remove"
                     aria-label={`Remove ${dish.name || `dish ${d + 1}`}`}
-                    onClick={() => removeDish(course.key, dish, d)}
+                    onClick={() => setRemoving({ kind: 'dish', course, dish, index: d })}
                   >
                     Remove dish
                   </button>
@@ -468,43 +495,92 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
         )}
         {saveError && <ErrorNotice message={saveError} />}
 
+        {saved && (
+          <button
+            type="button"
+            className="pill pill--remove menu-editor__delete"
+            disabled={busy}
+            onClick={() => setConfirming({ kind: 'delete' })}
+          >
+            Delete menu
+          </button>
+        )}
+
         {/* Always in sight at the bottom of the dialog, also while scrolling the dishes. */}
         <div className="menu-editor__footer">
-          {confirming ? (
-            <div className="modify-dialog__discard">
-              <p className="modify-dialog__discard-title">Discard your changes?</p>
-              <div className="modify-dialog__actions">
-                <button
-                  ref={keepRef}
-                  type="button"
-                  className="modify-dialog__secondary"
-                  onClick={() => setConfirming(null)}
-                >
-                  Keep editing
-                </button>
-                <button
-                  type="button"
-                  className="modify-dialog__danger"
-                  onClick={() =>
-                    confirming.kind === 'close' ? onClose() : startWith(confirming.value)
-                  }
-                >
-                  Discard
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="modify-dialog__actions">
-              <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
-                Close
-              </button>
-              <button type="submit" className="modify-dialog__primary" disabled={save.isPending}>
-                {save.isPending ? 'Saving menu…' : 'Save menu'}
-              </button>
-            </div>
-          )}
+          <div className="modify-dialog__actions">
+            <button type="button" className="modify-dialog__secondary" onClick={requestClose}>
+              Close
+            </button>
+            <button type="submit" className="modify-dialog__primary" disabled={busy}>
+              {save.isPending ? 'Saving menu…' : 'Save menu'}
+            </button>
+          </div>
         </div>
       </form>
+
+      {/* The questions open above the editor, which cannot be used until they are answered. */}
+      {confirming?.kind === 'delete' && (
+        <ConfirmDialog
+          title="Delete this menu?"
+          text={`Hikers will no longer see a menu for ${time}.`}
+          keepLabel="Keep menu"
+          confirmLabel="Delete menu"
+          busy={remove.isPending}
+          busyLabel="Deleting menu…"
+          onKeep={keepConfirming}
+          onConfirm={deleteMenu}
+        />
+      )}
+      {(confirming?.kind === 'close' || confirming?.kind === 'start') && (
+        <ConfirmDialog
+          title="Discard your changes?"
+          text={
+            confirming.kind === 'close'
+              ? 'The changes you made to this menu will be lost.'
+              : 'The changes you made will be replaced by the menu you picked.'
+          }
+          keepLabel="Keep editing"
+          confirmLabel="Discard"
+          onKeep={keepConfirming}
+          onConfirm={() => (confirming.kind === 'close' ? onClose() : startWith(confirming.value))}
+        />
+      )}
+
+      {removing?.kind === 'course' && (
+        <ConfirmDialog
+          title="Remove this course?"
+          text={courseRemovalText(removing.course)}
+          keepLabel="Keep course"
+          confirmLabel="Remove course"
+          onKeep={keepRemoving}
+          onConfirm={() => {
+            setRemoving(null);
+            removeCourse(removing.course, removing.index);
+          }}
+        />
+      )}
+      {removing?.kind === 'dish' && (
+        <ConfirmDialog
+          title="Remove this dish?"
+          text={`${removing.dish.name.trim() || 'This dish'} will be removed from ${removing.course.name.trim() || 'the course'}.`}
+          keepLabel="Keep dish"
+          confirmLabel="Remove dish"
+          onKeep={keepRemoving}
+          onConfirm={() => {
+            setRemoving(null);
+            removeDish(removing.course.key, removing.dish, removing.index);
+          }}
+        />
+      )}
     </FormDialog>
   );
+}
+
+// "Primi and its 2 dishes will be removed from the menu."
+function courseRemovalText(course: CourseDraft): string {
+  const name = course.name.trim() || 'This course';
+  const n = course.dishes.length;
+  if (n === 0) return `${name} will be removed from the menu.`;
+  return `${name} and its ${n === 1 ? 'dish' : `${n} dishes`} will be removed from the menu.`;
 }

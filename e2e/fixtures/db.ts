@@ -132,6 +132,43 @@ export function deleteSlot(slotId: number): void {
        DELETE FROM slot_tables WHERE slot_id = ${slotId};
        DELETE FROM slots WHERE id = ${slotId};`);
 }
+const quote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
+const textArray = (items: string[]): string =>
+  items.length === 0 ? `'{}'::text[]` : `ARRAY[${items.map(quote).join(', ')}]::text[]`;
+
+// A predefined hike of the hut (MH-20), normally filled by the seed. The tests add their own,
+// with a unique destination, so they do not depend on the seed.
+export function createPredefinedHike(
+  destination: string,
+  route: string,
+  passagePoints: string[],
+): number {
+  return Number(
+    sql(`INSERT INTO predefined_hikes (destination, route, passage_points)
+         VALUES (${quote(destination)}, ${quote(route)}, ${textArray(passagePoints)}) RETURNING id;`),
+  );
+}
+
+export function deletePredefinedHike(id: number): void {
+  sql(`DELETE FROM predefined_hikes WHERE id = ${Number(id)};`);
+}
+
+// A hike of the user written straight in the database (MH-20): the API registers only hikes
+// that have not departed yet, so a past hike can only be made this way. Times are hut-local
+// timestamps, "YYYY-MM-DD HH:MM".
+export function insertHike(
+  email: string,
+  hike: { destination: string; route: string; departureAt: string; returnAt: string },
+): number {
+  return Number(
+    sql(`INSERT INTO hikes (hiker_id, destination, route, departure_at, return_at)
+         SELECT h.id, ${quote(hike.destination)}, ${quote(hike.route)},
+                TIMESTAMP ${quote(hike.departureAt)}, TIMESTAMP ${quote(hike.returnAt)}
+         FROM hikers h JOIN users u ON u.id = h.user_id WHERE u.email = ${quote(email)}
+         RETURNING id;`),
+  );
+}
+
 // Changes the role of a user in the database so they can act as staff.
 export function setUserRole(email: string, role: 'EMPLOYEE' | 'WARDEN' | 'HIKER'): void {
   const quoted = email.replaceAll("'", "''");

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiPatch, apiPost, apiPut } from './client.ts';
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client.ts';
 
 describe('API client', () => {
   afterEach(() => {
@@ -90,5 +90,19 @@ describe('API client', () => {
   it('keeps a generic error when the body is not JSON', async () => {
     answer(new Response('oops', { status: 502 }));
     await expect(apiPost('/x')).rejects.toThrow('POST /x failed with status 502');
+  });
+
+  it('sends DELETE requests and reads nothing from a 204 answer', async () => {
+    const fetchMock = answer(new Response(null, { status: 204 }));
+    await expect(apiDelete('/x/1')).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/x/1',
+      expect.objectContaining({ method: 'DELETE', body: undefined }),
+    );
+  });
+
+  it('throws ApiError on failed DELETE request', async () => {
+    answer(new Response('{"message":"Gone"}', { status: 422 }));
+    await expect(apiDelete('/x/1')).rejects.toMatchObject({ status: 422, message: 'Gone' });
   });
 });
