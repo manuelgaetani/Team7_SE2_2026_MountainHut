@@ -1,4 +1,4 @@
-import { MAX_DB_INT } from '@mountain-hut/shared';
+import { MAX_DB_INT, MENU_ERRORS } from '@mountain-hut/shared';
 import { loadAppConfig } from '../src/config/app-config.js';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
 import { TransactionContext } from '../src/infrastructure/prisma/transaction-context.js';
@@ -8,6 +8,13 @@ import { PrismaSlotsRepository } from '../src/slots/infrastructure/prisma-slots.
 import { createSlot, resetDatabase } from './integration/database.js';
 
 // Every formatting of the story: bold, italic, item list and sub items.
+// The slot of the time tests: 12:00 at the hut is 10:00 UTC in summer and 11:00 UTC in winter.
+const SUMMER_SLOT = ['2031-07-01', '12:00', '14:00'] as const;
+const SUMMER_START = new Date('2031-07-01T10:00:00.000Z');
+const WINTER_SLOT = ['2031-12-01', '12:00', '14:00'] as const;
+const WINTER_START = new Date('2031-12-01T11:00:00.000Z');
+const before = (start: Date) => new Date(start.getTime() - 1);
+
 const FORMATTED_MENU = [
   '**Dinner**',
   '- *Polenta* with cheese',
@@ -22,7 +29,7 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
   const prisma = new PrismaService(config);
   const context = new TransactionContext(prisma);
   const repo = new PrismaMenusRepository(context);
-  const service = new MenusService(repo);
+  const service = new MenusService(repo, config);
   const slots = new PrismaSlotsRepository(context);
 
   const defineMenu = (slotId: number, text: string) => service.define(slotId, { text });
@@ -110,7 +117,7 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
     it('refuses a menu for a slot that does not exist and stores nothing', async () => {
       await expect(defineMenu(999, 'Soup')).rejects.toMatchObject({
         code: 'NOT_FOUND',
-        message: 'Slot not found',
+        message: MENU_ERRORS.slotNotFound,
       });
       expect(await menuSlotIds()).toEqual([]);
     });
@@ -120,11 +127,11 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
       async (slotId) => {
         await expect(defineMenu(slotId, 'Soup')).rejects.toMatchObject({
           code: 'NOT_FOUND',
-          message: 'Slot not found',
+          message: MENU_ERRORS.slotNotFound,
         });
         await expect(service.findBySlot(slotId)).rejects.toMatchObject({
           code: 'NOT_FOUND',
-          message: 'Slot not found',
+          message: MENU_ERRORS.slotNotFound,
         });
       },
     );
@@ -134,11 +141,11 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
 
       await expect(service.findBySlot(slotId)).rejects.toMatchObject({
         code: 'NOT_FOUND',
-        message: 'This slot has no menu',
+        message: MENU_ERRORS.noMenu,
       });
       await expect(service.findBySlot(slotId + 1)).rejects.toMatchObject({
         code: 'NOT_FOUND',
-        message: 'Slot not found',
+        message: MENU_ERRORS.slotNotFound,
       });
     });
   });
@@ -165,7 +172,7 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
 
       expect(await menuSlotIds()).toEqual([other]);
       await expect(service.findBySlot(slotId)).rejects.toMatchObject({
-        message: 'Slot not found',
+        message: MENU_ERRORS.slotNotFound,
       });
     });
 
@@ -175,6 +182,76 @@ describe('Menus with PostgreSQL (integration) - MH-10', () => {
 
       await expect(repo.save(slotId, 'Soup\u0000')).rejects.toThrow();
       expect(await menuSlotIds()).toEqual([]);
+    });
+  });
+
+  describe('changing a menu only before the slot starts', () => {
+    it('accepts a change up to the last moment before the start', async () => {
+      const slotId = await createSlot(prisma, ...SUMMER_SLOT, [4]);
+      await defineMenu(slotId, 'First menu');
+
+      await service.define(slotId, { text: 'Second menu' }, before(SUMMER_START));
+
+      expect((await service.findBySlot(slotId)).text).toBe('Second menu');
+    });
+
+    it('refuses a change once the slot has started and keeps the menu as it was', async () => {
+      const slotId = await createSlot(prisma, ...SUMMER_SLOT, [4]);
+      await defineMenu(slotId, 'First menu');
+
+      await expect(
+        service.define(slotId, { text: 'Second menu' }, SUMMER_START),
+      ).rejects.toMatchObject({ code: 'UNPROCESSABLE', message: MENU_ERRORS.startedChange });
+      expect((await service.findBySlot(slotId)).text).toBe('First menu');
+    });
+
+    it('reads the start in the time of the hut in winter too (UTC+1)', async () => {
+      const slotId = await createSlot(prisma, ...WINTER_SLOT, [4]);
+
+      await service.define(slotId, { text: 'Soup' }, before(WINTER_START));
+      await expect(service.define(slotId, { text: 'Stew' }, WINTER_START)).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+      });
+      expect((await service.findBySlot(slotId)).text).toBe('Soup');
+    });
+
+    it('changing a reused menu changes only the menu of that slot', async () => {
+      const monday = await createSlot(prisma, '2031-07-07', '19:00', '21:00', [4]);
+      const tuesday = await createSlot(prisma, '2031-07-08', '19:00', '21:00', [4]);
+      await defineMenu(monday, FORMATTED_MENU);
+      await defineMenu(tuesday, FORMATTED_MENU);
+
+      await defineMenu(tuesday, `${FORMATTED_MENU}\n- Coffee`);
+
+      expect((await service.findBySlot(monday)).text).toBe(FORMATTED_MENU);
+      expect((await service.findBySlot(tuesday)).text).toBe(`${FORMATTED_MENU}\n- Coffee`);
+    });
+  });
+
+  describe('deleting a menu', () => {
+    it('deletes the menu of a future slot, not the same menu of other slots', async () => {
+      const monday = await createSlot(prisma, '2031-07-07', '19:00', '21:00', [4]);
+      const tuesday = await createSlot(prisma, '2031-07-08', '19:00', '21:00', [4]);
+      await defineMenu(monday, 'Weekly menu');
+      await defineMenu(tuesday, 'Weekly menu');
+
+      await service.remove(tuesday);
+
+      expect(await menuSlotIds()).toEqual([monday]);
+      await expect(service.findBySlot(tuesday)).rejects.toMatchObject({
+        message: MENU_ERRORS.noMenu,
+      });
+    });
+
+    it('refuses to delete the menu once the slot has started and keeps it', async () => {
+      const slotId = await createSlot(prisma, ...SUMMER_SLOT, [4]);
+      await defineMenu(slotId, 'Soup');
+
+      await expect(service.remove(slotId, SUMMER_START)).rejects.toMatchObject({
+        code: 'UNPROCESSABLE',
+        message: MENU_ERRORS.startedDelete,
+      });
+      expect((await service.findBySlot(slotId)).text).toBe('Soup');
     });
   });
 

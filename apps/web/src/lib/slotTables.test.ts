@@ -66,6 +66,19 @@ describe('toTablesSource', () => {
     });
   });
 
+  it.each([
+    ['50', true],
+    ['51', false],
+  ])('accepts table numbers up to 50: "%s"', (tableNumber, ok) => {
+    expect(toTablesSource(list(rows([tableNumber, '4']))).ok).toBe(ok);
+    if (!ok) {
+      expect(toTablesSource(list(rows([tableNumber, '4'])))).toEqual({
+        ok: false,
+        error: 'Table numbers go from 1 to 50.',
+      });
+    }
+  });
+
   it('asks for at least one table when the list is empty', () => {
     expect(toTablesSource(list([]))).toEqual({ ok: false, error: 'Add at least one table.' });
   });
@@ -79,6 +92,15 @@ describe('nextTableNumber', () => {
 
   it('ignores a number that is not a valid integer', () => {
     expect(nextTableNumber(rows(['abc', '']))).toBe('1');
+  });
+
+  it('after table 50, takes the first number left free in between', () => {
+    expect(nextTableNumber(rows(['1', ''], ['3', ''], ['50', '']))).toBe('2');
+  });
+
+  it('after table 50 with every number taken, goes past the limit', () => {
+    const all = Array.from({ length: 50 }, (_, i): [string, string] => [String(i + 1), '']);
+    expect(nextTableNumber(rows(...all))).toBe('51');
   });
 });
 
