@@ -1,6 +1,12 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PredefinedHike, RegisteredHike } from '@mountain-hut/shared';
+import {
+  MAX_HIKE_DESTINATION_LENGTH,
+  MAX_HIKE_PASSAGE_POINT_LENGTH,
+  MAX_HIKE_ROUTE_LENGTH,
+  type PredefinedHike,
+  type RegisteredHike,
+} from '@mountain-hut/shared';
 import { json, renderAt, sentBody, stubApi, user } from '../test/app.tsx';
 
 const TEXT = {
@@ -28,6 +34,10 @@ const TEXT = {
   departurePast: 'The planned departure must be in the future.',
   pointEmpty: 'Enter the name of the place, or remove this passage point.',
   pointRemoved: 'Passage point removed.',
+  destinationTooLong: `Use at most ${MAX_HIKE_DESTINATION_LENGTH} characters.`,
+  routeTooLong: `Use at most ${MAX_HIKE_ROUTE_LENGTH} characters.`,
+  pointTooLong: `Use at most ${MAX_HIKE_PASSAGE_POINT_LENGTH} characters.`,
+  awayFor: 'Away for',
   undo: 'Undo',
   registered: 'Hike registered: Monte Vettore, Friday 27 November 2026 at 08:00.',
   viewMine: 'View my hikes',
@@ -107,6 +117,14 @@ function fillWhen({
   type(TEXT.departureTime, departureTime);
   if (returnDay) pickDate(TEXT.returnDate, returnDay);
   type(TEXT.returnTime, returnTime);
+}
+
+// The "Away for" row of the recap, or null when the recap leaves it out.
+const awayFor = (): HTMLElement | null => screen.queryByText(TEXT.awayFor)?.closest('div') ?? null;
+
+function fillWhere(destination = 'Monte Vettore', route = 'From Forca di Presta') {
+  type(TEXT.destination, destination);
+  type(TEXT.route, route);
 }
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: TEXT.submit }));
@@ -312,6 +330,178 @@ describe('RegisterHikePage (MH-20)', () => {
       await waitFor(() =>
         expect(screen.queryByRole('button', { name: TEXT.undo })).not.toBeInTheDocument(),
       );
+    });
+
+    it('refuses a destination one character over the limit and sends nothing', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere('a'.repeat(MAX_HIKE_DESTINATION_LENGTH + 1));
+      fillWhen();
+      submit();
+      expect(screen.getByText(TEXT.destinationTooLong)).toBeInTheDocument();
+      expect(screen.getByLabelText(TEXT.destination)).toHaveAttribute('aria-invalid', 'true');
+      expect(posts(fetchMock)).toHaveLength(0);
+    });
+
+    it('refuses a route one character over the limit and sends nothing', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere('Monte Vettore', 'r'.repeat(MAX_HIKE_ROUTE_LENGTH + 1));
+      fillWhen();
+      submit();
+      expect(screen.getByText(TEXT.routeTooLong)).toBeInTheDocument();
+      expect(screen.getByLabelText(TEXT.route)).toHaveAttribute('aria-invalid', 'true');
+      expect(posts(fetchMock)).toHaveLength(0);
+    });
+
+    it('refuses a passage point one character over the limit and sends nothing', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      type('Passage point 1', 'p'.repeat(MAX_HIKE_PASSAGE_POINT_LENGTH + 1));
+      fillWhen();
+      submit();
+      expect(screen.getByText(TEXT.pointTooLong)).toBeInTheDocument();
+      expect(screen.getByLabelText('Passage point 1')).toHaveAttribute('aria-invalid', 'true');
+      expect(posts(fetchMock)).toHaveLength(0);
+    });
+
+    it('accepts destination, route and passage point exactly at their limits', async () => {
+      const fetchMock = stub();
+      await openPage();
+      const destination = 'a'.repeat(MAX_HIKE_DESTINATION_LENGTH);
+      const route = 'r'.repeat(MAX_HIKE_ROUTE_LENGTH);
+      const point = 'p'.repeat(MAX_HIKE_PASSAGE_POINT_LENGTH);
+      fillWhere(destination, route);
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      type('Passage point 1', point);
+      fillWhen();
+      submit();
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      expect(sentBody(fetchMock, HIKES_URL)).toMatchObject({
+        destination,
+        route,
+        passagePoints: [point],
+      });
+    });
+
+    it('moves the return date forward when the departure is moved after it', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere();
+      pickDate(TEXT.departureDate, 'Fri 27 Nov');
+      pickDate(TEXT.returnDate, 'Sat 28 Nov');
+      pickDate(TEXT.departureDate, 'Sun 29 Nov');
+      type(TEXT.departureTime, '08:00');
+      type(TEXT.returnTime, '17:00');
+      submit();
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      expect(sentBody(fetchMock, HIKES_URL)).toMatchObject({
+        departureDate: '2026-11-29',
+        returnDate: '2026-11-29',
+      });
+    });
+
+    it('keeps a later return date when the departure is moved before it', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere();
+      pickDate(TEXT.departureDate, 'Fri 27 Nov');
+      pickDate(TEXT.returnDate, 'Sun 29 Nov');
+      pickDate(TEXT.departureDate, 'Sat 28 Nov');
+      type(TEXT.departureTime, '08:00');
+      type(TEXT.returnTime, '17:00');
+      submit();
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      expect(sentBody(fetchMock, HIKES_URL)).toMatchObject({
+        departureDate: '2026-11-28',
+        returnDate: '2026-11-29',
+      });
+    });
+  });
+
+  describe('passage points', () => {
+    it('sends the passage points typed by hand, trimmed, in their order', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fillWhere();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      type('Passage point 1', ' Viso Mozzo ');
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addAnotherPoint }));
+      type('Passage point 2', 'Lago Chiaretto');
+      fillWhen();
+      submit();
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      expect(sentBody(fetchMock, HIKES_URL)).toMatchObject({
+        passagePoints: ['Viso Mozzo', 'Lago Chiaretto'],
+      });
+    });
+
+    it('changes only the edited passage point of a predefined hike', async () => {
+      const fetchMock = stub();
+      await openPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Monte Vettore/ }));
+      type('Passage point 2', 'Rifugio Zilioli');
+      expect(screen.getByLabelText('Passage point 1')).toHaveValue('Forca di Presta');
+      fillWhen();
+      submit();
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      expect(sentBody(fetchMock, HIKES_URL)).toMatchObject({
+        passagePoints: ['Forca di Presta', 'Rifugio Zilioli'],
+        predefinedHikeId: vettore.id,
+      });
+    });
+
+    it('puts the focus on the passage point just added', async () => {
+      stub();
+      await openPage();
+      fireEvent.click(screen.getByRole('button', { name: TEXT.addPoint }));
+      expect(screen.getByLabelText('Passage point 1')).toHaveFocus();
+    });
+  });
+
+  describe('recap', () => {
+    it('shows how long a day hike keeps the hiker away, in hours and minutes', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnTime: '10:30' });
+      expect(awayFor()).toHaveTextContent('2 h 30 min');
+    });
+
+    it('leaves out the minutes of a hike that lasts whole hours', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnTime: '17:00' });
+      expect(awayFor()).toHaveTextContent(/^Away for9 h$/);
+    });
+
+    it('counts the days of a hike that ends on a later day', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnDay: 'Sat 28 Nov', returnTime: '12:00' });
+      expect(awayFor()).toHaveTextContent('1 day 4 h');
+    });
+
+    it('uses the plural for two days or more', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnDay: 'Sun 29 Nov', returnTime: '08:15' });
+      expect(awayFor()).toHaveTextContent('2 days 15 min');
+    });
+
+    it('leaves out the duration while the return is not after the departure', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnTime: '08:00' });
+      expect(awayFor()).toBeNull();
+    });
+
+    it('leaves out the duration until both times are complete', async () => {
+      stub();
+      await openPage();
+      fillWhen({ departureTime: '08:00', returnTime: '' });
+      expect(awayFor()).toBeNull();
     });
   });
 
