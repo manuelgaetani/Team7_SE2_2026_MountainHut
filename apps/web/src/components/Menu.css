@@ -215,6 +215,8 @@
   display: grid;
   justify-items: end;
   gap: 2px;
+  /* The same space under the menu line as under the time, before the buttons. */
+  margin-bottom: 16px;
 }
 .schedule__menu-meta {
   white-space: nowrap;

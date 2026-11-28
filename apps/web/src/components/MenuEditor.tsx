@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { defineMenuSchema } from '@mountain-hut/shared';
 import type { SlotDetails } from '../api/slots.ts';
 import { useDeleteSlotMenu, usePastMenus, useSaveSlotMenu, useSlotMenu } from '../api/useMenus.ts';
@@ -20,6 +20,7 @@ import {
   type SlotMenu,
 } from '../lib/menu.ts';
 import { menuToText } from '../lib/menuFormat.ts';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { FormField } from './FormField.tsx';
 import { FormDialog } from './FormDialog.tsx';
@@ -157,6 +158,15 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
     { kind: 'close' } | { kind: 'start'; value: string } | { kind: 'delete' } | null
   >(null);
   const keepRef = useRef<HTMLButtonElement>(null);
+  // A course or a dish that waits for the answer to "Remove this course/dish?".
+  const [removing, setRemoving] = useState<
+    | { kind: 'course'; course: CourseDraft; index: number }
+    | { kind: 'dish'; course: CourseDraft; dish: DishDraft; index: number }
+    | null
+  >(null);
+
+  // Stable, so the question does not register its Escape key again on every render.
+  const keepRemoving = useCallback(() => setRemoving(null), []);
 
   // Edits reverted to the original values do not count.
   const dirty = JSON.stringify(toCourses(courses)) !== JSON.stringify(toCourses(original));
@@ -366,7 +376,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
                 type="button"
                 className="pill pill--remove"
                 aria-label={`Remove the course ${course.name || c + 1}`}
-                onClick={() => removeCourse(course, c)}
+                onClick={() => setRemoving({ kind: 'course', course, index: c })}
               >
                 Remove
               </button>
@@ -445,7 +455,7 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
                     type="button"
                     className="pill pill--remove"
                     aria-label={`Remove ${dish.name || `dish ${d + 1}`}`}
-                    onClick={() => removeDish(course.key, dish, d)}
+                    onClick={() => setRemoving({ kind: 'dish', course, dish, index: d })}
                   >
                     Remove dish
                   </button>
@@ -561,6 +571,41 @@ function MenuForm({ slot, saved, onDone, onClose }: MenuEditorProps & { saved: S
           )}
         </div>
       </form>
+
+      {removing?.kind === 'course' && (
+        <ConfirmDialog
+          title="Remove this course?"
+          text={courseRemovalText(removing.course)}
+          keepLabel="Keep course"
+          confirmLabel="Remove course"
+          onKeep={keepRemoving}
+          onConfirm={() => {
+            setRemoving(null);
+            removeCourse(removing.course, removing.index);
+          }}
+        />
+      )}
+      {removing?.kind === 'dish' && (
+        <ConfirmDialog
+          title="Remove this dish?"
+          text={`${removing.dish.name.trim() || 'This dish'} will be removed from ${removing.course.name.trim() || 'the course'}.`}
+          keepLabel="Keep dish"
+          confirmLabel="Remove dish"
+          onKeep={keepRemoving}
+          onConfirm={() => {
+            setRemoving(null);
+            removeDish(removing.course.key, removing.dish, removing.index);
+          }}
+        />
+      )}
     </FormDialog>
   );
+}
+
+// "Primi and its 2 dishes will be removed from the menu."
+function courseRemovalText(course: CourseDraft): string {
+  const name = course.name.trim() || 'This course';
+  const n = course.dishes.length;
+  if (n === 0) return `${name} will be removed from the menu.`;
+  return `${name} and its ${n === 1 ? 'dish' : `${n} dishes`} will be removed from the menu.`;
 }
