@@ -215,6 +215,8 @@
   display: grid;
   justify-items: end;
   gap: 2px;
+  /* The same space under the menu line as under the time, before the buttons. */
+  margin-bottom: 16px;
 }
 .schedule__menu-meta {
   white-space: nowrap;
@@ -401,6 +403,10 @@
 }
 .menu-editor__footer .modify-dialog__actions {
   margin-top: 0;
+}
+/* MH-10: deleting the menu is apart from the buttons that save or close it. */
+.menu-editor__delete {
+  justify-self: start;
 }
 @media (max-width: 600px) {
   .menu-editor__footer {
