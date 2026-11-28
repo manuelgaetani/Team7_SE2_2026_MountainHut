@@ -174,7 +174,13 @@ test.describe('MH-20 UI: Register a hike', () => {
 
       await tile.click();
       await page.getByLabel('Route *').fill('From Frontignano, back via Pizzo Tre Vescovi');
+      // Removing asks first, in a popup.
       await page.getByRole('button', { name: 'Remove passage point 2' }).click();
+      const question = page.getByRole('alertdialog', { name: 'Remove this passage point?' });
+      await expect(question).toContainText('Forcella Angagnola will be removed from the hike.');
+      await question.getByRole('button', { name: 'Remove', exact: true }).click();
+      await expect(question).toHaveCount(0);
+      await expect(page.getByLabel('Passage point 2', { exact: true })).toHaveCount(0);
       await fillWhen(page, soonDay(), '07:30', '15:00');
       await page.getByRole('button', { name: 'Register the hike' }).click();
       await expect(page.getByText(`Hike registered: ${destination},`)).toBeVisible();
@@ -199,7 +205,12 @@ test.describe('MH-20 UI: Register a hike', () => {
     await signIn(page, registeredUser);
     await page.goto('/hikes/new');
 
+    const fixFields = page.getByText('Some fields need a fix: see the messages in the form.');
+    await expect(fixFields).toHaveCount(0);
     await page.getByRole('button', { name: 'Register the hike' }).click();
+    // Under the button, and the first field to fix takes the focus.
+    await expect(fixFields).toBeVisible();
+    await expect(page.getByLabel('Destination *')).toBeFocused();
     await expect(page.getByText('Enter the destination of the hike.')).toBeVisible();
     await expect(page.getByText('Describe the route you will take.')).toBeVisible();
     await expect(page.getByText('Choose the departure date.')).toBeVisible();
